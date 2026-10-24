@@ -3,13 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenRecon | EASM, DRP & Threat Exposure Platform</title>
+    <title>OpenRecon | EASM, DRP, CTI & Attack Surface Graph</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Vis.js Network for Attack Surface Topology Graph -->
+    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -39,6 +41,11 @@
         }
         .font-mono {
             font-family: 'JetBrains Mono', monospace;
+        }
+        #network-canvas {
+            width: 100%;
+            height: 600px;
+            background: radial-gradient(circle at center, #0f172a 0%, #07090e 100%);
         }
         @media print {
             body {
@@ -74,9 +81,9 @@
                 <div>
                     <div class="flex items-center gap-2">
                         <span class="font-extrabold text-lg tracking-tight text-white">Open<span class="text-cyan-400">Recon</span></span>
-                        <span class="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-purple-950 text-purple-400 border border-purple-800/60 rounded">Fase 3: EASM + DRP + CTI Dark Web</span>
+                        <span class="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-cyan-950 text-cyan-400 border border-cyan-800/60 rounded">Fase 4: Grafo & Scoring</span>
                     </div>
-                    <p class="text-[11px] text-slate-400">Alternativa Abierta a FortiRecon, Recorded Future & CrowdStrike FEM</p>
+                    <p class="text-[11px] text-slate-400">Alternativa Abierta a FortiRecon, Cortex Xpanse & Recorded Future</p>
                 </div>
             </div>
 
@@ -130,18 +137,18 @@
                             Calculando...
                         </div>
                         <p class="text-xs text-slate-400 leading-relaxed">
-                            Métrica basada en puertos de riesgo, desconfiguraciones, fugas de secretos y menciones en la Dark Web.
+                            Métrica ponderada según criticidad, desconfiguraciones activas y resolución de vulnerabilidades.
                         </p>
                     </div>
                 </div>
 
                 <div class="pt-4 border-t border-cyber-border text-[11px] text-slate-400 flex items-center justify-between">
                     <span>Evaluación perimetral continua</span>
-                    <span class="text-cyan-400 font-mono">MITRE ATT&CK & CTI</span>
+                    <span class="text-cyan-400 font-mono">MITRE ATT&CK & EPSS</span>
                 </div>
             </div>
 
-            <!-- Key Metric Counters (Fase 3 Expanded) -->
+            <!-- Key Metric Counters (Fase 4 Expanded) -->
             <div class="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
                 
                 <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition">
@@ -193,13 +200,17 @@
 
         <!-- Navigation Tabs -->
         <div class="flex items-center gap-2 border-b border-cyber-border overflow-x-auto pb-1 text-sm font-medium no-print">
-            <button onclick="switchTab('easm')" id="tab-btn-easm" class="tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition">
+            <button onclick="switchTab('graph')" id="tab-btn-graph" class="tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition">
+                <i class="fa-solid fa-diagram-project text-cyan-400"></i>
+                Topología de Ataque (Grafo)
+            </button>
+            <button onclick="switchTab('easm')" id="tab-btn-easm" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-globe"></i>
                 Superficie de Ataque (EASM)
             </button>
             <button onclick="switchTab('vulns')" id="tab-btn-vulns" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-shield-virus"></i>
-                Exposición y Brechas
+                Exposición y Remediación
             </button>
             <button onclick="switchTab('drp')" id="tab-btn-drp" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-masks-theater"></i>
@@ -207,7 +218,7 @@
             </button>
             <button onclick="switchTab('leaks')" id="tab-btn-leaks" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-key text-amber-400"></i>
-                Fugas de Credenciales y Secretos
+                Fugas y Secretos
             </button>
             <button onclick="switchTab('cti')" id="tab-btn-cti" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-user-ninja text-purple-400"></i>
@@ -219,8 +230,66 @@
             </button>
         </div>
 
+        <!-- TAB CONTENT: ATTACK SURFACE TOPOLOGY GRAPH (Fase 4) -->
+        <section id="tab-content-graph" class="space-y-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-diagram-project text-cyan-400"></i>
+                        Grafo de Topología y Relaciones Perimetrales
+                    </h3>
+                    <p class="text-xs text-slate-400">Mapeo visual de relaciones: [Organización] ➔ [Subdominios] ➔ [IPs / Proveedores] ➔ [Puertos] ➔ [Vulnerabilidades].</p>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs">
+                    <button onclick="loadGraph()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-cyber-border flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Centrar Grafo</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Legend Bar -->
+            <div class="flex flex-wrap items-center gap-4 p-3 bg-cyber-card border border-cyber-border rounded-xl text-xs font-mono">
+                <span class="text-slate-400 font-sans font-semibold">Leyenda de Nodos:</span>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-sm bg-cyan-500 inline-block"></span>
+                    <span class="text-slate-300">Organización (Semilla)</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-full bg-sky-400 inline-block"></span>
+                    <span class="text-slate-300">Subdominio</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-sm bg-slate-600 inline-block"></span>
+                    <span class="text-slate-300">Dirección IP / Cloud</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                    <span class="text-slate-300">Puerto Seguro</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
+                    <span class="text-slate-300">Puerto Crítico</span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="w-3 h-3 border-b-2 border-rose-500 inline-block"></span>
+                    <span class="text-rose-400 font-bold">Vulnerabilidad Crítica</span>
+                </div>
+            </div>
+
+            <!-- Interactive Graph Container -->
+            <div class="relative bg-cyber-card border border-cyber-border rounded-2xl overflow-hidden shadow-2xl">
+                <div id="network-canvas"></div>
+                <div id="graph-loading" class="absolute inset-0 bg-cyber-dark/80 backdrop-blur-sm flex flex-col items-center justify-center text-cyan-400 gap-3">
+                    <i class="fa-solid fa-circle-nodes fa-spin text-4xl"></i>
+                    <span class="text-sm font-mono font-medium text-white">Calculando física y topología del grafo...</span>
+                </div>
+            </div>
+        </section>
+
         <!-- TAB CONTENT: EASM (Assets) -->
-        <section id="tab-content-easm" class="space-y-4">
+        <section id="tab-content-easm" class="space-y-4 hidden">
             <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2">
                     <i class="fa-solid fa-server text-cyan-400"></i>
@@ -258,14 +327,16 @@
             </div>
         </section>
 
-        <!-- TAB CONTENT: Vulnerabilities & Exposures -->
+        <!-- TAB CONTENT: Vulnerabilities & Exposures (With Remediation Workflow) -->
         <section id="tab-content-vulns" class="space-y-4 hidden">
-            <div>
-                <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-bug text-rose-400"></i>
-                    Hallazgos de Exposición y Servicios Críticos
-                </h3>
-                <p class="text-xs text-slate-400">Puertos de administración o bases de datos expuestos directamente al tráfico de Internet.</p>
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-bug text-rose-400"></i>
+                        Hallazgos de Exposición y Ciclo de Remediación
+                    </h3>
+                    <p class="text-xs text-slate-400">Gestiona y mitiga los hallazgos perimetrales. Al marcar un hallazgo como "Mitigado", se recupera la puntuación de exposición.</p>
+                </div>
             </div>
 
             <div id="vulns-container" class="space-y-4">
@@ -338,10 +409,8 @@
             </div>
         </section>
 
-        <!-- TAB CONTENT: CTI & Dark Web Intelligence (Fase 3) -->
+        <!-- TAB CONTENT: CTI & Dark Web Intelligence -->
         <section id="tab-content-cti" class="space-y-6 hidden">
-            
-            <!-- Ransomware Leak Watchdog -->
             <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
                 <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
                     <div>
@@ -352,7 +421,7 @@
                                 Dark Web Ransomware Leak Watchdog (Blogs de Extorsión)
                             </h3>
                         </div>
-                        <p class="text-xs text-slate-400 mt-1">Rastreo de sitios de fuga en la red Tor operados por sindicatos de ransomware (LockBit, BlackBasta, Akira, Play, etc.).</p>
+                        <p class="text-xs text-slate-400 mt-1">Rastreo de sitios de fuga en la red Tor operados por sindicatos de ransomware.</p>
                     </div>
 
                     <div id="ransom-alert-badge" class="px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-400 border border-emerald-800/60 text-xs font-bold flex items-center gap-2">
@@ -371,34 +440,28 @@
                                 <th class="p-4 text-center">Estado de Alerta</th>
                             </tr>
                         </thead>
-                        <tbody id="ransomware-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
-                            <!-- Dynamically loaded -->
-                        </tbody>
+                        <tbody id="ransomware-table-body" class="divide-y divide-cyber-border/60 text-slate-300"></tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- Threat Actors Intelligence Catalog -->
+            <!-- Threat Actors -->
             <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2 mb-1">
                     <i class="fa-solid fa-user-secret text-rose-400"></i>
                     Perfiles de Actores de Amenaza y TTPs (MITRE ATT&CK)
                 </h3>
                 <p class="text-xs text-slate-400 mb-6">Tácticas, técnicas y vectores de acceso inicial utilizados por los grupos que atacan tu sector.</p>
-
-                <div id="actors-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <!-- Dynamically loaded -->
-                </div>
+                <div id="actors-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
             </div>
 
-            <!-- Botnet C2 Threat Feeds -->
+            <!-- Botnet IOCs -->
             <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
                 <h3 class="text-lg font-bold text-white flex items-center gap-2 mb-1">
                     <i class="fa-solid fa-spider text-cyan-400"></i>
                     Indicadores de Compromiso (IOCs) - Servidores C2 Activos
                 </h3>
-                <p class="text-xs text-slate-400 mb-4">Feed en tiempo real de nodos de comando y control (Feodo Tracker / Abuse.ch) para verificación de bloqueo perimetral.</p>
-
+                <p class="text-xs text-slate-400 mb-4">Feed en tiempo real de nodos de comando y control (Feodo Tracker / Abuse.ch).</p>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-cyber-border">
@@ -410,13 +473,10 @@
                                 <th class="p-4 text-center">Estado</th>
                             </tr>
                         </thead>
-                        <tbody id="iocs-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
-                            <!-- Dynamically loaded -->
-                        </tbody>
+                        <tbody id="iocs-table-body" class="divide-y divide-cyber-border/60 text-slate-300"></tbody>
                     </table>
                 </div>
             </div>
-
         </section>
 
         <!-- TAB CONTENT: Seeds Configuration -->
@@ -498,6 +558,7 @@
     <script>
         const API_URL = 'api.php';
         let globalAssets = [];
+        let networkInstance = null;
 
         async function init() {
             await Promise.all([
@@ -507,7 +568,8 @@
                 loadDrp(),
                 loadLeaks(),
                 loadCti(),
-                loadSeeds()
+                loadSeeds(),
+                loadGraph()
             ]);
         }
 
@@ -542,10 +604,14 @@
                 activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
             }
 
-            ['easm', 'vulns', 'drp', 'leaks', 'cti', 'seeds'].forEach(t => {
+            ['graph', 'easm', 'vulns', 'drp', 'leaks', 'cti', 'seeds'].forEach(t => {
                 const el = document.getElementById(`tab-content-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tabId);
             });
+
+            if (tabId === 'graph' && networkInstance) {
+                setTimeout(() => { networkInstance.fit(); }, 100);
+            }
         }
 
         // Load Stats
@@ -585,7 +651,6 @@
                 document.getElementById('stat-cti').innerText = (data.ransomware_total || 0) + (data.threat_iocs || 0);
                 document.getElementById('stat-cti-info').innerText = `${data.ransomware_total || 0} fugas / ${data.threat_iocs || 0} C2s`;
 
-                // Ransomware matched check
                 const ransomBadge = document.getElementById('ransom-alert-badge');
                 if (data.ransomware_matched > 0) {
                     ransomBadge.className = 'px-3 py-1.5 rounded-xl bg-rose-950 text-rose-400 border border-rose-800/80 text-xs font-bold flex items-center gap-2 animate-bounce';
@@ -594,6 +659,60 @@
 
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        // Load Vis.js Topology Graph (Fase 4)
+        async function loadGraph() {
+            const loading = document.getElementById('graph-loading');
+            loading.classList.remove('hidden');
+
+            try {
+                const res = await fetch(`${API_URL}?action=get_graph_data`);
+                const graphData = await res.json();
+
+                const container = document.getElementById('network-canvas');
+                const data = {
+                    nodes: new vis.DataSet(graphData.nodes),
+                    edges: new vis.DataSet(graphData.edges)
+                };
+
+                const options = {
+                    physics: {
+                        stabilization: { iterations: 120 },
+                        barnesHut: {
+                            gravitationalConstant: -3500,
+                            centralGravity: 0.35,
+                            springLength: 95,
+                            springConstant: 0.04
+                        }
+                    },
+                    interaction: {
+                        hover: true,
+                        tooltipDelay: 100,
+                        zoomView: true
+                    }
+                };
+
+                if (networkInstance) {
+                    networkInstance.destroy();
+                }
+                networkInstance = new vis.Network(container, data, options);
+
+                networkInstance.on("stabilizationIterationsDone", function () {
+                    loading.classList.add('hidden');
+                });
+
+                networkInstance.on("click", function (params) {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        console.log("Nodo seleccionado:", nodeId);
+                    }
+                });
+
+            } catch (err) {
+                console.error("Error al cargar grafo de ataque:", err);
+                loading.classList.add('hidden');
             }
         }
 
@@ -659,7 +778,7 @@
             }).join('');
         }
 
-        // Load Vulnerabilities
+        // Load Vulnerabilities & Exposures with Remediation Lifecycle (Fase 4)
         async function loadVulns() {
             try {
                 const res = await fetch(`${API_URL}?action=get_vulnerabilities`);
@@ -682,23 +801,42 @@
                     if (v.severity === 'HIGH') badgeColor = 'bg-orange-950 text-orange-400 border-orange-800';
                     if (v.severity === 'MEDIUM') badgeColor = 'bg-amber-950 text-amber-400 border-amber-800';
 
+                    const currentStatus = v.status || 'OPEN';
+                    const isResolved = currentStatus === 'RESOLVED';
+                    const isInProgress = currentStatus === 'IN_PROGRESS';
+
                     return `
-                        <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 hover:border-slate-700 transition">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                        <div class="bg-cyber-card border ${isResolved ? 'border-emerald-800/50 bg-emerald-950/10' : 'border-cyber-border'} rounded-2xl p-5 hover:border-slate-700 transition">
+                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
                                 <div class="flex items-center gap-2">
                                     <span class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${badgeColor}">${v.severity}</span>
-                                    <h4 class="font-bold text-white text-sm">${v.title}</h4>
+                                    <h4 class="font-bold ${isResolved ? 'text-slate-400 line-through' : 'text-white'} text-sm">${v.title}</h4>
                                 </div>
-                                <span class="font-mono text-xs text-cyan-400 bg-slate-900 px-2 py-1 rounded border border-cyber-border">
-                                    Activo: ${v.asset_subdomain}
-                                </span>
+
+                                <!-- Remediation Workflow Dropdown -->
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[11px] text-slate-400 font-medium">Estado:</span>
+                                    <select onchange="handleStatusChange(${v.id}, this.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold border ${isResolved ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : (isInProgress ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-slate-900 text-rose-300 border-rose-800')} focus:outline-none">
+                                        <option value="OPEN" ${currentStatus === 'OPEN' ? 'selected' : ''}>🔴 Abierto</option>
+                                        <option value="IN_PROGRESS" ${currentStatus === 'IN_PROGRESS' ? 'selected' : ''}>🟡 En Remediación</option>
+                                        <option value="RESOLVED" ${currentStatus === 'RESOLVED' ? 'selected' : ''}>🟢 Mitigado / Resuelto</option>
+                                        <option value="FALSE_POSITIVE" ${currentStatus === 'FALSE_POSITIVE' ? 'selected' : ''}>⚪ Falso Positivo</option>
+                                    </select>
+                                </div>
                             </div>
+
                             <p class="text-xs text-slate-300 leading-relaxed mb-3">${v.description}</p>
-                            <div class="p-3 bg-slate-900/80 rounded-xl border border-cyber-border text-xs">
-                                <div class="flex items-center gap-1.5 text-emerald-400 font-bold mb-1">
-                                    <i class="fa-solid fa-wrench"></i> Remediación Sugerida:
+                            
+                            <div class="p-3 bg-slate-900/80 rounded-xl border border-cyber-border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <div>
+                                    <div class="flex items-center gap-1.5 text-emerald-400 font-bold mb-0.5">
+                                        <i class="fa-solid fa-wrench"></i> Remediación Sugerida:
+                                    </div>
+                                    <p class="text-slate-400 text-[11px]">${v.remediation}</p>
                                 </div>
-                                <p class="text-slate-400 text-[11px] leading-relaxed">${v.remediation}</p>
+                                <span class="font-mono text-xs text-cyan-400 bg-slate-950 px-2 py-1 rounded border border-cyber-border whitespace-nowrap">
+                                    ${v.asset_subdomain}
+                                </span>
                             </div>
                         </div>
                     `;
@@ -706,6 +844,25 @@
 
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        async function handleStatusChange(vulnId, newStatus) {
+            const form = new FormData();
+            form.append('id', vulnId);
+            form.append('status', newStatus);
+
+            try {
+                const res = await fetch(`${API_URL}?action=update_vuln_status`, { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`Estado del hallazgo actualizado a ${newStatus}`);
+                    await Promise.all([loadStats(), loadVulns(), loadGraph()]);
+                } else {
+                    showToast('Error actualizando estado', true);
+                }
+            } catch (err) {
+                showToast('Fallo de conexión al actualizar hallazgo', true);
             }
         }
 
@@ -811,10 +968,9 @@
             }
         }
 
-        // Load CTI & Dark Web (Fase 3)
+        // Load CTI & Dark Web
         async function loadCti() {
             try {
-                // 1. Ransomware Leaks
                 const resR = await fetch(`${API_URL}?action=get_ransomware_leaks`);
                 const leaks = await resR.json();
                 const tbodyR = document.getElementById('ransomware-table-body');
@@ -841,7 +997,6 @@
                     }).join('');
                 }
 
-                // 2. Threat Actors
                 const resAct = await fetch(`${API_URL}?action=get_threat_actors`);
                 const actors = await resAct.json();
                 const containerAct = document.getElementById('actors-container');
@@ -869,7 +1024,6 @@
                     </div>
                 `).join('');
 
-                // 3. Botnet IOCs
                 const resIoc = await fetch(`${API_URL}?action=get_threat_iocs`);
                 const iocs = await resIoc.json();
                 const tbodyIoc = document.getElementById('iocs-table-body');
@@ -991,7 +1145,7 @@
                 if (data.success) {
                     domainInput.value = '';
                     showToast(`Semilla ${domain} agregada exitosamente`);
-                    await loadSeeds();
+                    await Promise.all([loadSeeds(), loadGraph()]);
                 } else {
                     showToast(data.error || 'Error al agregar', true);
                 }
@@ -1010,7 +1164,7 @@
                 const data = await res.json();
                 if (data.success) {
                     showToast('Semilla eliminada');
-                    await loadSeeds();
+                    await Promise.all([loadSeeds(), loadGraph()]);
                 }
             } catch (err) {
                 showToast('Error de conexión', true);

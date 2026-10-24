@@ -51,6 +51,8 @@ try {
             severity TEXT NOT NULL,
             description TEXT,
             remediation TEXT,
+            status TEXT DEFAULT 'OPEN',
+            mitigation_notes TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -62,6 +64,7 @@ try {
             has_mx INTEGER DEFAULT 0,
             severity TEXT NOT NULL,
             details TEXT,
+            status TEXT DEFAULT 'OPEN',
             detected_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -120,6 +123,17 @@ try {
         );
     ");
 
+    // Add status & notes columns to existing tables if missing
+    try {
+        $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN status TEXT DEFAULT 'OPEN'");
+    } catch (Exception $e) {}
+    try {
+        $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN mitigation_notes TEXT");
+    } catch (Exception $e) {}
+    try {
+        $pdo->exec("ALTER TABLE drp_threats ADD COLUMN status TEXT DEFAULT 'OPEN'");
+    } catch (Exception $e) {}
+
     // Add default seed if empty
     $seedCount = $pdo->query("SELECT COUNT(*) FROM seeds")->fetchColumn();
     if ($seedCount == 0) {
@@ -127,7 +141,7 @@ try {
         $stmt->execute(['fortinet.com']);
     }
 
-    // Populate Threat Actors Intelligence Catalog if empty
+    // Populate Threat Actors if empty
     $actorCount = $pdo->query("SELECT COUNT(*) FROM threat_actors")->fetchColumn();
     if ($actorCount == 0) {
         $actors = [
@@ -205,6 +219,9 @@ switch ($action) {
     case 'get_vulnerabilities':
         getVulnerabilities($pdo);
         break;
+    case 'update_vuln_status':
+        updateVulnStatus($pdo);
+        break;
     case 'get_drp':
         getDrpThreats($pdo);
         break;
@@ -222,6 +239,9 @@ switch ($action) {
         break;
     case 'get_threat_actors':
         getThreatActors($pdo);
+        break;
+    case 'get_graph_data':
+        getGraphData($pdo);
         break;
     case 'sync_cti':
         syncCtiFeeds($pdo);
@@ -254,10 +274,14 @@ function getStats($pdo) {
     $totalAssets = (int)$pdo->query("SELECT COUNT(*) FROM assets")->fetchColumn();
     $liveAssets = (int)$pdo->query("SELECT COUNT(*) FROM assets WHERE is_live = 1")->fetchColumn();
     $openPorts = (int)$pdo->query("SELECT COUNT(*) FROM open_ports")->fetchColumn();
-    $critVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL'")->fetchColumn();
-    $highVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH'")->fetchColumn();
-    $medVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM'")->fetchColumn();
-    $drpCount = (int)$pdo->query("SELECT COUNT(*) FROM drp_threats")->fetchColumn();
+    
+    // Only count active/open vulnerabilities in score
+    $critVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL)")->fetchColumn();
+    $highVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL)")->fetchColumn();
+    $medVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL)")->fetchColumn();
+    $resolvedVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE status = 'RESOLVED'")->fetchColumn();
+
+    $drpCount = (int)$pdo->query("SELECT COUNT(*) FROM drp_threats WHERE (status = 'OPEN' OR status IS NULL)")->fetchColumn();
     $credLeaksCount = (int)$pdo->query("SELECT COUNT(*) FROM credential_leaks")->fetchColumn();
     $secretsCount = (int)$pdo->query("SELECT COUNT(*) FROM exposed_secrets")->fetchColumn();
     $ransomMatched = (int)$pdo->query("SELECT COUNT(*) FROM ransomware_leaks WHERE is_matched = 1")->fetchColumn();
@@ -278,6 +302,7 @@ function getStats($pdo) {
             'critical' => $critVulns,
             'high' => $highVulns,
             'medium' => $medVulns,
+            'resolved' => $resolvedVulns,
             'total' => $critVulns + $highVulns + $medVulns
         ],
         'drp_threats' => $drpCount,
@@ -295,8 +320,23 @@ function getAssets($pdo) {
 }
 
 function getVulnerabilities($pdo) {
-    $stmt = $pdo->query("SELECT * FROM vulnerabilities ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, created_at DESC");
+    $stmt = $pdo->query("SELECT * FROM vulnerabilities ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, CASE status WHEN 'OPEN' THEN 1 WHEN 'IN_PROGRESS' THEN 2 ELSE 3 END, created_at DESC");
     echo json_encode($stmt->fetchAll());
+}
+
+function updateVulnStatus($pdo) {
+    $id = (int)($_POST['id'] ?? 0);
+    $status = $_POST['status'] ?? 'OPEN';
+    $notes = $_POST['notes'] ?? '';
+
+    if ($id <= 0) {
+        echo json_encode(['error' => 'ID inválido']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("UPDATE vulnerabilities SET status = ?, mitigation_notes = ? WHERE id = ?");
+    $stmt->execute([$status, $notes, $id]);
+    echo json_encode(['success' => true, 'id' => $id, 'status' => $status]);
 }
 
 function getDrpThreats($pdo) {
@@ -327,6 +367,149 @@ function getThreatIocs($pdo) {
 function getThreatActors($pdo) {
     $stmt = $pdo->query("SELECT * FROM threat_actors ORDER BY id ASC");
     echo json_encode($stmt->fetchAll());
+}
+
+// -------------------------------------------------------------
+// ATTACK SURFACE TOPOLOGY GRAPH (Vis.js Network Data Provider)
+// -------------------------------------------------------------
+function getGraphData($pdo) {
+    $nodes = [];
+    $edges = [];
+    $nodeMap = [];
+
+    // 1. Seeds (Root Nodes)
+    $seeds = $pdo->query("SELECT * FROM seeds")->fetchAll();
+    foreach ($seeds as $s) {
+        $nodeId = 'seed_' . $s['id'];
+        $nodes[] = [
+            'id' => $nodeId,
+            'label' => $s['domain'],
+            'group' => 'seed',
+            'shape' => 'hexagon',
+            'color' => '#06b6d4',
+            'font' => ['color' => '#ffffff', 'size' => 14, 'face' => 'JetBrains Mono', 'bold' => true],
+            'size' => 32
+        ];
+        $nodeMap[$s['domain']] = $nodeId;
+    }
+
+    // 2. Discovered Assets (Subdomains)
+    $assets = $pdo->query("SELECT * FROM assets LIMIT 50")->fetchAll();
+    foreach ($assets as $a) {
+        $assetNodeId = 'asset_' . $a['id'];
+        $parentSeedId = $nodeMap[$a['seed_domain']] ?? null;
+
+        $color = $a['is_live'] ? '#38bdf8' : '#475569';
+        $nodes[] = [
+            'id' => $assetNodeId,
+            'label' => $a['subdomain'],
+            'group' => 'asset',
+            'shape' => 'dot',
+            'color' => $color,
+            'font' => ['color' => '#e2e8f0', 'size' => 11, 'face' => 'JetBrains Mono'],
+            'size' => 18,
+            'title' => "IP: " . ($a['ip_address'] ?: 'N/A') . "<br>Cloud: " . ($a['cloud_provider'] ?: 'Direct') . "<br>Título: " . ($a['web_title'] ?: '-')
+        ];
+
+        if ($parentSeedId) {
+            $edges[] = [
+                'from' => $parentSeedId,
+                'to' => $assetNodeId,
+                'color' => ['color' => '#1e293b'],
+                'width' => 1.5
+            ];
+        }
+
+        // Link to IP node if available
+        if ($a['ip_address']) {
+            $ipNodeId = 'ip_' . str_replace('.', '_', $a['ip_address']);
+            if (!isset($nodeMap[$ipNodeId])) {
+                $nodes[] = [
+                    'id' => $ipNodeId,
+                    'label' => $a['ip_address'] . "\n(" . ($a['cloud_provider'] ?: 'ISP') . ")",
+                    'group' => 'ip',
+                    'shape' => 'box',
+                    'color' => '#334155',
+                    'font' => ['color' => '#94a3b8', 'size' => 10, 'face' => 'JetBrains Mono'],
+                    'size' => 12
+                ];
+                $nodeMap[$ipNodeId] = true;
+            }
+            $edges[] = [
+                'from' => $assetNodeId,
+                'to' => $ipNodeId,
+                'color' => ['color' => '#0e7490'],
+                'dashes' => true
+            ];
+        }
+    }
+
+    // 3. Open Ports
+    $ports = $pdo->query("SELECT * FROM open_ports LIMIT 60")->fetchAll();
+    foreach ($ports as $p) {
+        $sub = $p['asset_subdomain'];
+        $portNum = (int)$p['port'];
+        $isDangerous = in_array($portNum, [3306, 5432, 6379, 27017, 3389, 21]);
+
+        // Find asset node
+        $matchingAsset = array_filter($assets, function($item) use ($sub) { return $item['subdomain'] === $sub; });
+        if (!empty($matchingAsset)) {
+            $matched = reset($matchingAsset);
+            $assetNodeId = 'asset_' . $matched['id'];
+            $portNodeId = 'port_' . $matched['id'] . '_' . $portNum;
+
+            $nodes[] = [
+                'id' => $portNodeId,
+                'label' => $portNum . "/" . $p['service_name'],
+                'group' => 'port',
+                'shape' => 'ellipse',
+                'color' => $isDangerous ? '#f43f5e' : '#10b981',
+                'font' => ['color' => '#ffffff', 'size' => 9, 'face' => 'JetBrains Mono'],
+                'size' => 10
+            ];
+
+            $edges[] = [
+                'from' => $assetNodeId,
+                'to' => $portNodeId,
+                'color' => ['color' => $isDangerous ? '#e11d48' : '#059669'],
+                'width' => $isDangerous ? 2 : 1
+            ];
+        }
+    }
+
+    // 4. Vulnerabilities / Exposures
+    $vulns = $pdo->query("SELECT * FROM vulnerabilities WHERE status != 'RESOLVED' LIMIT 30")->fetchAll();
+    foreach ($vulns as $v) {
+        $sub = $v['asset_subdomain'];
+        $matchingAsset = array_filter($assets, function($item) use ($sub) { return $item['subdomain'] === $sub; });
+        if (!empty($matchingAsset)) {
+            $matched = reset($matchingAsset);
+            $vulnNodeId = 'vuln_' . $v['id'];
+
+            $nodes[] = [
+                'id' => $vulnNodeId,
+                'label' => "VULN: " . substr($v['title'], 0, 30) . "...",
+                'group' => 'vuln',
+                'shape' => 'triangle',
+                'color' => '#e11d48',
+                'font' => ['color' => '#fecdd3', 'size' => 10, 'bold' => true],
+                'size' => 20,
+                'title' => $v['description']
+            ];
+
+            $edges[] = [
+                'from' => 'asset_' . $matched['id'],
+                'to' => $vulnNodeId,
+                'color' => ['color' => '#f43f5e'],
+                'width' => 2.5
+            ];
+        }
+    }
+
+    echo json_encode([
+        'nodes' => $nodes,
+        'edges' => $edges
+    ]);
 }
 
 function getSeeds($pdo) {
@@ -364,14 +547,13 @@ function deleteSeed($pdo) {
 }
 
 // -------------------------------------------------------------
-// CTI SYNCHRONIZATION (Ransomwatch + Feodo Botnet C2s)
+// CTI SYNCHRONIZATION
 // -------------------------------------------------------------
 function syncCtiFeeds($pdo) {
     set_time_limit(120);
     $addedRansom = 0;
     $addedIocs = 0;
 
-    // 1. Ingest Ransomware Dark Web Leaks (Ransomwatch)
     $ch = curl_init("https://raw.githubusercontent.com/joshhighet/ransomwatch/main/posts.json");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
@@ -383,7 +565,6 @@ function syncCtiFeeds($pdo) {
     if ($rwJson) {
         $posts = json_decode($rwJson, true);
         if (is_array($posts)) {
-            // Get seeds to check for victim match
             $seeds = $pdo->query("SELECT domain FROM seeds")->fetchAll(PDO::FETCH_COLUMN);
             $cleanSeeds = array_map(function($d) { return explode('.', $d)[0]; }, $seeds);
 
@@ -393,7 +574,6 @@ function syncCtiFeeds($pdo) {
                 ON CONFLICT(group_name, victim_name) DO UPDATE SET is_matched = excluded.is_matched
             ");
 
-            // Process latest 100 posts
             $slice = array_slice($posts, -100);
             foreach ($slice as $post) {
                 $group = $post['group_name'] ?? 'Unknown';
@@ -416,7 +596,6 @@ function syncCtiFeeds($pdo) {
         }
     }
 
-    // 2. Ingest Feodo Botnet C2 Indicators
     $ch = curl_init("https://feodotracker.abuse.ch/downloads/ipblocklist.json");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 8);
@@ -457,7 +636,7 @@ function syncCtiFeeds($pdo) {
 }
 
 // -------------------------------------------------------------
-// DRP TAKEDOWN NOTICE GENERATOR (RFC & Abuse Standards)
+// DRP TAKEDOWN NOTICE GENERATOR
 // -------------------------------------------------------------
 function generateTakedownNotice($pdo) {
     $domain = trim($_GET['domain'] ?? $_POST['domain'] ?? '');
@@ -530,7 +709,6 @@ function runScan($pdo) {
         $subdomains = [];
         $subdomains[$domain] = true;
 
-        // Common corporate prefixes for brute-check
         $commonSubs = ['www', 'mail', 'vpn', 'api', 'dev', 'staging', 'portal', 'admin', 'git', 'app', 'remote'];
         foreach ($commonSubs as $prefix) {
             $candidate = $prefix . '.' . $domain;
@@ -540,7 +718,6 @@ function runScan($pdo) {
             }
         }
 
-        // 1. Certificate Transparency (crt.sh)
         $ch = curl_init("https://crt.sh/?q=%25." . urlencode($domain) . "&output=json");
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 6);
@@ -571,13 +748,11 @@ function runScan($pdo) {
             }
         }
 
-        // Process discovered subdomains
         foreach (array_keys($subdomains) as $sub) {
             $ip = null;
             $cloud = null;
             $isLive = 0;
 
-            // DNS Resolution
             $dnsA = @dns_get_record($sub, DNS_A);
             if (!empty($dnsA) && isset($dnsA[0]['ip'])) {
                 $ip = $dnsA[0]['ip'];
@@ -594,7 +769,6 @@ function runScan($pdo) {
                 }
             }
 
-            // HTTP Probing
             $webTitle = null;
             $statusCode = null;
             $techStack = [];
@@ -608,7 +782,6 @@ function runScan($pdo) {
 
             $techStr = implode(', ', $techStack);
 
-            // Upsert Asset
             $stmt = $pdo->prepare("
                 INSERT INTO assets (seed_domain, subdomain, ip_address, cloud_provider, web_title, status_code, tech_stack, is_live, last_scanned)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -624,7 +797,6 @@ function runScan($pdo) {
             $stmt->execute([$domain, $sub, $ip, $cloud, $webTitle, $statusCode, $techStr, $isLive]);
             $discoveredAssetsCount++;
 
-            // Port Scanning & Sensitive Path Probing on Live Hosts
             if ($isLive) {
                 $targetHost = $ip ?: $sub;
                 $portsToScan = [
@@ -692,7 +864,6 @@ function runScan($pdo) {
                     }
                 }
 
-                // 2. Sensitive Paths & Exposed Secrets Check
                 $sensitiveEndpoints = [
                     '/.env' => 'Variables de Entorno (.env)',
                     '/.git/config' => 'Repositorio Git Expuesto (.git/config)',
@@ -746,7 +917,6 @@ function runScan($pdo) {
             }
         }
 
-        // 3. DRP Engine: Typosquatting & Phishing Detection
         $domainParts = explode('.', $domain);
         $coreName = $domainParts[0];
         $tld = implode('.', array_slice($domainParts, 1));
@@ -785,7 +955,6 @@ function runScan($pdo) {
             }
         }
 
-        // 4. Credential Leaks Check
         $targetEmail = 'admin@' . $domain;
         $stmtLeak = $pdo->prepare("
             INSERT INTO credential_leaks (seed_domain, email, source_breach, breach_date, pwn_count, severity)
