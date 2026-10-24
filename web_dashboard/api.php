@@ -123,83 +123,10 @@ try {
         );
     ");
 
-    // Add status & notes columns to existing tables if missing
-    try {
-        $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN status TEXT DEFAULT 'OPEN'");
-    } catch (Exception $e) {}
-    try {
-        $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN mitigation_notes TEXT");
-    } catch (Exception $e) {}
-    try {
-        $pdo->exec("ALTER TABLE drp_threats ADD COLUMN status TEXT DEFAULT 'OPEN'");
-    } catch (Exception $e) {}
-
-    // Add default seed if empty
-    $seedCount = $pdo->query("SELECT COUNT(*) FROM seeds")->fetchColumn();
-    if ($seedCount == 0) {
-        $stmt = $pdo->prepare("INSERT INTO seeds (domain) VALUES (?)");
-        $stmt->execute(['fortinet.com']);
-    }
-
-    // Populate Threat Actors if empty
-    $actorCount = $pdo->query("SELECT COUNT(*) FROM threat_actors")->fetchColumn();
-    if ($actorCount == 0) {
-        $actors = [
-            [
-                'name' => 'LockBit 3.0 (LockBit Black)',
-                'aliases' => 'Bitwise Spider',
-                'origin' => 'Ransomware-as-a-Service (Global / Clandestino)',
-                'target_sectors' => 'Salud, Infraestructura Crítica, Finanzas, Manufactura',
-                'initial_access' => 'Explotación de VPN/Firewalls expuestos (T1190), Credenciales válidas (T1078), Phishing (T1566)',
-                'mitre_tactics' => 'T1190, T1078, T1486 (Data Encrypted for Impact), T1567 (Exfiltration Over Web Service)',
-                'description' => 'Uno de los sindicatos de ransomware más prolíficos del mundo. Utiliza extorsión triple (cifrado, fuga en la Dark Web y ataques DDoS) para forzar pagos en criptomonedas.'
-            ],
-            [
-                'name' => 'Scattered Spider',
-                'aliases' => 'UNC3944, Starfraud, Roasted 0kt4',
-                'origin' => 'Comunidad cibercriminal nativa de habla inglesa',
-                'target_sectors' => 'Telecomunicaciones, Servicios de TI, Hotelería, Retail',
-                'initial_access' => 'Ingeniería social a mesas de ayuda (Helpdesk), SIM Swapping, Robo de sesiones MFA (T1621)',
-                'mitre_tactics' => 'T1566, T1621 (Multi-Factor Authentication Request Generation), T1078, T1556 (Modify Authentication Process)',
-                'description' => 'Grupo altamente agresivo especializado en ingeniería social contra operadores de identidad y personal de soporte para eludir MFA y desplegar ransomware BlackCat/ALPHV.'
-            ],
-            [
-                'name' => 'BlackBasta',
-                'aliases' => 'Conti Offshoot',
-                'origin' => 'Europa del Este',
-                'target_sectors' => 'Banca, Logística, Gobierno, Tecnología',
-                'initial_access' => 'Vulnerabilidades en aplicaciones públicas (T1190), Malware QakBot/Cobalt Strike',
-                'mitre_tactics' => 'T1190, T1059 (Command and Scripting Interpreter), T1486, T1027 (Obfuscated Files)',
-                'description' => 'Operación de ransomware de doble extorsión que publica gigabytes de datos confidenciales de empresas víctimas en sus foros de la red Tor.'
-            ],
-            [
-                'name' => 'Midnight Blizzard',
-                'aliases' => 'APT29, Nobelium, Cozy Bear',
-                'origin' => 'Rusia (SVR)',
-                'target_sectors' => 'Gobierno, Think Tanks, Proveedores Cloud, Defensa',
-                'initial_access' => 'Ataques de Password Spraying (T1110.003), Abuso de aplicaciones OAuth y tokens en nubes híbridas',
-                'mitre_tactics' => 'T1110, T1098.005 (Device Registration), T1528 (Steal Application Access Token)',
-                'description' => 'Actor de amenaza persistente avanzada (APT) patrocinado por el estado, responsable del ciberataque histórico a SolarWinds y campañas de espionaje en infraestructuras en la nube.'
-            ],
-            [
-                'name' => 'Lazarus Group',
-                'aliases' => 'APT38, Hidden Cobra, BlueNoroff',
-                'origin' => 'Corea del Norte (RGB)',
-                'target_sectors' => 'Bancos, Exchanges de Criptomonedas, Sector Aeroespacial',
-                'initial_access' => 'Spear-phishing en LinkedIn con ofertas falsas de empleo (T1566), Ataques a cadenas de suministro',
-                'mitre_tactics' => 'T1566, T1195 (Supply Chain Compromise), T1555 (Credentials from Password Stores)',
-                'description' => 'Famoso por atracos cibernéticos masivos a bancos y plataformas DeFi, así como por el desarrollo de malware destructivo como WannaCry.'
-            ]
-        ];
-
-        $insActor = $pdo->prepare("INSERT INTO threat_actors (name, aliases, origin, target_sectors, initial_access, mitre_tactics, description) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        foreach ($actors as $act) {
-            $insActor->execute([
-                $act['name'], $act['aliases'], $act['origin'], $act['target_sectors'],
-                $act['initial_access'], $act['mitre_tactics'], $act['description']
-            ]);
-        }
-    }
+    // Add status columns if missing
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN status TEXT DEFAULT 'OPEN'"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN mitigation_notes TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE drp_threats ADD COLUMN status TEXT DEFAULT 'OPEN'"); } catch (Exception $e) {}
 
 } catch (Exception $e) {
     echo json_encode(['error' => 'Database initialization failed: ' . $e->getMessage()]);
@@ -267,26 +194,53 @@ switch ($action) {
 }
 
 // -------------------------------------------------------------
-// Controller Functions
+// Controller Functions (Strict Seed Scoping)
 // -------------------------------------------------------------
 
 function getStats($pdo) {
-    $totalAssets = (int)$pdo->query("SELECT COUNT(*) FROM assets")->fetchColumn();
-    $liveAssets = (int)$pdo->query("SELECT COUNT(*) FROM assets WHERE is_live = 1")->fetchColumn();
-    $openPorts = (int)$pdo->query("SELECT COUNT(*) FROM open_ports")->fetchColumn();
-    
-    // Only count active/open vulnerabilities in score
-    $critVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL)")->fetchColumn();
-    $highVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL)")->fetchColumn();
-    $medVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL)")->fetchColumn();
-    $resolvedVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE status = 'RESOLVED'")->fetchColumn();
+    $seed = trim($_GET['seed'] ?? '');
+    $isSpecificSeed = (!empty($seed) && $seed !== 'ALL');
 
-    $drpCount = (int)$pdo->query("SELECT COUNT(*) FROM drp_threats WHERE (status = 'OPEN' OR status IS NULL)")->fetchColumn();
-    $credLeaksCount = (int)$pdo->query("SELECT COUNT(*) FROM credential_leaks")->fetchColumn();
-    $secretsCount = (int)$pdo->query("SELECT COUNT(*) FROM exposed_secrets")->fetchColumn();
-    $ransomMatched = (int)$pdo->query("SELECT COUNT(*) FROM ransomware_leaks WHERE is_matched = 1")->fetchColumn();
-    $totalRansomLeaks = (int)$pdo->query("SELECT COUNT(*) FROM ransomware_leaks")->fetchColumn();
-    $totalIocs = (int)$pdo->query("SELECT COUNT(*) FROM threat_iocs")->fetchColumn();
+    if ($isSpecificSeed) {
+        $totalAssets = (int)queryScalar($pdo, "SELECT COUNT(*) FROM assets WHERE seed_domain = ?", [$seed]);
+        $liveAssets = (int)queryScalar($pdo, "SELECT COUNT(*) FROM assets WHERE seed_domain = ? AND is_live = 1", [$seed]);
+        $openPorts = (int)queryScalar($pdo, "SELECT COUNT(*) FROM open_ports WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
+
+        $critVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
+        $highVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
+        $medVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
+        $resolvedVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE status = 'RESOLVED' AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
+
+        $drpCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM drp_threats WHERE seed_domain = ? AND (status = 'OPEN' OR status IS NULL)", [$seed]);
+        $credLeaksCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM credential_leaks WHERE seed_domain = ?", [$seed]);
+        $secretsCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM exposed_secrets WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
+
+        $cleanDomain = preg_replace('/^www\./i', '', $seed);
+        $core = explode('.', $cleanDomain)[0];
+        if (strlen($core) >= 3) {
+            $ransomMatched = (int)queryScalar($pdo, "SELECT COUNT(*) FROM ransomware_leaks WHERE victim_name LIKE ?", ['%' . $core . '%']);
+        } else {
+            $ransomMatched = 0;
+        }
+    } else {
+        // Only active seeds in database
+        $totalAssets = (int)queryScalar($pdo, "SELECT COUNT(*) FROM assets WHERE seed_domain IN (SELECT domain FROM seeds)");
+        $liveAssets = (int)queryScalar($pdo, "SELECT COUNT(*) FROM assets WHERE is_live = 1 AND seed_domain IN (SELECT domain FROM seeds)");
+        $openPorts = (int)queryScalar($pdo, "SELECT COUNT(*) FROM open_ports WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
+
+        $critVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
+        $highVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
+        $medVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
+        $resolvedVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE status = 'RESOLVED' AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
+
+        $drpCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM drp_threats WHERE seed_domain IN (SELECT domain FROM seeds) AND (status = 'OPEN' OR status IS NULL)");
+        $credLeaksCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM credential_leaks WHERE seed_domain IN (SELECT domain FROM seeds)");
+        $secretsCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM exposed_secrets WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
+        $ransomMatched = (int)queryScalar($pdo, "SELECT COUNT(*) FROM ransomware_leaks WHERE is_matched = 1");
+    }
+
+    $totalRansomLeaks = (int)queryScalar($pdo, "SELECT COUNT(*) FROM ransomware_leaks");
+    $totalIocs = (int)queryScalar($pdo, "SELECT COUNT(*) FROM threat_iocs");
 
     // Risk Score calculation
     $penalty = ($critVulns * 20) + ($highVulns * 10) + ($medVulns * 3) + ($drpCount * 5) + ($credLeaksCount * 5) + ($secretsCount * 15) + ($ransomMatched * 50);
@@ -315,12 +269,24 @@ function getStats($pdo) {
 }
 
 function getAssets($pdo) {
-    $stmt = $pdo->query("SELECT a.*, (SELECT GROUP_CONCAT(port) FROM open_ports WHERE asset_subdomain = a.subdomain) as ports FROM assets a ORDER BY is_live DESC, last_scanned DESC");
+    $seed = trim($_GET['seed'] ?? '');
+    if (!empty($seed) && $seed !== 'ALL') {
+        $stmt = $pdo->prepare("SELECT a.*, (SELECT GROUP_CONCAT(port) FROM open_ports WHERE asset_subdomain = a.subdomain) as ports FROM assets a WHERE a.seed_domain = ? ORDER BY a.is_live DESC, a.last_scanned DESC");
+        $stmt->execute([$seed]);
+    } else {
+        $stmt = $pdo->query("SELECT a.*, (SELECT GROUP_CONCAT(port) FROM open_ports WHERE asset_subdomain = a.subdomain) as ports FROM assets a WHERE a.seed_domain IN (SELECT domain FROM seeds) ORDER BY a.is_live DESC, a.last_scanned DESC");
+    }
     echo json_encode($stmt->fetchAll());
 }
 
 function getVulnerabilities($pdo) {
-    $stmt = $pdo->query("SELECT * FROM vulnerabilities ORDER BY CASE severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, CASE status WHEN 'OPEN' THEN 1 WHEN 'IN_PROGRESS' THEN 2 ELSE 3 END, created_at DESC");
+    $seed = trim($_GET['seed'] ?? '');
+    if (!empty($seed) && $seed !== 'ALL') {
+        $stmt = $pdo->prepare("SELECT v.* FROM vulnerabilities v JOIN assets a ON v.asset_subdomain = a.subdomain WHERE a.seed_domain = ? ORDER BY CASE v.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, CASE v.status WHEN 'OPEN' THEN 1 WHEN 'IN_PROGRESS' THEN 2 ELSE 3 END, v.created_at DESC");
+        $stmt->execute([$seed]);
+    } else {
+        $stmt = $pdo->query("SELECT v.* FROM vulnerabilities v JOIN assets a ON v.asset_subdomain = a.subdomain WHERE a.seed_domain IN (SELECT domain FROM seeds) ORDER BY CASE v.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END, CASE v.status WHEN 'OPEN' THEN 1 WHEN 'IN_PROGRESS' THEN 2 ELSE 3 END, v.created_at DESC");
+    }
     echo json_encode($stmt->fetchAll());
 }
 
@@ -340,21 +306,50 @@ function updateVulnStatus($pdo) {
 }
 
 function getDrpThreats($pdo) {
-    $stmt = $pdo->query("SELECT * FROM drp_threats ORDER BY has_mx DESC, detected_at DESC");
+    $seed = trim($_GET['seed'] ?? '');
+    if (!empty($seed) && $seed !== 'ALL') {
+        $stmt = $pdo->prepare("SELECT * FROM drp_threats WHERE seed_domain = ? ORDER BY has_mx DESC, detected_at DESC");
+        $stmt->execute([$seed]);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM drp_threats WHERE seed_domain IN (SELECT domain FROM seeds) ORDER BY has_mx DESC, detected_at DESC");
+    }
     echo json_encode($stmt->fetchAll());
 }
 
 function getCredentialLeaks($pdo) {
-    $stmt = $pdo->query("SELECT * FROM credential_leaks ORDER BY detected_at DESC");
+    $seed = trim($_GET['seed'] ?? '');
+    if (!empty($seed) && $seed !== 'ALL') {
+        $stmt = $pdo->prepare("SELECT * FROM credential_leaks WHERE seed_domain = ? ORDER BY detected_at DESC");
+        $stmt->execute([$seed]);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM credential_leaks WHERE seed_domain IN (SELECT domain FROM seeds) ORDER BY detected_at DESC");
+    }
     echo json_encode($stmt->fetchAll());
 }
 
 function getExposedSecrets($pdo) {
-    $stmt = $pdo->query("SELECT * FROM exposed_secrets ORDER BY detected_at DESC");
+    $seed = trim($_GET['seed'] ?? '');
+    if (!empty($seed) && $seed !== 'ALL') {
+        $stmt = $pdo->prepare("SELECT s.* FROM exposed_secrets s JOIN assets a ON s.asset_subdomain = a.subdomain WHERE a.seed_domain = ? ORDER BY s.detected_at DESC");
+        $stmt->execute([$seed]);
+    } else {
+        $stmt = $pdo->query("SELECT s.* FROM exposed_secrets s JOIN assets a ON s.asset_subdomain = a.subdomain WHERE a.seed_domain IN (SELECT domain FROM seeds) ORDER BY s.detected_at DESC");
+    }
     echo json_encode($stmt->fetchAll());
 }
 
 function getRansomwareLeaks($pdo) {
+    $seed = trim($_GET['seed'] ?? '');
+    if (!empty($seed) && $seed !== 'ALL') {
+        $cleanDomain = preg_replace('/^www\./i', '', $seed);
+        $core = explode('.', $cleanDomain)[0];
+        if (strlen($core) >= 3) {
+            $stmt = $pdo->prepare("SELECT *, (CASE WHEN victim_name LIKE ? THEN 1 ELSE 0 END) as is_matched FROM ransomware_leaks ORDER BY is_matched DESC, discovered_date DESC LIMIT 60");
+            $stmt->execute(['%' . $core . '%']);
+            echo json_encode($stmt->fetchAll());
+            return;
+        }
+    }
     $stmt = $pdo->query("SELECT * FROM ransomware_leaks ORDER BY is_matched DESC, discovered_date DESC LIMIT 60");
     echo json_encode($stmt->fetchAll());
 }
@@ -369,16 +364,23 @@ function getThreatActors($pdo) {
     echo json_encode($stmt->fetchAll());
 }
 
-// -------------------------------------------------------------
-// ATTACK SURFACE TOPOLOGY GRAPH (Vis.js Network Data Provider)
-// -------------------------------------------------------------
 function getGraphData($pdo) {
+    $seed = trim($_GET['seed'] ?? '');
+    $isSpecificSeed = (!empty($seed) && $seed !== 'ALL');
+
     $nodes = [];
     $edges = [];
     $nodeMap = [];
 
-    // 1. Seeds (Root Nodes)
-    $seeds = $pdo->query("SELECT * FROM seeds")->fetchAll();
+    // 1. Seeds
+    if ($isSpecificSeed) {
+        $stmtS = $pdo->prepare("SELECT * FROM seeds WHERE domain = ?");
+        $stmtS->execute([$seed]);
+        $seeds = $stmtS->fetchAll();
+    } else {
+        $seeds = $pdo->query("SELECT * FROM seeds")->fetchAll();
+    }
+
     foreach ($seeds as $s) {
         $nodeId = 'seed_' . $s['id'];
         $nodes[] = [
@@ -393,8 +395,15 @@ function getGraphData($pdo) {
         $nodeMap[$s['domain']] = $nodeId;
     }
 
-    // 2. Discovered Assets (Subdomains)
-    $assets = $pdo->query("SELECT * FROM assets LIMIT 50")->fetchAll();
+    // 2. Discovered Assets
+    if ($isSpecificSeed) {
+        $stmtA = $pdo->prepare("SELECT * FROM assets WHERE seed_domain = ? LIMIT 50");
+        $stmtA->execute([$seed]);
+        $assets = $stmtA->fetchAll();
+    } else {
+        $assets = $pdo->query("SELECT * FROM assets WHERE seed_domain IN (SELECT domain FROM seeds) LIMIT 50")->fetchAll();
+    }
+
     foreach ($assets as $a) {
         $assetNodeId = 'asset_' . $a['id'];
         $parentSeedId = $nodeMap[$a['seed_domain']] ?? null;
@@ -420,7 +429,6 @@ function getGraphData($pdo) {
             ];
         }
 
-        // Link to IP node if available
         if ($a['ip_address']) {
             $ipNodeId = 'ip_' . str_replace('.', '_', $a['ip_address']);
             if (!isset($nodeMap[$ipNodeId])) {
@@ -445,64 +453,73 @@ function getGraphData($pdo) {
     }
 
     // 3. Open Ports
-    $ports = $pdo->query("SELECT * FROM open_ports LIMIT 60")->fetchAll();
-    foreach ($ports as $p) {
-        $sub = $p['asset_subdomain'];
-        $portNum = (int)$p['port'];
-        $isDangerous = in_array($portNum, [3306, 5432, 6379, 27017, 3389, 21]);
+    $subdomainsList = array_column($assets, 'subdomain');
+    if (!empty($subdomainsList)) {
+        $inClause = implode(',', array_fill(0, count($subdomainsList), '?'));
+        $stmtP = $pdo->prepare("SELECT * FROM open_ports WHERE asset_subdomain IN ($inClause) LIMIT 60");
+        $stmtP->execute($subdomainsList);
+        $ports = $stmtP->fetchAll();
 
-        // Find asset node
-        $matchingAsset = array_filter($assets, function($item) use ($sub) { return $item['subdomain'] === $sub; });
-        if (!empty($matchingAsset)) {
-            $matched = reset($matchingAsset);
-            $assetNodeId = 'asset_' . $matched['id'];
-            $portNodeId = 'port_' . $matched['id'] . '_' . $portNum;
+        foreach ($ports as $p) {
+            $sub = $p['asset_subdomain'];
+            $portNum = (int)$p['port'];
+            $isDangerous = in_array($portNum, [3306, 5432, 6379, 27017, 3389, 21]);
 
-            $nodes[] = [
-                'id' => $portNodeId,
-                'label' => $portNum . "/" . $p['service_name'],
-                'group' => 'port',
-                'shape' => 'ellipse',
-                'color' => $isDangerous ? '#f43f5e' : '#10b981',
-                'font' => ['color' => '#ffffff', 'size' => 9, 'face' => 'JetBrains Mono'],
-                'size' => 10
-            ];
+            $matchingAsset = array_filter($assets, function($item) use ($sub) { return $item['subdomain'] === $sub; });
+            if (!empty($matchingAsset)) {
+                $matched = reset($matchingAsset);
+                $assetNodeId = 'asset_' . $matched['id'];
+                $portNodeId = 'port_' . $matched['id'] . '_' . $portNum;
 
-            $edges[] = [
-                'from' => $assetNodeId,
-                'to' => $portNodeId,
-                'color' => ['color' => $isDangerous ? '#e11d48' : '#059669'],
-                'width' => $isDangerous ? 2 : 1
-            ];
+                $nodes[] = [
+                    'id' => $portNodeId,
+                    'label' => $portNum . "/" . $p['service_name'],
+                    'group' => 'port',
+                    'shape' => 'ellipse',
+                    'color' => $isDangerous ? '#f43f5e' : '#10b981',
+                    'font' => ['color' => '#ffffff', 'size' => 9, 'face' => 'JetBrains Mono'],
+                    'size' => 10
+                ];
+
+                $edges[] = [
+                    'from' => $assetNodeId,
+                    'to' => $portNodeId,
+                    'color' => ['color' => $isDangerous ? '#e11d48' : '#059669'],
+                    'width' => $isDangerous ? 2 : 1
+                ];
+            }
         }
-    }
 
-    // 4. Vulnerabilities / Exposures
-    $vulns = $pdo->query("SELECT * FROM vulnerabilities WHERE status != 'RESOLVED' LIMIT 30")->fetchAll();
-    foreach ($vulns as $v) {
-        $sub = $v['asset_subdomain'];
-        $matchingAsset = array_filter($assets, function($item) use ($sub) { return $item['subdomain'] === $sub; });
-        if (!empty($matchingAsset)) {
-            $matched = reset($matchingAsset);
-            $vulnNodeId = 'vuln_' . $v['id'];
+        // 4. Vulnerabilities
+        $stmtV = $pdo->prepare("SELECT * FROM vulnerabilities WHERE status != 'RESOLVED' AND asset_subdomain IN ($inClause) LIMIT 30");
+        $stmtV->execute($subdomainsList);
+        $vulns = $stmtV->fetchAll();
 
-            $nodes[] = [
-                'id' => $vulnNodeId,
-                'label' => "VULN: " . substr($v['title'], 0, 30) . "...",
-                'group' => 'vuln',
-                'shape' => 'triangle',
-                'color' => '#e11d48',
-                'font' => ['color' => '#fecdd3', 'size' => 10, 'bold' => true],
-                'size' => 20,
-                'title' => $v['description']
-            ];
+        foreach ($vulns as $v) {
+            $sub = $v['asset_subdomain'];
+            $matchingAsset = array_filter($assets, function($item) use ($sub) { return $item['subdomain'] === $sub; });
+            if (!empty($matchingAsset)) {
+                $matched = reset($matchingAsset);
+                $vulnNodeId = 'vuln_' . $v['id'];
 
-            $edges[] = [
-                'from' => 'asset_' . $matched['id'],
-                'to' => $vulnNodeId,
-                'color' => ['color' => '#f43f5e'],
-                'width' => 2.5
-            ];
+                $nodes[] = [
+                    'id' => $vulnNodeId,
+                    'label' => "VULN: " . substr($v['title'], 0, 25) . "...",
+                    'group' => 'vuln',
+                    'shape' => 'triangle',
+                    'color' => '#e11d48',
+                    'font' => ['color' => '#fecdd3', 'size' => 10, 'bold' => true],
+                    'size' => 20,
+                    'title' => $v['description']
+                ];
+
+                $edges[] = [
+                    'from' => 'asset_' . $matched['id'],
+                    'to' => $vulnNodeId,
+                    'color' => ['color' => '#f43f5e'],
+                    'width' => 2.5
+                ];
+            }
         }
     }
 
@@ -535,15 +552,32 @@ function addSeed($pdo) {
     }
 }
 
+// Cascade delete seed + assets + ports + vulns + drp
 function deleteSeed($pdo) {
     $id = (int)($_POST['id'] ?? 0);
-    if ($id > 0) {
-        $stmt = $pdo->prepare("DELETE FROM seeds WHERE id = ?");
-        $stmt->execute([$id]);
-        echo json_encode(['success' => true]);
-    } else {
+    if ($id <= 0) {
         echo json_encode(['error' => 'ID inválido']);
+        return;
     }
+
+    $domain = queryScalar($pdo, "SELECT domain FROM seeds WHERE id = ?", [$id]);
+    if ($domain) {
+        $pdo->prepare("DELETE FROM vulnerabilities WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)")->execute([$domain]);
+        $pdo->prepare("DELETE FROM open_ports WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)")->execute([$domain]);
+        $pdo->prepare("DELETE FROM assets WHERE seed_domain = ?")->execute([$domain]);
+        $pdo->prepare("DELETE FROM drp_threats WHERE seed_domain = ?")->execute([$domain]);
+        $pdo->prepare("DELETE FROM credential_leaks WHERE seed_domain = ?")->execute([$domain]);
+        $pdo->prepare("DELETE FROM seeds WHERE id = ?")->execute([$id]);
+        echo json_encode(['success' => true, 'purged_domain' => $domain]);
+    } else {
+        echo json_encode(['error' => 'Semilla no encontrada']);
+    }
+}
+
+function queryScalar($pdo, $sql, $params = []) {
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchColumn();
 }
 
 // -------------------------------------------------------------
@@ -692,7 +726,13 @@ function generateTakedownNotice($pdo) {
 // -------------------------------------------------------------
 function runScan($pdo) {
     set_time_limit(240);
-    $seeds = $pdo->query("SELECT domain FROM seeds")->fetchAll(PDO::FETCH_COLUMN);
+    $selectedSeed = trim($_GET['seed'] ?? $_POST['seed'] ?? '');
+    
+    if (!empty($selectedSeed) && $selectedSeed !== 'ALL') {
+        $seeds = [$selectedSeed];
+    } else {
+        $seeds = $pdo->query("SELECT domain FROM seeds")->fetchAll(PDO::FETCH_COLUMN);
+    }
 
     if (empty($seeds)) {
         echo json_encode(['error' => 'No hay dominios configurados en las semillas']);
@@ -786,6 +826,7 @@ function runScan($pdo) {
                 INSERT INTO assets (seed_domain, subdomain, ip_address, cloud_provider, web_title, status_code, tech_stack, is_live, last_scanned)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(subdomain) DO UPDATE SET
+                    seed_domain = excluded.seed_domain,
                     ip_address = excluded.ip_address,
                     cloud_provider = excluded.cloud_provider,
                     web_title = excluded.web_title,

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenRecon | EASM, DRP, CTI & Attack Surface Graph</title>
+    <title>OpenRecon | EASM, DRP, CTI & Attack Surface Management</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -35,44 +35,22 @@
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #07090e;
-        }
-        .font-mono {
-            font-family: 'JetBrains Mono', monospace;
-        }
-        #network-canvas {
-            width: 100%;
-            height: 600px;
-            background: radial-gradient(circle at center, #0f172a 0%, #07090e 100%);
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #07090e; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        #network-canvas { width: 100%; height: 580px; background: radial-gradient(circle at center, #0f172a 0%, #07090e 100%); }
         @media print {
-            body {
-                background-color: #ffffff !important;
-                color: #000000 !important;
-            }
-            header, .no-print {
-                display: none !important;
-            }
-            .bg-cyber-card, .bg-slate-900 {
-                background-color: #ffffff !important;
-                border: 1px solid #cbd5e1 !important;
-                color: #0f172a !important;
-            }
-            .text-white {
-                color: #0f172a !important;
-            }
-            .text-slate-400, .text-slate-300 {
-                color: #475569 !important;
-            }
+            body { background-color: #ffffff !important; color: #000000 !important; }
+            header, .no-print { display: none !important; }
+            .bg-cyber-card, .bg-slate-900 { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }
+            .text-white { color: #0f172a !important; }
+            .text-slate-400, .text-slate-300 { color: #475569 !important; }
         }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
 
     <!-- Top Navigation Bar -->
-    <header class="border-b border-cyber-border bg-cyber-dark/80 backdrop-blur sticky top-0 z-50 no-print">
+    <header class="border-b border-cyber-border bg-cyber-dark/90 backdrop-blur sticky top-0 z-50 no-print">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-emerald-400 flex items-center justify-center text-black font-extrabold text-xl shadow-lg shadow-cyan-500/20">
@@ -81,27 +59,42 @@
                 <div>
                     <div class="flex items-center gap-2">
                         <span class="font-extrabold text-lg tracking-tight text-white">Open<span class="text-cyan-400">Recon</span></span>
-                        <span class="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-cyan-950 text-cyan-400 border border-cyan-800/60 rounded">Fase 4: Grafo & Scoring</span>
+                        <span class="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-cyan-950 text-cyan-400 border border-cyan-800/60 rounded">EASM &bull; DRP &bull; CTI</span>
                     </div>
                     <p class="text-[11px] text-slate-400">Alternativa Abierta a FortiRecon, Cortex Xpanse & Recorded Future</p>
                 </div>
             </div>
 
-            <!-- Actions & Status -->
+            <!-- Actions & Seed Selector -->
             <div class="flex items-center gap-3">
-                <button onclick="syncCti()" class="px-3 py-2 rounded-xl bg-purple-950/60 hover:bg-purple-900/60 text-purple-300 font-medium text-xs border border-purple-800/50 transition flex items-center gap-2" title="Sincronizar feeds de Dark Web y C2 Botnets">
-                    <i id="sync-icon" class="fa-solid fa-arrows-rotate text-purple-400"></i>
-                    <span>Sincronizar CTI</span>
+                
+                <!-- Dynamic Seed Switcher -->
+                <div class="flex items-center gap-1.5 bg-slate-900/90 border border-cyan-700/60 px-3 py-1.5 rounded-xl shadow-sm">
+                    <i class="fa-solid fa-crosshairs text-cyan-400 text-xs"></i>
+                    <span class="text-[11px] text-slate-400 font-semibold hidden sm:inline">Perímetro:</span>
+                    <select id="active-seed-selector" onchange="onActiveSeedChange(this.value)" class="bg-transparent text-white font-mono text-xs font-bold focus:outline-none cursor-pointer">
+                        <option value="ALL" class="bg-slate-900 text-white">Cargando semillas...</option>
+                    </select>
+                </div>
+
+                <button onclick="openPlanModal()" class="px-3 py-1.5 rounded-xl bg-blue-950/70 hover:bg-blue-900/70 text-blue-300 font-semibold text-xs border border-blue-800/60 transition flex items-center gap-1.5" title="Ver plan de trabajo y hoja de ruta">
+                    <i class="fa-solid fa-list-check text-blue-400"></i>
+                    <span class="hidden md:inline">Plan de Trabajo</span>
                 </button>
 
-                <button onclick="window.print()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs border border-cyber-border transition flex items-center gap-2" title="Imprimir o exportar PDF del reporte">
-                    <i class="fa-solid fa-file-pdf text-rose-400"></i>
-                    <span>Reporte</span>
+                <button onclick="syncCti()" class="px-3 py-1.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/60 text-purple-300 font-medium text-xs border border-purple-800/50 transition flex items-center gap-1.5" title="Sincronizar feeds de Dark Web y C2 Botnets">
+                    <i id="sync-icon" class="fa-solid fa-arrows-rotate text-purple-400"></i>
+                    <span class="hidden md:inline">Sincronizar CTI</span>
                 </button>
+
+                <a id="btn-report-link" href="report.php" target="_blank" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs border border-cyber-border transition flex items-center gap-1.5" title="Abrir Reporte Ejecutivo Formal para Dirección/CISO">
+                    <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                    <span class="hidden sm:inline">Reporte</span>
+                </a>
 
                 <button id="btn-scan" onclick="triggerScan()" class="relative group px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-xs shadow-lg shadow-cyan-500/25 hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center gap-2 cursor-pointer">
                     <i id="scan-icon" class="fa-solid fa-radar text-black group-hover:rotate-45 transition-transform"></i>
-                    <span id="scan-text">Escanear Superficie</span>
+                    <span id="scan-text">Escanear</span>
                 </button>
             </div>
         </div>
@@ -137,18 +130,18 @@
                             Calculando...
                         </div>
                         <p class="text-xs text-slate-400 leading-relaxed">
-                            Métrica ponderada según criticidad, desconfiguraciones activas y resolución de vulnerabilidades.
+                            Métrica perimetral aislada exclusivamente para la semilla seleccionada.
                         </p>
                     </div>
                 </div>
 
                 <div class="pt-4 border-t border-cyber-border text-[11px] text-slate-400 flex items-center justify-between">
                     <span>Evaluación perimetral continua</span>
-                    <span class="text-cyan-400 font-mono">MITRE ATT&CK & EPSS</span>
+                    <span id="current-scope-label" class="text-cyan-400 font-mono">Todas las semillas</span>
                 </div>
             </div>
 
-            <!-- Key Metric Counters (Fase 4 Expanded) -->
+            <!-- Key Metric Counters -->
             <div class="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
                 
                 <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition">
@@ -200,13 +193,13 @@
 
         <!-- Navigation Tabs -->
         <div class="flex items-center gap-2 border-b border-cyber-border overflow-x-auto pb-1 text-sm font-medium no-print">
-            <button onclick="switchTab('graph')" id="tab-btn-graph" class="tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition">
-                <i class="fa-solid fa-diagram-project text-cyan-400"></i>
-                Topología de Ataque (Grafo)
-            </button>
-            <button onclick="switchTab('easm')" id="tab-btn-easm" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
+            <button onclick="switchTab('easm')" id="tab-btn-easm" class="tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-globe"></i>
                 Superficie de Ataque (EASM)
+            </button>
+            <button onclick="switchTab('graph')" id="tab-btn-graph" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
+                <i class="fa-solid fa-diagram-project"></i>
+                Topología de Ataque (Grafo)
             </button>
             <button onclick="switchTab('vulns')" id="tab-btn-vulns" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-shield-virus"></i>
@@ -230,74 +223,27 @@
             </button>
         </div>
 
-        <!-- TAB CONTENT: ATTACK SURFACE TOPOLOGY GRAPH (Fase 4) -->
-        <section id="tab-content-graph" class="space-y-4">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <!-- TAB CONTENT: EASM (Assets) -->
+        <section id="tab-content-easm" class="space-y-4">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
                     <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-diagram-project text-cyan-400"></i>
-                        Grafo de Topología y Relaciones Perimetrales
+                        <i class="fa-solid fa-server text-cyan-400"></i>
+                        Inventario Perimetral Descubierto
                     </h3>
-                    <p class="text-xs text-slate-400">Mapeo visual de relaciones: [Organización] ➔ [Subdominios] ➔ [IPs / Proveedores] ➔ [Puertos] ➔ [Vulnerabilidades].</p>
+                    <p class="text-xs text-slate-400">Mostrando exclusivamente los activos descubiertos para el dominio seleccionado.</p>
                 </div>
-
-                <div class="flex items-center gap-2 text-xs">
-                    <button onclick="loadGraph()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-cyber-border flex items-center gap-1.5 transition">
-                        <i class="fa-solid fa-rotate"></i>
-                        <span>Centrar Grafo</span>
+                
+                <div class="flex items-center gap-3 w-full sm:w-auto no-print">
+                    <button onclick="openPlanModal()" class="px-3 py-2 rounded-xl bg-blue-900/60 hover:bg-blue-800 text-blue-200 border border-blue-700/60 text-xs font-semibold flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-clipboard-check text-blue-400"></i>
+                        <span>Generar Plan de Trabajo</span>
                     </button>
-                </div>
-            </div>
 
-            <!-- Legend Bar -->
-            <div class="flex flex-wrap items-center gap-4 p-3 bg-cyber-card border border-cyber-border rounded-xl text-xs font-mono">
-                <span class="text-slate-400 font-sans font-semibold">Leyenda de Nodos:</span>
-                <div class="flex items-center gap-1.5">
-                    <span class="w-3 h-3 rounded-sm bg-cyan-500 inline-block"></span>
-                    <span class="text-slate-300">Organización (Semilla)</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                    <span class="w-3 h-3 rounded-full bg-sky-400 inline-block"></span>
-                    <span class="text-slate-300">Subdominio</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                    <span class="w-3 h-3 rounded-sm bg-slate-600 inline-block"></span>
-                    <span class="text-slate-300">Dirección IP / Cloud</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                    <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
-                    <span class="text-slate-300">Puerto Seguro</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                    <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span>
-                    <span class="text-slate-300">Puerto Crítico</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                    <span class="w-3 h-3 border-b-2 border-rose-500 inline-block"></span>
-                    <span class="text-rose-400 font-bold">Vulnerabilidad Crítica</span>
-                </div>
-            </div>
-
-            <!-- Interactive Graph Container -->
-            <div class="relative bg-cyber-card border border-cyber-border rounded-2xl overflow-hidden shadow-2xl">
-                <div id="network-canvas"></div>
-                <div id="graph-loading" class="absolute inset-0 bg-cyber-dark/80 backdrop-blur-sm flex flex-col items-center justify-center text-cyan-400 gap-3">
-                    <i class="fa-solid fa-circle-nodes fa-spin text-4xl"></i>
-                    <span class="text-sm font-mono font-medium text-white">Calculando física y topología del grafo...</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- TAB CONTENT: EASM (Assets) -->
-        <section id="tab-content-easm" class="space-y-4 hidden">
-            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-server text-cyan-400"></i>
-                    Inventario Perimetral Descubierto
-                </h3>
-                <div class="relative w-full sm:w-72 no-print">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-xs"></i>
-                    <input type="text" id="asset-search" oninput="renderAssetsTable()" placeholder="Buscar subdominio, IP..." class="w-full pl-9 pr-4 py-2 rounded-xl bg-cyber-card border border-cyber-border text-xs text-white focus:outline-none focus:border-cyan-500 transition">
+                    <div class="relative w-full sm:w-72">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-500 text-xs"></i>
+                        <input type="text" id="asset-search" oninput="renderAssetsTable()" placeholder="Buscar subdominio, IP..." class="w-full pl-9 pr-4 py-2 rounded-xl bg-cyber-card border border-cyber-border text-xs text-white focus:outline-none focus:border-cyan-500 transition">
+                    </div>
                 </div>
             </div>
 
@@ -327,21 +273,55 @@
             </div>
         </section>
 
-        <!-- TAB CONTENT: Vulnerabilities & Exposures (With Remediation Workflow) -->
-        <section id="tab-content-vulns" class="space-y-4 hidden">
+        <!-- TAB CONTENT: ATTACK SURFACE TOPOLOGY GRAPH -->
+        <section id="tab-content-graph" class="space-y-4 hidden">
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-bug text-rose-400"></i>
-                        Hallazgos de Exposición y Ciclo de Remediación
+                        <i class="fa-solid fa-diagram-project text-cyan-400"></i>
+                        Grafo de Topología y Relaciones Perimetrales
                     </h3>
-                    <p class="text-xs text-slate-400">Gestiona y mitiga los hallazgos perimetrales. Al marcar un hallazgo como "Mitigado", se recupera la puntuación de exposición.</p>
+                    <p class="text-xs text-slate-400">Mapeo visual de relaciones para la semilla activa: [Semilla] ➔ [Subdominios] ➔ [IPs] ➔ [Puertos] ➔ [Vulnerabilidades].</p>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs">
+                    <button onclick="loadGraph()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-cyber-border flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Centrar Grafo</span>
+                    </button>
                 </div>
             </div>
 
-            <div id="vulns-container" class="space-y-4">
-                <!-- Dynamically loaded -->
+            <div class="flex flex-wrap items-center gap-4 p-3 bg-cyber-card border border-cyber-border rounded-xl text-xs font-mono">
+                <span class="text-slate-400 font-sans font-semibold">Leyenda de Nodos:</span>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-cyan-500 inline-block"></span><span class="text-slate-300">Semilla</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-sky-400 inline-block"></span><span class="text-slate-300">Subdominio</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-slate-600 inline-block"></span><span class="text-slate-300">IP / Cloud</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span><span class="text-slate-300">Puerto Seguro</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span><span class="text-slate-300">Puerto Crítico</span></div>
+                <div class="flex items-center gap-1.5"><span class="w-3 h-3 border-b-2 border-rose-500 inline-block"></span><span class="text-rose-400 font-bold">Vulnerabilidad</span></div>
             </div>
+
+            <div class="relative bg-cyber-card border border-cyber-border rounded-2xl overflow-hidden shadow-2xl">
+                <div id="network-canvas"></div>
+                <div id="graph-loading" class="absolute inset-0 bg-cyber-dark/80 backdrop-blur-sm flex flex-col items-center justify-center text-cyan-400 gap-3">
+                    <i class="fa-solid fa-circle-nodes fa-spin text-4xl"></i>
+                    <span class="text-sm font-mono font-medium text-white">Calculando física y topología del grafo...</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB CONTENT: Vulnerabilities & Exposures -->
+        <section id="tab-content-vulns" class="space-y-4 hidden">
+            <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-bug text-rose-400"></i>
+                    Hallazgos de Exposición y Ciclo de Remediación
+                </h3>
+                <p class="text-xs text-slate-400">Gestiona y mitiga los hallazgos perimetrales. Al marcar un hallazgo como "Mitigado", se recupera la puntuación de exposición.</p>
+            </div>
+
+            <div id="vulns-container" class="space-y-4"></div>
         </section>
 
         <!-- TAB CONTENT: DRP (Typosquatting & Phishing) -->
@@ -367,9 +347,7 @@
                                 <th class="p-4 text-center">Acción de Respuesta</th>
                             </tr>
                         </thead>
-                        <tbody id="drp-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
-                            <!-- Dynamically loaded -->
-                        </tbody>
+                        <tbody id="drp-table-body" class="divide-y divide-cyber-border/60 text-slate-300"></tbody>
                     </table>
                 </div>
             </div>
@@ -508,6 +486,68 @@
 
     </main>
 
+    <!-- Work Plan & Roadmap Modal -->
+    <div id="plan-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cyber-card border border-cyan-500/50 rounded-2xl max-w-3xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-4 border-b border-cyber-border">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-blue-950 border border-blue-700 flex items-center justify-center text-blue-400 font-bold">
+                        <i class="fa-solid fa-list-check"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-base">Plan de Trabajo y Hoja de Ruta de Remediación</h3>
+                        <p id="plan-seed-subtitle" class="text-xs text-cyan-400 font-mono">Semilla Activa: www.fdn.com.co</p>
+                    </div>
+                </div>
+                <button onclick="closePlanModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="mt-4 space-y-4 overflow-y-auto pr-2 text-xs text-slate-300 flex-1">
+                <div class="p-4 bg-slate-900/80 rounded-xl border border-cyber-border">
+                    <h4 class="font-bold text-cyan-400 text-sm flex items-center gap-2 mb-1">
+                        <i class="fa-solid fa-bolt"></i> Prioridad Inmediata (0 - 48 Horas)
+                    </h4>
+                    <ul class="list-disc list-inside space-y-1.5 text-slate-300 mt-2">
+                        <li><strong>Cierre de Puertos No Web:</strong> Inspeccionar el puerto 8080 y servicios expuestos fuera de los puertos estándar 80/443. Aplicar lista blanca en firewall perimetral.</li>
+                        <li><strong>Verificación de Endpoints Sensibles:</strong> Validar que rutas administrativas o copias de seguridad no estén abiertas al público en el servidor web.</li>
+                        <li><strong>Monitoreo de DNS:</strong> Confirmar que las resoluciones A y CNAME de la semilla apunten a infraestructura protegida.</li>
+                    </ul>
+                </div>
+
+                <div class="p-4 bg-slate-900/80 rounded-xl border border-cyber-border">
+                    <h4 class="font-bold text-amber-400 text-sm flex items-center gap-2 mb-1">
+                        <i class="fa-solid fa-shield-halved"></i> Corto Plazo (1 - 2 Semanas)
+                    </h4>
+                    <ul class="list-disc list-inside space-y-1.5 text-slate-300 mt-2">
+                        <li><strong>Protección de Cabeceras HTTP:</strong> Habilitar <code>Strict-Transport-Security (HSTS)</code>, <code>X-Content-Type-Options: nosniff</code> y política CSP estricta.</li>
+                        <li><strong>Ocultamiento de Banners:</strong> Configurar el servidor para suprimir información sobre el software de base (Apache / Nginx / PHP).</li>
+                        <li><strong>DMARC & Anti-Spoofing:</strong> Configurar registro DMARC en modo rechazo (<code>p=reject</code>) junto con SPF y DKIM para blindar el dominio corporativo contra phishing.</li>
+                    </ul>
+                </div>
+
+                <div class="p-4 bg-slate-900/80 rounded-xl border border-cyber-border">
+                    <h4 class="font-bold text-emerald-400 text-sm flex items-center gap-2 mb-1">
+                        <i class="fa-solid fa-chart-line"></i> Mediano Plazo y Vigilancia Continua (Permanente)
+                    </h4>
+                    <ul class="list-disc list-inside space-y-1.5 text-slate-300 mt-2">
+                        <li><strong>Automatización EASM:</strong> Programar re-escaneos automáticos semanales para detectar nuevos subdominios o cambios en puertos.</li>
+                        <li><strong>Alerta Temprana DRP:</strong> Tramitar solicitudes de Takedown de inmediato si se detecta un dominio clon con servidores MX activos.</li>
+                        <li><strong>Monitoreo de la Dark Web:</strong> Cruzar mensualmente el inventario con los blogs de ransomware y feeds C2.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mt-4 pt-4 border-t border-cyber-border flex justify-between items-center">
+                <span class="text-[11px] text-slate-500 font-mono">Basado en metodologías CIS & NIST CSF</span>
+                <button onclick="closePlanModal()" class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Takedown Modal -->
     <div id="takedown-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-cyber-card border border-cyan-500/50 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative">
@@ -559,8 +599,14 @@
         const API_URL = 'api.php';
         let globalAssets = [];
         let networkInstance = null;
+        let activeSeed = ''; // Empty or 'ALL' or specific domain
 
         async function init() {
+            await loadSeeds();
+            await refreshAllData();
+        }
+
+        async function refreshAllData() {
             await Promise.all([
                 loadStats(),
                 loadAssets(),
@@ -568,9 +614,29 @@
                 loadDrp(),
                 loadLeaks(),
                 loadCti(),
-                loadSeeds(),
                 loadGraph()
             ]);
+        }
+
+        function onActiveSeedChange(newSeed) {
+            activeSeed = newSeed;
+            document.getElementById('current-scope-label').innerText = (activeSeed && activeSeed !== 'ALL') ? activeSeed : 'Todas las semillas';
+            document.getElementById('plan-seed-subtitle').innerText = 'Semilla Activa: ' + ((activeSeed && activeSeed !== 'ALL') ? activeSeed : 'Consolidado');
+            
+            // Update report link
+            const reportBtn = document.getElementById('btn-report-link');
+            if (activeSeed && activeSeed !== 'ALL') {
+                reportBtn.href = `report.php?seed=${encodeURIComponent(activeSeed)}`;
+            } else {
+                reportBtn.href = `report.php`;
+            }
+
+            showToast(`Cambiando perímetro a: ${(activeSeed && activeSeed !== 'ALL') ? activeSeed : 'Todas las semillas'}`);
+            refreshAllData();
+        }
+
+        function getSeedQueryParam() {
+            return (activeSeed && activeSeed !== 'ALL') ? `&seed=${encodeURIComponent(activeSeed)}` : '';
         }
 
         // Show toast
@@ -604,7 +670,7 @@
                 activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
             }
 
-            ['graph', 'easm', 'vulns', 'drp', 'leaks', 'cti', 'seeds'].forEach(t => {
+            ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds'].forEach(t => {
                 const el = document.getElementById(`tab-content-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tabId);
             });
@@ -614,10 +680,18 @@
             }
         }
 
+        // Plan Modal
+        function openPlanModal() {
+            document.getElementById('plan-modal').classList.remove('hidden');
+        }
+        function closePlanModal() {
+            document.getElementById('plan-modal').classList.add('hidden');
+        }
+
         // Load Stats
         async function loadStats() {
             try {
-                const res = await fetch(`${API_URL}?action=get_stats`);
+                const res = await fetch(`${API_URL}?action=get_stats${getSeedQueryParam()}`);
                 const data = await res.json();
 
                 const score = data.exposure_score ?? 100;
@@ -654,7 +728,10 @@
                 const ransomBadge = document.getElementById('ransom-alert-badge');
                 if (data.ransomware_matched > 0) {
                     ransomBadge.className = 'px-3 py-1.5 rounded-xl bg-rose-950 text-rose-400 border border-rose-800/80 text-xs font-bold flex items-center gap-2 animate-bounce';
-                    ransomBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ALERTA: ${data.ransomware_matched} Menciones de tu Empresa en Ransomware!`;
+                    ransomBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ALERTA: ${data.ransomware_matched} Menciones en Ransomware!`;
+                } else {
+                    ransomBadge.className = 'px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-400 border border-emerald-800/60 text-xs font-bold flex items-center gap-2';
+                    ransomBadge.innerHTML = `<i class="fa-solid fa-shield-check"></i> Tu empresa no figura como víctima`;
                 }
 
             } catch (err) {
@@ -662,13 +739,13 @@
             }
         }
 
-        // Load Vis.js Topology Graph (Fase 4)
+        // Load Vis.js Topology Graph
         async function loadGraph() {
             const loading = document.getElementById('graph-loading');
             loading.classList.remove('hidden');
 
             try {
-                const res = await fetch(`${API_URL}?action=get_graph_data`);
+                const res = await fetch(`${API_URL}?action=get_graph_data${getSeedQueryParam()}`);
                 const graphData = await res.json();
 
                 const container = document.getElementById('network-canvas');
@@ -679,7 +756,7 @@
 
                 const options = {
                     physics: {
-                        stabilization: { iterations: 120 },
+                        stabilization: { iterations: 100 },
                         barnesHut: {
                             gravitationalConstant: -3500,
                             centralGravity: 0.35,
@@ -703,13 +780,6 @@
                     loading.classList.add('hidden');
                 });
 
-                networkInstance.on("click", function (params) {
-                    if (params.nodes.length > 0) {
-                        const nodeId = params.nodes[0];
-                        console.log("Nodo seleccionado:", nodeId);
-                    }
-                });
-
             } catch (err) {
                 console.error("Error al cargar grafo de ataque:", err);
                 loading.classList.add('hidden');
@@ -719,7 +789,7 @@
         // Load Assets
         async function loadAssets() {
             try {
-                const res = await fetch(`${API_URL}?action=get_assets`);
+                const res = await fetch(`${API_URL}?action=get_assets${getSeedQueryParam()}`);
                 globalAssets = await res.json();
                 renderAssetsTable();
             } catch (err) {
@@ -738,7 +808,7 @@
             );
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500">No se encontraron activos perimetrales coincidentes. Ejecuta un escaneo para descubrirlos.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500">No se encontraron activos perimetrales para la semilla seleccionada. Ejecuta un escaneo para descubrirlos.</td></tr>`;
                 return;
             }
 
@@ -778,10 +848,10 @@
             }).join('');
         }
 
-        // Load Vulnerabilities & Exposures with Remediation Lifecycle (Fase 4)
+        // Load Vulnerabilities & Exposures
         async function loadVulns() {
             try {
-                const res = await fetch(`${API_URL}?action=get_vulnerabilities`);
+                const res = await fetch(`${API_URL}?action=get_vulnerabilities${getSeedQueryParam()}`);
                 const vulns = await res.json();
                 const container = document.getElementById('vulns-container');
 
@@ -813,7 +883,6 @@
                                     <h4 class="font-bold ${isResolved ? 'text-slate-400 line-through' : 'text-white'} text-sm">${v.title}</h4>
                                 </div>
 
-                                <!-- Remediation Workflow Dropdown -->
                                 <div class="flex items-center gap-2">
                                     <span class="text-[11px] text-slate-400 font-medium">Estado:</span>
                                     <select onchange="handleStatusChange(${v.id}, this.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold border ${isResolved ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : (isInProgress ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-slate-900 text-rose-300 border-rose-800')} focus:outline-none">
@@ -869,7 +938,7 @@
         // Load DRP Threats
         async function loadDrp() {
             try {
-                const res = await fetch(`${API_URL}?action=get_drp`);
+                const res = await fetch(`${API_URL}?action=get_drp${getSeedQueryParam()}`);
                 const threats = await res.json();
                 const tbody = document.getElementById('drp-table-body');
 
@@ -913,14 +982,14 @@
         // Load Leaks & Secrets
         async function loadLeaks() {
             try {
-                const resSec = await fetch(`${API_URL}?action=get_exposed_secrets`);
+                const resSec = await fetch(`${API_URL}?action=get_exposed_secrets${getSeedQueryParam()}`);
                 const secrets = await resSec.json();
                 const secContainer = document.getElementById('secrets-container');
 
                 if (secrets.length === 0) {
                     secContainer.innerHTML = `
                         <div class="p-4 rounded-xl bg-slate-900/60 border border-cyber-border text-center text-xs text-slate-500">
-                            No se han detectado archivos .env o repositorios .git expuestos al público.
+                            No se han detectado archivos .env o repositorios .git expuestos para esta semilla.
                         </div>
                     `;
                 } else {
@@ -939,7 +1008,7 @@
                     `).join('');
                 }
 
-                const resLeaks = await fetch(`${API_URL}?action=get_credential_leaks`);
+                const resLeaks = await fetch(`${API_URL}?action=get_credential_leaks${getSeedQueryParam()}`);
                 const leaks = await resLeaks.json();
                 const tbody = document.getElementById('leaks-table-body');
 
@@ -971,7 +1040,7 @@
         // Load CTI & Dark Web
         async function loadCti() {
             try {
-                const resR = await fetch(`${API_URL}?action=get_ransomware_leaks`);
+                const resR = await fetch(`${API_URL}?action=get_ransomware_leaks${getSeedQueryParam()}`);
                 const leaks = await resR.json();
                 const tbodyR = document.getElementById('ransomware-table-body');
 
@@ -1094,12 +1163,32 @@
             showToast('¡Notificación de abuso copiada al portapapeles!');
         }
 
-        // Load Seeds
+        // Load Seeds & Populate Switcher
         async function loadSeeds() {
             try {
                 const res = await fetch(`${API_URL}?action=get_seeds`);
                 const seeds = await res.json();
                 document.getElementById('seeds-count').innerText = `${seeds.length} semillas`;
+
+                // Populate Topbar Switcher
+                const selector = document.getElementById('active-seed-selector');
+                if (seeds.length === 0) {
+                    selector.innerHTML = `<option value="ALL">Sin semillas</option>`;
+                    activeSeed = 'ALL';
+                } else {
+                    // Set default active seed to first seed if not set
+                    if (!activeSeed || activeSeed === 'ALL') {
+                        activeSeed = seeds[0].domain;
+                    }
+
+                    selector.innerHTML = seeds.map(s => `
+                        <option value="${s.domain}" ${s.domain === activeSeed ? 'selected' : ''} class="bg-slate-900 text-white">${s.domain}</option>
+                    `).join('') + `<option value="ALL" ${activeSeed === 'ALL' ? 'selected' : ''} class="bg-slate-900 text-white">Todas las semillas (Consolidado)</option>`;
+
+                    document.getElementById('current-scope-label').innerText = activeSeed;
+                    document.getElementById('plan-seed-subtitle').innerText = 'Semilla Activa: ' + activeSeed;
+                    document.getElementById('btn-report-link').href = `report.php?seed=${encodeURIComponent(activeSeed)}`;
+                }
 
                 const list = document.getElementById('seeds-list');
                 if (seeds.length === 0) {
@@ -1144,8 +1233,10 @@
                 const data = await res.json();
                 if (data.success) {
                     domainInput.value = '';
+                    activeSeed = domain;
                     showToast(`Semilla ${domain} agregada exitosamente`);
-                    await Promise.all([loadSeeds(), loadGraph()]);
+                    await loadSeeds();
+                    await refreshAllData();
                 } else {
                     showToast(data.error || 'Error al agregar', true);
                 }
@@ -1154,17 +1245,19 @@
             }
         }
 
-        // Delete Seed
+        // Delete Seed (Cascade Purge)
         async function handleDeleteSeed(id) {
-            if (!confirm('¿Deseas eliminar este dominio de la vigilancia?')) return;
+            if (!confirm('¿Deseas eliminar este dominio y purgar todos sus activos de la superficie?')) return;
             const form = new FormData();
             form.append('id', id);
             try {
                 const res = await fetch(`${API_URL}?action=delete_seed`, { method: 'POST', body: form });
                 const data = await res.json();
                 if (data.success) {
-                    showToast('Semilla eliminada');
-                    await Promise.all([loadSeeds(), loadGraph()]);
+                    showToast('Semilla y activos purgados');
+                    activeSeed = '';
+                    await loadSeeds();
+                    await refreshAllData();
                 }
             } catch (err) {
                 showToast('Error de conexión', true);
@@ -1180,16 +1273,16 @@
             btn.disabled = true;
             btn.classList.add('opacity-75');
             icon.className = 'fa-solid fa-circle-notch fa-spin text-black';
-            text.innerText = 'Escaneando superficie...';
-            showToast('Iniciando reconocimiento exhaustivo (EASM + DRP + CTI)...');
+            text.innerText = 'Escaneando...';
+            showToast(`Iniciando reconocimiento perimetral para: ${activeSeed || 'Semillas activas'}...`);
 
             try {
-                const res = await fetch(`${API_URL}?action=run_scan`);
+                const res = await fetch(`${API_URL}?action=run_scan${getSeedQueryParam()}`);
                 const data = await res.json();
 
                 if (data.success) {
                     showToast(`¡Escaneo finalizado! ${data.summary.assets_cataloged} activos analizados.`);
-                    await init();
+                    await refreshAllData();
                 } else {
                     showToast(data.error || 'Fallo durante el escaneo', true);
                 }
@@ -1199,7 +1292,7 @@
                 btn.disabled = false;
                 btn.classList.remove('opacity-75');
                 icon.className = 'fa-solid fa-radar text-black group-hover:rotate-45 transition-transform';
-                text.innerText = 'Escanear Superficie';
+                text.innerText = 'Escanear';
             }
         }
 
