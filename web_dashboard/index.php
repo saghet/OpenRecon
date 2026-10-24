@@ -23,7 +23,8 @@
                             accent: '#06b6d4',
                             neon: '#10b981',
                             danger: '#f43f5e',
-                            warning: '#f59e0b'
+                            warning: '#f59e0b',
+                            purple: '#a855f7'
                         }
                     }
                 }
@@ -73,17 +74,22 @@
                 <div>
                     <div class="flex items-center gap-2">
                         <span class="font-extrabold text-lg tracking-tight text-white">Open<span class="text-cyan-400">Recon</span></span>
-                        <span class="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-cyan-950 text-cyan-400 border border-cyan-800/60 rounded">Fase 2: EASM + DRP + Leaks</span>
+                        <span class="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-purple-950 text-purple-400 border border-purple-800/60 rounded">Fase 3: EASM + DRP + CTI Dark Web</span>
                     </div>
-                    <p class="text-[11px] text-slate-400">Alternativa Abierta y Soberana a FortiRecon & Recorded Future</p>
+                    <p class="text-[11px] text-slate-400">Alternativa Abierta a FortiRecon, Recorded Future & CrowdStrike FEM</p>
                 </div>
             </div>
 
             <!-- Actions & Status -->
             <div class="flex items-center gap-3">
+                <button onclick="syncCti()" class="px-3 py-2 rounded-xl bg-purple-950/60 hover:bg-purple-900/60 text-purple-300 font-medium text-xs border border-purple-800/50 transition flex items-center gap-2" title="Sincronizar feeds de Dark Web y C2 Botnets">
+                    <i id="sync-icon" class="fa-solid fa-arrows-rotate text-purple-400"></i>
+                    <span>Sincronizar CTI</span>
+                </button>
+
                 <button onclick="window.print()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs border border-cyber-border transition flex items-center gap-2" title="Imprimir o exportar PDF del reporte">
                     <i class="fa-solid fa-file-pdf text-rose-400"></i>
-                    <span>Exportar Reporte</span>
+                    <span>Reporte</span>
                 </button>
 
                 <button id="btn-scan" onclick="triggerScan()" class="relative group px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-xs shadow-lg shadow-cyan-500/25 hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center gap-2 cursor-pointer">
@@ -124,18 +130,18 @@
                             Calculando...
                         </div>
                         <p class="text-xs text-slate-400 leading-relaxed">
-                            Métrica basada en puertos de riesgo, desconfiguraciones, fugas de secretos y dominios suplantadores.
+                            Métrica basada en puertos de riesgo, desconfiguraciones, fugas de secretos y menciones en la Dark Web.
                         </p>
                     </div>
                 </div>
 
                 <div class="pt-4 border-t border-cyber-border text-[11px] text-slate-400 flex items-center justify-between">
                     <span>Evaluación perimetral continua</span>
-                    <span class="text-cyan-400 font-mono">MITRE ATT&CK</span>
+                    <span class="text-cyan-400 font-mono">MITRE ATT&CK & CTI</span>
                 </div>
             </div>
 
-            <!-- Key Metric Counters (Fase 2 Expanded) -->
+            <!-- Key Metric Counters (Fase 3 Expanded) -->
             <div class="lg:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
                 
                 <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition">
@@ -172,14 +178,14 @@
                 </div>
 
                 <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 flex flex-col justify-between hover:border-slate-700 transition">
-                    <div class="w-10 h-10 rounded-xl bg-amber-950/60 border border-amber-900/40 flex items-center justify-center text-amber-400 mb-3">
-                        <i class="fa-solid fa-user-secret"></i>
+                    <div class="w-10 h-10 rounded-xl bg-purple-950/60 border border-purple-900/40 flex items-center justify-center text-purple-400 mb-3">
+                        <i class="fa-solid fa-skull-crossbones"></i>
                     </div>
                     <div>
-                        <span class="text-xs text-slate-400 font-medium">Riesgo DRP & Fugas</span>
-                        <h3 id="stat-drp" class="text-2xl font-bold text-amber-400 mt-1">0</h3>
+                        <span class="text-xs text-slate-400 font-medium">CTI & Dark Web</span>
+                        <h3 id="stat-cti" class="text-2xl font-bold text-purple-400 mt-1">0</h3>
                     </div>
-                    <span id="stat-leaks-info" class="text-[11px] text-amber-400/90 font-mono mt-2">Phishing / Brechas</span>
+                    <span id="stat-cti-info" class="text-[11px] text-purple-400/90 font-mono mt-2">Ransomware & C2s</span>
                 </div>
 
             </div>
@@ -202,6 +208,10 @@
             <button onclick="switchTab('leaks')" id="tab-btn-leaks" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-key text-amber-400"></i>
                 Fugas de Credenciales y Secretos
+            </button>
+            <button onclick="switchTab('cti')" id="tab-btn-cti" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
+                <i class="fa-solid fa-user-ninja text-purple-400"></i>
+                Inteligencia de Amenazas (CTI)
             </button>
             <button onclick="switchTab('seeds')" id="tab-btn-seeds" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
                 <i class="fa-solid fa-crosshairs"></i>
@@ -265,14 +275,12 @@
 
         <!-- TAB CONTENT: DRP (Typosquatting & Phishing) -->
         <section id="tab-content-drp" class="space-y-4 hidden">
-            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                        <i class="fa-solid fa-shield-cat text-amber-400"></i>
-                        Detección de Suplantación y Phishing (Digital Risk Protection)
-                    </h3>
-                    <p class="text-xs text-slate-400">Variaciones de marca y dominios homóglifos registrados activamente por terceros.</p>
-                </div>
+            <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-shield-cat text-amber-400"></i>
+                    Detección de Suplantación y Phishing (Digital Risk Protection)
+                </h3>
+                <p class="text-xs text-slate-400">Variaciones de marca y dominios homóglifos registrados activamente por terceros.</p>
             </div>
 
             <div class="bg-cyber-card border border-cyber-border rounded-2xl overflow-hidden shadow-xl">
@@ -296,38 +304,23 @@
             </div>
         </section>
 
-        <!-- TAB CONTENT: Credential Leaks & Exposed Secrets (Fase 2) -->
+        <!-- TAB CONTENT: Credential Leaks & Exposed Secrets -->
         <section id="tab-content-leaks" class="space-y-6 hidden">
-            
-            <!-- Exposed Secrets Card -->
             <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-file-code text-rose-400"></i>
-                            Secretos y Archivos Sensibles Expuestos (.env, .git, backups)
-                        </h3>
-                        <p class="text-xs text-slate-400">Inspección de endpoints desprotegidos que exponen variables de entorno o credenciales de backend.</p>
-                    </div>
-                </div>
-
-                <div id="secrets-container" class="space-y-3">
-                    <!-- Dynamically loaded -->
-                </div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2 mb-1">
+                    <i class="fa-solid fa-file-code text-rose-400"></i>
+                    Secretos y Archivos Sensibles Expuestos (.env, .git, backups)
+                </h3>
+                <p class="text-xs text-slate-400 mb-4">Inspección de endpoints desprotegidos que exponen variables de entorno o credenciales de backend.</p>
+                <div id="secrets-container" class="space-y-3"></div>
             </div>
 
-            <!-- Credential Breaches Card -->
             <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <div>
-                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                            <i class="fa-solid fa-address-book text-amber-400"></i>
-                            Fugas de Credenciales Corporativas (Breach Intelligence)
-                        </h3>
-                        <p class="text-xs text-slate-400">Cuentas de correo del dominio corporativo detectadas en filtraciones y bases de datos clandestinas.</p>
-                    </div>
-                </div>
-
+                <h3 class="text-lg font-bold text-white flex items-center gap-2 mb-1">
+                    <i class="fa-solid fa-address-book text-amber-400"></i>
+                    Fugas de Credenciales Corporativas (Breach Intelligence)
+                </h3>
+                <p class="text-xs text-slate-400 mb-4">Cuentas de correo del dominio corporativo detectadas en filtraciones y bases de datos clandestinas.</p>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-cyber-border">
@@ -339,7 +332,85 @@
                                 <th class="p-4 text-center">Severidad</th>
                             </tr>
                         </thead>
-                        <tbody id="leaks-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
+                        <tbody id="leaks-table-body" class="divide-y divide-cyber-border/60 text-slate-300"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB CONTENT: CTI & Dark Web Intelligence (Fase 3) -->
+        <section id="tab-content-cti" class="space-y-6 hidden">
+            
+            <!-- Ransomware Leak Watchdog -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-purple-500 animate-ping"></span>
+                            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-radiation text-purple-400"></i>
+                                Dark Web Ransomware Leak Watchdog (Blogs de Extorsión)
+                            </h3>
+                        </div>
+                        <p class="text-xs text-slate-400 mt-1">Rastreo de sitios de fuga en la red Tor operados por sindicatos de ransomware (LockBit, BlackBasta, Akira, Play, etc.).</p>
+                    </div>
+
+                    <div id="ransom-alert-badge" class="px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-400 border border-emerald-800/60 text-xs font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-shield-check"></i>
+                        <span>Tu empresa no figura como víctima</span>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-cyber-border">
+                            <tr>
+                                <th class="p-4">Víctima Reclamada</th>
+                                <th class="p-4">Grupo de Ransomware</th>
+                                <th class="p-4">Fecha de Detección</th>
+                                <th class="p-4 text-center">Estado de Alerta</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ransomware-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
+                            <!-- Dynamically loaded -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Threat Actors Intelligence Catalog -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2 mb-1">
+                    <i class="fa-solid fa-user-secret text-rose-400"></i>
+                    Perfiles de Actores de Amenaza y TTPs (MITRE ATT&CK)
+                </h3>
+                <p class="text-xs text-slate-400 mb-6">Tácticas, técnicas y vectores de acceso inicial utilizados por los grupos que atacan tu sector.</p>
+
+                <div id="actors-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Dynamically loaded -->
+                </div>
+            </div>
+
+            <!-- Botnet C2 Threat Feeds -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2 mb-1">
+                    <i class="fa-solid fa-spider text-cyan-400"></i>
+                    Indicadores de Compromiso (IOCs) - Servidores C2 Activos
+                </h3>
+                <p class="text-xs text-slate-400 mb-4">Feed en tiempo real de nodos de comando y control (Feodo Tracker / Abuse.ch) para verificación de bloqueo perimetral.</p>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-cyber-border">
+                            <tr>
+                                <th class="p-4">IP C2</th>
+                                <th class="p-4">Puerto</th>
+                                <th class="p-4">Familia de Malware</th>
+                                <th class="p-4">Sistema Autónomo (ASN)</th>
+                                <th class="p-4 text-center">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="iocs-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
                             <!-- Dynamically loaded -->
                         </tbody>
                     </table>
@@ -371,15 +442,13 @@
                     <span>Dominios Actualmente Monitoreados</span>
                     <span id="seeds-count" class="text-xs font-mono text-cyan-400">0 semillas</span>
                 </div>
-                <div id="seeds-list" class="divide-y divide-cyber-border/60">
-                    <!-- Dynamically loaded -->
-                </div>
+                <div id="seeds-list" class="divide-y divide-cyber-border/60"></div>
             </div>
         </section>
 
     </main>
 
-    <!-- Takedown Modal (RFC Abuse Notification) -->
+    <!-- Takedown Modal -->
     <div id="takedown-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-cyber-card border border-cyan-500/50 rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative">
             <div class="flex items-center justify-between pb-4 border-b border-cyber-border">
@@ -437,6 +506,7 @@
                 loadVulns(),
                 loadDrp(),
                 loadLeaks(),
+                loadCti(),
                 loadSeeds()
             ]);
         }
@@ -472,7 +542,7 @@
                 activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
             }
 
-            ['easm', 'vulns', 'drp', 'leaks', 'seeds'].forEach(t => {
+            ['easm', 'vulns', 'drp', 'leaks', 'cti', 'seeds'].forEach(t => {
                 const el = document.getElementById(`tab-content-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tabId);
             });
@@ -487,7 +557,6 @@
                 const score = data.exposure_score ?? 100;
                 document.getElementById('score-val').innerText = score;
                 
-                // Color circle
                 const circle = document.getElementById('score-circle');
                 const offset = 301 - (301 * score / 100);
                 circle.style.strokeDashoffset = offset;
@@ -513,9 +582,15 @@
                 document.getElementById('stat-vulns').innerText = data.vulnerabilities.total || 0;
                 document.getElementById('stat-crit-vulns').innerText = `${data.vulnerabilities.critical + data.vulnerabilities.high} críticas / altas`;
                 
-                const totalThreats = (data.drp_threats || 0) + (data.credential_leaks || 0) + (data.exposed_secrets || 0);
-                document.getElementById('stat-drp').innerText = totalThreats;
-                document.getElementById('stat-leaks-info').innerText = `${data.credential_leaks || 0} fugas / ${data.drp_threats || 0} clones`;
+                document.getElementById('stat-cti').innerText = (data.ransomware_total || 0) + (data.threat_iocs || 0);
+                document.getElementById('stat-cti-info').innerText = `${data.ransomware_total || 0} fugas / ${data.threat_iocs || 0} C2s`;
+
+                // Ransomware matched check
+                const ransomBadge = document.getElementById('ransom-alert-badge');
+                if (data.ransomware_matched > 0) {
+                    ransomBadge.className = 'px-3 py-1.5 rounded-xl bg-rose-950 text-rose-400 border border-rose-800/80 text-xs font-bold flex items-center gap-2 animate-bounce';
+                    ransomBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ALERTA: ${data.ransomware_matched} Menciones de tu Empresa en Ransomware!`;
+                }
 
             } catch (err) {
                 console.error(err);
@@ -678,10 +753,9 @@
             }
         }
 
-        // Load Leaks & Secrets (Fase 2)
+        // Load Leaks & Secrets
         async function loadLeaks() {
             try {
-                // Exposed Secrets
                 const resSec = await fetch(`${API_URL}?action=get_exposed_secrets`);
                 const secrets = await resSec.json();
                 const secContainer = document.getElementById('secrets-container');
@@ -708,7 +782,6 @@
                     `).join('');
                 }
 
-                // Credential Leaks
                 const resLeaks = await fetch(`${API_URL}?action=get_credential_leaks`);
                 const leaks = await resLeaks.json();
                 const tbody = document.getElementById('leaks-table-body');
@@ -735,6 +808,112 @@
 
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        // Load CTI & Dark Web (Fase 3)
+        async function loadCti() {
+            try {
+                // 1. Ransomware Leaks
+                const resR = await fetch(`${API_URL}?action=get_ransomware_leaks`);
+                const leaks = await resR.json();
+                const tbodyR = document.getElementById('ransomware-table-body');
+
+                if (leaks.length === 0) {
+                    tbodyR.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500">Presiona "Sincronizar CTI" para descargar los últimos registros de la Dark Web.</td></tr>`;
+                } else {
+                    tbodyR.innerHTML = leaks.map(r => {
+                        const alertBadge = r.is_matched ? 
+                            '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-800 animate-pulse">OBJETIVO: TU EMPRESA</span>' : 
+                            '<span class="text-slate-500 text-[10px]">Tercero / Global</span>';
+
+                        return `
+                            <tr class="hover:bg-slate-800/40 transition ${r.is_matched ? 'bg-rose-950/20' : ''}">
+                                <td class="p-4 font-bold text-white flex items-center gap-2">
+                                    <i class="fa-solid fa-building text-slate-400"></i>
+                                    ${r.victim_name}
+                                </td>
+                                <td class="p-4 font-mono text-purple-400 font-semibold">${r.group_name}</td>
+                                <td class="p-4 font-mono text-[11px] text-slate-400">${r.discovered_date || '-'}</td>
+                                <td class="p-4 text-center">${alertBadge}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                // 2. Threat Actors
+                const resAct = await fetch(`${API_URL}?action=get_threat_actors`);
+                const actors = await resAct.json();
+                const containerAct = document.getElementById('actors-container');
+
+                containerAct.innerHTML = actors.map(a => `
+                    <div class="p-5 rounded-2xl bg-slate-900/80 border border-cyber-border hover:border-purple-600/50 transition flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="font-bold text-white text-sm">${a.name}</h4>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800/60">${a.origin}</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400 italic mb-2">Alias: ${a.aliases}</p>
+                            <p class="text-xs text-slate-300 leading-relaxed mb-3">${a.description}</p>
+                        </div>
+                        <div class="pt-3 border-t border-cyber-border space-y-1.5 text-[11px]">
+                            <div>
+                                <span class="text-slate-500">Vector Inicial:</span>
+                                <span class="text-rose-400 font-mono block">${a.initial_access}</span>
+                            </div>
+                            <div>
+                                <span class="text-slate-500">TTPs MITRE:</span>
+                                <span class="text-cyan-400 font-mono block">${a.mitre_tactics}</span>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+                // 3. Botnet IOCs
+                const resIoc = await fetch(`${API_URL}?action=get_threat_iocs`);
+                const iocs = await resIoc.json();
+                const tbodyIoc = document.getElementById('iocs-table-body');
+
+                if (iocs.length === 0) {
+                    tbodyIoc.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">Presiona "Sincronizar CTI" para obtener los IOCs activos.</td></tr>`;
+                } else {
+                    tbodyIoc.innerHTML = iocs.map(i => `
+                        <tr class="hover:bg-slate-800/40 transition">
+                            <td class="p-4 font-mono font-bold text-rose-400">${i.ip_address}</td>
+                            <td class="p-4 font-mono text-slate-300">${i.port || '-'}</td>
+                            <td class="p-4 font-semibold text-white">${i.malware_family}</td>
+                            <td class="p-4 text-slate-400 text-xs">${i.as_name}</td>
+                            <td class="p-4 text-center">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-400 border border-rose-800">${i.status.toUpperCase()}</span>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Sync CTI Feeds
+        async function syncCti() {
+            const icon = document.getElementById('sync-icon');
+            icon.classList.add('fa-spin');
+            showToast('Sincronizando feeds de Dark Web y Botnets C2...');
+
+            try {
+                const res = await fetch(`${API_URL}?action=sync_cti`);
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`Sincronización CTI completada: ${data.ransomware_ingested} fugas y ${data.iocs_ingested} IOCs.`);
+                    await Promise.all([loadStats(), loadCti()]);
+                } else {
+                    showToast('Error sincronizando feeds', true);
+                }
+            } catch (err) {
+                showToast('Fallo al conectar con feeds CTI', true);
+            } finally {
+                icon.classList.remove('fa-spin');
             }
         }
 
@@ -848,7 +1027,7 @@
             btn.classList.add('opacity-75');
             icon.className = 'fa-solid fa-circle-notch fa-spin text-black';
             text.innerText = 'Escaneando superficie...';
-            showToast('Iniciando reconocimiento exhaustivo (EASM + DRP + Secretos)...');
+            showToast('Iniciando reconocimiento exhaustivo (EASM + DRP + CTI)...');
 
             try {
                 const res = await fetch(`${API_URL}?action=run_scan`);

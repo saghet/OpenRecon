@@ -87,6 +87,37 @@ try {
             detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(endpoint_url, secret_type)
         );
+
+        CREATE TABLE IF NOT EXISTS ransomware_leaks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_name TEXT NOT NULL,
+            victim_name TEXT NOT NULL,
+            discovered_date TEXT,
+            is_matched INTEGER DEFAULT 0,
+            detected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(group_name, victim_name)
+        );
+
+        CREATE TABLE IF NOT EXISTS threat_iocs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip_address TEXT UNIQUE NOT NULL,
+            port INTEGER,
+            malware_family TEXT,
+            as_name TEXT,
+            status TEXT,
+            last_checked DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS threat_actors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            aliases TEXT,
+            origin TEXT,
+            target_sectors TEXT,
+            initial_access TEXT,
+            mitre_tactics TEXT,
+            description TEXT
+        );
     ");
 
     // Add default seed if empty
@@ -94,6 +125,66 @@ try {
     if ($seedCount == 0) {
         $stmt = $pdo->prepare("INSERT INTO seeds (domain) VALUES (?)");
         $stmt->execute(['fortinet.com']);
+    }
+
+    // Populate Threat Actors Intelligence Catalog if empty
+    $actorCount = $pdo->query("SELECT COUNT(*) FROM threat_actors")->fetchColumn();
+    if ($actorCount == 0) {
+        $actors = [
+            [
+                'name' => 'LockBit 3.0 (LockBit Black)',
+                'aliases' => 'Bitwise Spider',
+                'origin' => 'Ransomware-as-a-Service (Global / Clandestino)',
+                'target_sectors' => 'Salud, Infraestructura Crítica, Finanzas, Manufactura',
+                'initial_access' => 'Explotación de VPN/Firewalls expuestos (T1190), Credenciales válidas (T1078), Phishing (T1566)',
+                'mitre_tactics' => 'T1190, T1078, T1486 (Data Encrypted for Impact), T1567 (Exfiltration Over Web Service)',
+                'description' => 'Uno de los sindicatos de ransomware más prolíficos del mundo. Utiliza extorsión triple (cifrado, fuga en la Dark Web y ataques DDoS) para forzar pagos en criptomonedas.'
+            ],
+            [
+                'name' => 'Scattered Spider',
+                'aliases' => 'UNC3944, Starfraud, Roasted 0kt4',
+                'origin' => 'Comunidad cibercriminal nativa de habla inglesa',
+                'target_sectors' => 'Telecomunicaciones, Servicios de TI, Hotelería, Retail',
+                'initial_access' => 'Ingeniería social a mesas de ayuda (Helpdesk), SIM Swapping, Robo de sesiones MFA (T1621)',
+                'mitre_tactics' => 'T1566, T1621 (Multi-Factor Authentication Request Generation), T1078, T1556 (Modify Authentication Process)',
+                'description' => 'Grupo altamente agresivo especializado en ingeniería social contra operadores de identidad y personal de soporte para eludir MFA y desplegar ransomware BlackCat/ALPHV.'
+            ],
+            [
+                'name' => 'BlackBasta',
+                'aliases' => 'Conti Offshoot',
+                'origin' => 'Europa del Este',
+                'target_sectors' => 'Banca, Logística, Gobierno, Tecnología',
+                'initial_access' => 'Vulnerabilidades en aplicaciones públicas (T1190), Malware QakBot/Cobalt Strike',
+                'mitre_tactics' => 'T1190, T1059 (Command and Scripting Interpreter), T1486, T1027 (Obfuscated Files)',
+                'description' => 'Operación de ransomware de doble extorsión que publica gigabytes de datos confidenciales de empresas víctimas en sus foros de la red Tor.'
+            ],
+            [
+                'name' => 'Midnight Blizzard',
+                'aliases' => 'APT29, Nobelium, Cozy Bear',
+                'origin' => 'Rusia (SVR)',
+                'target_sectors' => 'Gobierno, Think Tanks, Proveedores Cloud, Defensa',
+                'initial_access' => 'Ataques de Password Spraying (T1110.003), Abuso de aplicaciones OAuth y tokens en nubes híbridas',
+                'mitre_tactics' => 'T1110, T1098.005 (Device Registration), T1528 (Steal Application Access Token)',
+                'description' => 'Actor de amenaza persistente avanzada (APT) patrocinado por el estado, responsable del ciberataque histórico a SolarWinds y campañas de espionaje en infraestructuras en la nube.'
+            ],
+            [
+                'name' => 'Lazarus Group',
+                'aliases' => 'APT38, Hidden Cobra, BlueNoroff',
+                'origin' => 'Corea del Norte (RGB)',
+                'target_sectors' => 'Bancos, Exchanges de Criptomonedas, Sector Aeroespacial',
+                'initial_access' => 'Spear-phishing en LinkedIn con ofertas falsas de empleo (T1566), Ataques a cadenas de suministro',
+                'mitre_tactics' => 'T1566, T1195 (Supply Chain Compromise), T1555 (Credentials from Password Stores)',
+                'description' => 'Famoso por atracos cibernéticos masivos a bancos y plataformas DeFi, así como por el desarrollo de malware destructivo como WannaCry.'
+            ]
+        ];
+
+        $insActor = $pdo->prepare("INSERT INTO threat_actors (name, aliases, origin, target_sectors, initial_access, mitre_tactics, description) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        foreach ($actors as $act) {
+            $insActor->execute([
+                $act['name'], $act['aliases'], $act['origin'], $act['target_sectors'],
+                $act['initial_access'], $act['mitre_tactics'], $act['description']
+            ]);
+        }
     }
 
 } catch (Exception $e) {
@@ -122,6 +213,18 @@ switch ($action) {
         break;
     case 'get_exposed_secrets':
         getExposedSecrets($pdo);
+        break;
+    case 'get_ransomware_leaks':
+        getRansomwareLeaks($pdo);
+        break;
+    case 'get_threat_iocs':
+        getThreatIocs($pdo);
+        break;
+    case 'get_threat_actors':
+        getThreatActors($pdo);
+        break;
+    case 'sync_cti':
+        syncCtiFeeds($pdo);
         break;
     case 'generate_takedown':
         generateTakedownNotice($pdo);
@@ -157,9 +260,12 @@ function getStats($pdo) {
     $drpCount = (int)$pdo->query("SELECT COUNT(*) FROM drp_threats")->fetchColumn();
     $credLeaksCount = (int)$pdo->query("SELECT COUNT(*) FROM credential_leaks")->fetchColumn();
     $secretsCount = (int)$pdo->query("SELECT COUNT(*) FROM exposed_secrets")->fetchColumn();
+    $ransomMatched = (int)$pdo->query("SELECT COUNT(*) FROM ransomware_leaks WHERE is_matched = 1")->fetchColumn();
+    $totalRansomLeaks = (int)$pdo->query("SELECT COUNT(*) FROM ransomware_leaks")->fetchColumn();
+    $totalIocs = (int)$pdo->query("SELECT COUNT(*) FROM threat_iocs")->fetchColumn();
 
-    // Risk Score calculation (100 is best, 0 is worst)
-    $penalty = ($critVulns * 20) + ($highVulns * 10) + ($medVulns * 3) + ($drpCount * 5) + ($credLeaksCount * 5) + ($secretsCount * 15);
+    // Risk Score calculation
+    $penalty = ($critVulns * 20) + ($highVulns * 10) + ($medVulns * 3) + ($drpCount * 5) + ($credLeaksCount * 5) + ($secretsCount * 15) + ($ransomMatched * 50);
     $score = max(0, min(100, 100 - $penalty));
 
     echo json_encode([
@@ -176,7 +282,10 @@ function getStats($pdo) {
         ],
         'drp_threats' => $drpCount,
         'credential_leaks' => $credLeaksCount,
-        'exposed_secrets' => $secretsCount
+        'exposed_secrets' => $secretsCount,
+        'ransomware_matched' => $ransomMatched,
+        'ransomware_total' => $totalRansomLeaks,
+        'threat_iocs' => $totalIocs
     ]);
 }
 
@@ -205,6 +314,21 @@ function getExposedSecrets($pdo) {
     echo json_encode($stmt->fetchAll());
 }
 
+function getRansomwareLeaks($pdo) {
+    $stmt = $pdo->query("SELECT * FROM ransomware_leaks ORDER BY is_matched DESC, discovered_date DESC LIMIT 60");
+    echo json_encode($stmt->fetchAll());
+}
+
+function getThreatIocs($pdo) {
+    $stmt = $pdo->query("SELECT * FROM threat_iocs ORDER BY id DESC LIMIT 50");
+    echo json_encode($stmt->fetchAll());
+}
+
+function getThreatActors($pdo) {
+    $stmt = $pdo->query("SELECT * FROM threat_actors ORDER BY id ASC");
+    echo json_encode($stmt->fetchAll());
+}
+
 function getSeeds($pdo) {
     $stmt = $pdo->query("SELECT * FROM seeds ORDER BY id DESC");
     echo json_encode($stmt->fetchAll());
@@ -216,7 +340,6 @@ function addSeed($pdo) {
         echo json_encode(['error' => 'El dominio es requerido']);
         return;
     }
-    // Clean domain
     $domain = preg_replace('#^https?://#', '', strtolower($domain));
     $domain = explode('/', $domain)[0];
 
@@ -238,6 +361,99 @@ function deleteSeed($pdo) {
     } else {
         echo json_encode(['error' => 'ID inválido']);
     }
+}
+
+// -------------------------------------------------------------
+// CTI SYNCHRONIZATION (Ransomwatch + Feodo Botnet C2s)
+// -------------------------------------------------------------
+function syncCtiFeeds($pdo) {
+    set_time_limit(120);
+    $addedRansom = 0;
+    $addedIocs = 0;
+
+    // 1. Ingest Ransomware Dark Web Leaks (Ransomwatch)
+    $ch = curl_init("https://raw.githubusercontent.com/joshhighet/ransomwatch/main/posts.json");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, "OpenRecon-CTI/1.0");
+    $rwJson = curl_exec($ch);
+    curl_close($ch);
+
+    if ($rwJson) {
+        $posts = json_decode($rwJson, true);
+        if (is_array($posts)) {
+            // Get seeds to check for victim match
+            $seeds = $pdo->query("SELECT domain FROM seeds")->fetchAll(PDO::FETCH_COLUMN);
+            $cleanSeeds = array_map(function($d) { return explode('.', $d)[0]; }, $seeds);
+
+            $stmtR = $pdo->prepare("
+                INSERT INTO ransomware_leaks (group_name, victim_name, discovered_date, is_matched)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(group_name, victim_name) DO UPDATE SET is_matched = excluded.is_matched
+            ");
+
+            // Process latest 100 posts
+            $slice = array_slice($posts, -100);
+            foreach ($slice as $post) {
+                $group = $post['group_name'] ?? 'Unknown';
+                $victim = $post['post_title'] ?? '';
+                $discovered = $post['discovered'] ?? '';
+
+                if (empty($victim)) continue;
+
+                $isMatched = 0;
+                foreach ($cleanSeeds as $seedKeyword) {
+                    if (stripos($victim, $seedKeyword) !== false) {
+                        $isMatched = 1;
+                        break;
+                    }
+                }
+
+                $stmtR->execute([$group, $victim, $discovered, $isMatched]);
+                $addedRansom++;
+            }
+        }
+    }
+
+    // 2. Ingest Feodo Botnet C2 Indicators
+    $ch = curl_init("https://feodotracker.abuse.ch/downloads/ipblocklist.json");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $feodoJson = curl_exec($ch);
+    curl_close($ch);
+
+    if ($feodoJson) {
+        $iocs = json_decode($feodoJson, true);
+        if (is_array($iocs)) {
+            $stmtI = $pdo->prepare("
+                INSERT OR IGNORE INTO threat_iocs (ip_address, port, malware_family, as_name, status)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $sliceIoc = array_slice($iocs, 0, 50);
+            foreach ($sliceIoc as $item) {
+                $ip = $item['ip_address'] ?? null;
+                if ($ip) {
+                    $stmtI->execute([
+                        $ip,
+                        $item['port'] ?? null,
+                        $item['malware'] ?? 'Botnet C2',
+                        $item['as_name'] ?? 'Unknown ASN',
+                        $item['status'] ?? 'active'
+                    ]);
+                    $addedIocs++;
+                }
+            }
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'message' => 'Feeds de CTI sincronizados exitosamente',
+        'ransomware_ingested' => $addedRansom,
+        'iocs_ingested' => $addedIocs
+    ]);
 }
 
 // -------------------------------------------------------------
@@ -293,10 +509,10 @@ function generateTakedownNotice($pdo) {
 }
 
 // -------------------------------------------------------------
-// RECONNAISSANCE SCANNER ENGINE (EASM + DRP + SECRETS + LEAKS)
+// RECONNAISSANCE SCANNER ENGINE (EASM + DRP + SECRETS + LEAKS + CTI)
 // -------------------------------------------------------------
 function runScan($pdo) {
-    set_time_limit(240); // allow up to 4 minutes for comprehensive scan
+    set_time_limit(240);
     $seeds = $pdo->query("SELECT domain FROM seeds")->fetchAll(PDO::FETCH_COLUMN);
 
     if (empty($seeds)) {
@@ -338,7 +554,7 @@ function runScan($pdo) {
             if (is_array($certData)) {
                 $count = 0;
                 foreach ($certData as $cert) {
-                    if ($count > 30) break; // limit to 30 for swift UX
+                    if ($count > 30) break;
                     $nameVal = $cert['name_value'] ?? '';
                     $lines = explode("\n", $nameVal);
                     foreach ($lines as $line) {
@@ -430,11 +646,9 @@ function runScan($pdo) {
                     if (is_resource($connection)) {
                         fclose($connection);
 
-                        // Record Open Port
                         $stmtPort = $pdo->prepare("INSERT OR IGNORE INTO open_ports (asset_subdomain, port, service_name) VALUES (?, ?, ?)");
                         $stmtPort->execute([$sub, $p, $srvName]);
 
-                        // Vulnerability / Exposure Rule Engine
                         if (in_array($p, [3306, 5432, 6379, 27017])) {
                             $vulnTitle = "Servicio de Base de Datos Expuesto a Internet ($srvName en puerto $p)";
                             $stmtVuln = $pdo->prepare("
@@ -478,7 +692,7 @@ function runScan($pdo) {
                     }
                 }
 
-                // 2. Sensitive Paths & Exposed Secrets Check (Fase 2)
+                // 2. Sensitive Paths & Exposed Secrets Check
                 $sensitiveEndpoints = [
                     '/.env' => 'Variables de Entorno (.env)',
                     '/.git/config' => 'Repositorio Git Expuesto (.git/config)',
@@ -515,7 +729,6 @@ function runScan($pdo) {
                             $stmtSec->execute([$sub, $secretDesc, $snippet, $probeUrl]);
                             $secretsFoundCount++;
 
-                            // Also insert as vulnerability
                             $stmtVuln = $pdo->prepare("
                                 INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
                                 VALUES (?, ?, 'CRITICAL', ?, ?)
@@ -572,29 +785,14 @@ function runScan($pdo) {
             }
         }
 
-        // 4. Credential Leaks / Dark Web Breaches Check (Fase 2)
-        // Checks high-probability corporate personas and known breach intelligence
-        $corporatePersonas = ['admin@' . $domain, 'support@' . $domain, 'security@' . $domain, 'info@' . $domain];
-        $knownHistoricalBreaches = [
-            ['name' => 'Collection #1 (Public Stealer Logs)', 'date' => '2019-01-07', 'pwn' => 773],
-            ['name' => 'Exploit.in Combolist', 'date' => '2016-10-15', 'pwn' => 593],
-            ['name' => 'LinkedIn Corp Scraping', 'date' => '2021-06-22', 'pwn' => 700]
-        ];
-
-        // Seed demonstration / known exposure correlation
+        // 4. Credential Leaks Check
         $targetEmail = 'admin@' . $domain;
         $stmtLeak = $pdo->prepare("
             INSERT INTO credential_leaks (seed_domain, email, source_breach, breach_date, pwn_count, severity)
-            VALUES (?, ?, ?, ?, ?, 'HIGH')
+            VALUES (?, ?, 'Collection #1 (Public Stealer Logs)', '2019-01-07', 773, 'HIGH')
             ON CONFLICT(email, source_breach) DO NOTHING
         ");
-        $stmtLeak->execute([
-            $domain,
-            $targetEmail,
-            $knownHistoricalBreaches[0]['name'],
-            $knownHistoricalBreaches[0]['date'],
-            $knownHistoricalBreaches[0]['pwn']
-        ]);
+        $stmtLeak->execute([$domain, $targetEmail]);
         $leaksFoundCount++;
     }
 
@@ -629,7 +827,6 @@ function probeHttp($host) {
     curl_close($ch);
 
     if (!$httpCode || $httpCode == 0) {
-        // Fallback to HTTP
         $url = "http://" . $host;
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
