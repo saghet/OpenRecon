@@ -1293,7 +1293,7 @@ function runScan($pdo) {
                                     "Ausencia de Atributo SameSite en Cookie de Sesión ($cookieName - CWE-1275)",
                                     'MEDIUM',
                                     "La cookie de sesión '$cookieName' carece del atributo 'SameSite' (Lax o Strict). Esto permite que solicitudes forjadas desde otros dominios incluyan automáticamente las credenciales del usuario, facilitando ataques de falsificación de petición en sitios cruzados (CSRF - CWE-352).",
-                                    "Añadir la directiva 'SameSite=Lax' (o 'SameSite=Strict') en la emisión de cookies del servidor web."
+                                    "Añadir la directiva 'SameSite=Lax' (o 'SameSite=Strict') en la emisión de cookies del servidor web. Nota WAF FortiWeb: Si la cookie es 'cookiesession1' generada por FortiWeb para persistencia de sesión, configure en el Server Policy de FortiWeb: 'config persistence: set cookie-samesite lax' o aplique la directiva en el perfil de Cookie Security."
                                 ]);
                                 $vulnsDetectedCount++;
                             }
@@ -1400,6 +1400,21 @@ function runScan($pdo) {
                         '/robots.txt' => ['Robots.txt', 'Archivo robots.txt Divulga Rutas Internas de Administración', 'LOW', 'Disallow:']
                     ];
 
+                    // 0. SPA / Catch-All Soft-404 Canary Probe (Anti-False-Positive)
+                    $canaryUrl = $scheme . "://" . $sub . "/__openrecon_canary_404_" . substr(md5($sub), 0, 6);
+                    $chCanary = curl_init($canaryUrl);
+                    curl_setopt($chCanary, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($chCanary, CURLOPT_TIMEOUT, 2.5);
+                    curl_setopt($chCanary, CURLOPT_FOLLOWLOCATION, false);
+                    curl_setopt($chCanary, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($chCanary, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
+                    $canaryBody = curl_exec($chCanary);
+                    $canaryCode = curl_getinfo($chCanary, CURLINFO_HTTP_CODE);
+                    curl_close($chCanary);
+
+                    $isSpaCatchAll = ($canaryCode === 200 && strlen($canaryBody) > 100);
+                    $canaryLen = strlen($canaryBody);
+
                     foreach ($sensitiveProbes as $ep => $probeMeta) {
                         $probeUrl = $scheme . "://" . $sub . $ep;
                         $ch = curl_init($probeUrl);
@@ -1413,10 +1428,28 @@ function runScan($pdo) {
                         curl_close($ch);
 
                         if (($epCode === 200 || $epCode === 302) && $epBody) {
+                            // Check if this endpoint is just returning the SPA Soft-404 catch-all landing page
+                            if ($isSpaCatchAll && $epCode === 200) {
+                                $lenDiff = abs(strlen($epBody) - $canaryLen);
+                                if ($lenDiff < 100 || substr($epBody, 0, 250) === substr($canaryBody, 0, 250)) {
+                                    continue; // Soft-404 SPA fallback detected, ignore false positive
+                                }
+                            }
+
                             $matchPattern = $probeMeta[3];
                             $matched = false;
-                            if ($ep === '/admin/login.jsp' && ($epCode === 200 || $epCode === 302)) {
-                                $matched = true;
+                            if ($ep === '/admin/login.jsp') {
+                                if (!$isSpaCatchAll && ($epCode === 200 || $epCode === 302)) {
+                                    // Must contain an actual login form, password field, or Tomcat/AppScan signature
+                                    if (preg_match('/(<form|input[^>]+type=["\']password|j_security_check|AltoroJ|loginForm)/i', $epBody)) {
+                                        $matched = true;
+                                    }
+                                }
+                            } elseif ($ep === '/robots.txt') {
+                                // Only alert if robots.txt actually divulges specific private folders (not just Disallow: / or empty)
+                                if (preg_match('/Disallow:\s*\/(admin|private|backup|config|secret|wp-admin|panel|api|manager|intranet)/i', $epBody)) {
+                                    $matched = true;
+                                }
                             } elseif (stripos($epBody, $matchPattern) !== false) {
                                 $matched = true;
                             }
