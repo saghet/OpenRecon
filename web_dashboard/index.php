@@ -221,9 +221,9 @@
                 <i class="fa-solid fa-crosshairs"></i>
                 Semillas / Dominios
             </button>
-            <button onclick="switchTab('strix')" id="tab-btn-strix" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Suite de pentesting interactivo, PoCs reproducibles y herramientas ofensivas">
+            <button onclick="switchTab('strix')" id="tab-btn-strix" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Suite de pentesting interactivo, PoCs reproducibles y herramientas ofensivas (Strix & AutoPentestX)">
                 <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
-                Navaja Suiza Strix (Pentesting)
+                Navaja Suiza (Strix & AutoPentestX)
             </button>
         </div>
 
@@ -577,8 +577,37 @@
             </div>
         </section>
 
-        <!-- TAB CONTENT: STRIX PENTESTING TOOLKIT (NAVAJA SUIZA) -->
+        <!-- TAB CONTENT: STRIX & AUTOPENTESTX TOOLKIT (NAVAJA SUIZA) -->
         <section id="tab-content-strix" class="space-y-6 hidden">
+            <!-- Suite Switcher: Strix vs AutoPentestX -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 via-teal-700 to-purple-800 flex items-center justify-center text-white shadow-lg shadow-purple-950/40">
+                        <i class="fa-solid fa-toolbox text-lg"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-base font-bold text-white">Navaja Suiza de Pentesting & Auditoría Ofensiva</h2>
+                            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-950 text-purple-300 border border-purple-800">Multi-Framework</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Selecciona el paquete de herramientas según la necesidad del analista y auditor.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 bg-slate-950 p-1.5 rounded-xl border border-cyber-border">
+                    <button onclick="switchPentestSuite('strix')" id="btn-suite-strix" class="px-4 py-2 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-bold flex items-center gap-2 transition shadow">
+                        <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+                        <span>Suite Strix (PoC & Raw HTTP)</span>
+                    </button>
+                    <button onclick="switchPentestSuite('autopentestx')" id="btn-suite-autopentestx" class="px-4 py-2 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-transparent text-xs font-bold flex items-center gap-2 transition">
+                        <i class="fa-solid fa-robot text-purple-400"></i>
+                        <span>Suite AutoPentestX (Pipeline & Informes)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- CONTAINER SUITE STRIX -->
+            <div id="container-suite-strix" class="space-y-6">
             <!-- Header Card -->
             <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6 relative overflow-hidden">
                 <div class="absolute -right-10 -bottom-10 opacity-5 pointer-events-none text-9xl text-emerald-400">
@@ -1000,6 +1029,348 @@
                     </div>
                 </div>
             </div>
+            </div> <!-- CLOSE #container-suite-strix -->
+
+            <!-- CONTAINER SUITE AUTOPENTESTX -->
+            <div id="container-suite-autopentestx" class="space-y-6 hidden">
+                <!-- Header Card AutoPentestX -->
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6 relative overflow-hidden">
+                    <div class="absolute -right-10 -bottom-10 opacity-5 pointer-events-none text-9xl text-purple-400">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div>
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-950 text-purple-300 border border-purple-800">
+                                    <i class="fa-solid fa-microchip mr-1"></i> AutoPentestX Framework
+                                </span>
+                                <span class="text-xs text-slate-500 font-mono">Inspirado en AutoPentestX (Gowtham-Darkseid)</span>
+                            </div>
+                            <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                                <i class="fa-solid fa-shield-virus text-purple-400"></i>
+                                AutoPentestX (Pipeline Autónomo, Auditoría de Verbos & Reportes PDF)
+                            </h3>
+                            <p class="text-xs text-slate-400 mt-1 max-w-3xl">
+                                Orquestación de pruebas de penetración automatizadas en 5 fases secuenciales (Perímetro, Puertos, Cabeceras Defensivas, Verbos HTTP y Fuzzing Sensible), auditoría profunda de métodos inseguros (TRACE/XST, PUT) y generación de informes ejecutivos/técnicos listos para imprimir o exportar a PDF para gerencia y auditoría.
+                            </p>
+                        </div>
+
+                        <!-- Asset quick-loader for APX -->
+                        <div class="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-xl border border-cyber-border">
+                            <i class="fa-solid fa-crosshairs text-purple-400 text-xs"></i>
+                            <select id="apx-asset-quick-select" class="bg-slate-950 text-xs text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-purple-500 max-w-[200px]">
+                                <option value="">Seleccionar activo...</option>
+                            </select>
+                            <button onclick="applyApxSelectedAsset()" class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition">
+                                Cargar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- AutoPentestX Sub-tools Navigation Pills -->
+                    <div class="flex items-center gap-2 mt-5 border-t border-cyber-border/70 pt-4 overflow-x-auto text-xs font-semibold">
+                        <button onclick="switchAutoPentestXSubTool('pipeline')" id="apx-subtab-pipeline" class="px-4 py-2 rounded-xl bg-purple-950/80 text-purple-300 border border-purple-700/80 flex items-center gap-2 transition">
+                            <i class="fa-solid fa-network-wired text-purple-400"></i>
+                            <span>Pipeline 1-Click (5 Fases)</span>
+                        </button>
+                        <button onclick="switchAutoPentestXSubTool('methods')" id="apx-subtab-methods" class="px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-cyber-border flex items-center gap-2 transition">
+                            <i class="fa-solid fa-arrows-split-up-and-left text-amber-400"></i>
+                            <span>Auditor de Verbos HTTP & Fuga de Servidor</span>
+                        </button>
+                        <button onclick="switchAutoPentestXSubTool('report')" id="apx-subtab-report" class="px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-cyber-border flex items-center gap-2 transition">
+                            <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                            <span>Generador de Informes (PDF / Ejecutivo)</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- APX SUB-PANEL 1: Pipeline 1-Click (5 Fases) -->
+                <div id="apx-panel-pipeline" class="space-y-4">
+                    <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                            <div class="md:col-span-6">
+                                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Objetivo / FQDN / URL</label>
+                                <input type="text" id="apx-pipeline-target" placeholder="ejemplo: https://demo.testfire.net o altoromutual.com" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 font-mono">
+                            </div>
+                            <div class="md:col-span-3">
+                                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Perfil de Análisis</label>
+                                <select id="apx-pipeline-profile" class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500">
+                                    <option value="full">Completo (5 Fases Secuenciales)</option>
+                                    <option value="fast">Rápido (Perímetro + Cabeceras)</option>
+                                    <option value="intrusive">Intrusivo (Fuzzing y Verbos)</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-3">
+                                <button onclick="runAutoPentestXPipeline()" id="btn-apx-run-pipeline" class="w-full px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-purple-950/50">
+                                    <i class="fa-solid fa-play"></i>
+                                    <span>Ejecutar Pipeline AutoPentestX</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 5-Phase Progression Tracker -->
+                        <div class="border border-cyber-border rounded-xl p-4 bg-slate-950/60">
+                            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center justify-between">
+                                <span><i class="fa-solid fa-timeline text-purple-400 mr-1.5"></i> Progreso de Pipeline Autónomo</span>
+                                <span id="apx-pipeline-timer" class="text-slate-500 font-mono text-[10px]">Listo para iniciar</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                                <div id="apx-phase-1" class="p-3 rounded-lg border border-slate-800 bg-slate-900/50 transition">
+                                    <div class="flex items-center justify-between text-xs font-bold text-slate-400 mb-1">
+                                        <span>Fase 1</span>
+                                        <span class="phase-status text-[10px] text-slate-500 font-mono">En espera</span>
+                                    </div>
+                                    <div class="text-xs font-medium text-slate-300">Recon Perimetral & DNS</div>
+                                </div>
+                                <div id="apx-phase-2" class="p-3 rounded-lg border border-slate-800 bg-slate-900/50 transition">
+                                    <div class="flex items-center justify-between text-xs font-bold text-slate-400 mb-1">
+                                        <span>Fase 2</span>
+                                        <span class="phase-status text-[10px] text-slate-500 font-mono">En espera</span>
+                                    </div>
+                                    <div class="text-xs font-medium text-slate-300">Puertos & Servicios</div>
+                                </div>
+                                <div id="apx-phase-3" class="p-3 rounded-lg border border-slate-800 bg-slate-900/50 transition">
+                                    <div class="flex items-center justify-between text-xs font-bold text-slate-400 mb-1">
+                                        <span>Fase 3</span>
+                                        <span class="phase-status text-[10px] text-slate-500 font-mono">En espera</span>
+                                    </div>
+                                    <div class="text-xs font-medium text-slate-300">Cabeceras Defensivas</div>
+                                </div>
+                                <div id="apx-phase-4" class="p-3 rounded-lg border border-slate-800 bg-slate-900/50 transition">
+                                    <div class="flex items-center justify-between text-xs font-bold text-slate-400 mb-1">
+                                        <span>Fase 4</span>
+                                        <span class="phase-status text-[10px] text-slate-500 font-mono">En espera</span>
+                                    </div>
+                                    <div class="text-xs font-medium text-slate-300">Verbos HTTP Inseguros</div>
+                                </div>
+                                <div id="apx-phase-5" class="p-3 rounded-lg border border-slate-800 bg-slate-900/50 transition">
+                                    <div class="flex items-center justify-between text-xs font-bold text-slate-400 mb-1">
+                                        <span>Fase 5</span>
+                                        <span class="phase-status text-[10px] text-slate-500 font-mono">En espera</span>
+                                    </div>
+                                    <div class="text-xs font-medium text-slate-300">Fuzzing & Fuga Rutas</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pipeline Results Container -->
+                        <div id="apx-pipeline-results" class="hidden space-y-4 pt-2">
+                            <!-- Score & Executive Summary Banner -->
+                            <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                                <!-- Gauge Card -->
+                                <div id="apx-pipeline-score-card" class="lg:col-span-4 p-5 rounded-xl border border-cyber-border bg-slate-950 flex flex-col items-center justify-center text-center space-y-2">
+                                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">AutoPentestX Risk Score</span>
+                                    <div class="flex items-baseline gap-1">
+                                        <span id="apx-pipeline-score" class="text-5xl font-black text-white font-mono">--</span>
+                                        <span class="text-slate-500 text-sm font-mono">/100</span>
+                                    </div>
+                                    <div id="apx-pipeline-posture-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                                        Sin evaluar
+                                    </div>
+                                    <p id="apx-pipeline-posture-desc" class="text-[11px] text-slate-400 mt-1 max-w-xs"></p>
+                                </div>
+
+                                <!-- Executive Briefing & Stats -->
+                                <div class="lg:col-span-8 p-5 rounded-xl border border-cyber-border bg-slate-950 flex flex-col justify-between space-y-4">
+                                    <div>
+                                        <div class="flex items-center justify-between border-b border-cyber-border/70 pb-2 mb-2">
+                                            <h4 class="text-xs font-bold uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                                                <i class="fa-solid fa-briefcase text-purple-400"></i> Dictamen Ejecutivo del Auditor
+                                            </h4>
+                                            <span id="apx-pipeline-timestamp" class="text-[10px] font-mono text-slate-500"></span>
+                                        </div>
+                                        <p id="apx-pipeline-summary" class="text-xs text-slate-300 leading-relaxed"></p>
+                                    </div>
+
+                                    <!-- Severity Breakdown Badges -->
+                                    <div class="grid grid-cols-5 gap-2 pt-2 border-t border-cyber-border/50 text-center font-mono">
+                                        <div class="p-2 rounded-lg bg-rose-950/40 border border-rose-900/60">
+                                            <span class="text-[10px] block text-rose-400 font-bold uppercase">Crítica</span>
+                                            <span id="apx-count-critical" class="text-lg font-bold text-rose-300">0</span>
+                                        </div>
+                                        <div class="p-2 rounded-lg bg-orange-950/40 border border-orange-900/60">
+                                            <span class="text-[10px] block text-orange-400 font-bold uppercase">Alta</span>
+                                            <span id="apx-count-high" class="text-lg font-bold text-orange-300">0</span>
+                                        </div>
+                                        <div class="p-2 rounded-lg bg-amber-950/40 border border-amber-900/60">
+                                            <span class="text-[10px] block text-amber-400 font-bold uppercase">Media</span>
+                                            <span id="apx-count-medium" class="text-lg font-bold text-amber-300">0</span>
+                                        </div>
+                                        <div class="p-2 rounded-lg bg-blue-950/40 border border-blue-900/60">
+                                            <span class="text-[10px] block text-blue-400 font-bold uppercase">Baja</span>
+                                            <span id="apx-count-low" class="text-lg font-bold text-blue-300">0</span>
+                                        </div>
+                                        <div class="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                                            <span class="text-[10px] block text-slate-400 font-bold uppercase">Info</span>
+                                            <span id="apx-count-info" class="text-lg font-bold text-slate-300">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Findings Ledger Table -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-xs font-bold uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                                        <i class="fa-solid fa-bug text-purple-400"></i> Hallazgos Detectados en el Pipeline
+                                    </h4>
+                                    <span id="apx-pipeline-vuln-count" class="text-[10px] font-mono text-purple-400"></span>
+                                </div>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs">
+                                        <thead>
+                                            <tr class="border-b border-cyber-border text-[10px] font-bold uppercase text-slate-400">
+                                                <th class="py-2.5 px-3">Fase</th>
+                                                <th class="py-2.5 px-3">Severidad</th>
+                                                <th class="py-2.5 px-3">Vulnerabilidad</th>
+                                                <th class="py-2.5 px-3">Evidencia / Detalle Técnico</th>
+                                                <th class="py-2.5 px-3 text-right">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="apx-pipeline-vulns-tbody" class="divide-y divide-cyber-border/50 text-slate-300"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- APX SUB-PANEL 2: Auditor de Verbos HTTP & Fuga de Servidor -->
+                <div id="apx-panel-methods" class="space-y-4 hidden">
+                    <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                            <div class="flex-1">
+                                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">URL Objetivo para Auditoría de Verbos</label>
+                                <input type="text" id="apx-methods-target" placeholder="ejemplo: https://demo.testfire.net" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 font-mono">
+                            </div>
+                            <div class="flex items-end">
+                                <button onclick="runAutoPentestXHttpMethods()" id="btn-apx-run-methods" class="w-full sm:w-auto px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50">
+                                    <i class="fa-solid fa-arrows-split-up-and-left"></i>
+                                    <span>Auditar Verbos HTTP</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Methods Results Container -->
+                        <div id="apx-methods-results" class="hidden space-y-4 pt-2">
+                            <!-- Server Banner & Fingerprint Card -->
+                            <div class="p-4 rounded-xl border border-cyber-border bg-slate-950 space-y-2">
+                                <div class="flex items-center justify-between border-b border-cyber-border/70 pb-2">
+                                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                                        <i class="fa-solid fa-fingerprint text-amber-400"></i> Fuga de Información en Cabeceras (Fingerprinting)
+                                    </span>
+                                    <span id="apx-banner-verdict" class="text-[10px] font-mono px-2 py-0.5 rounded"></span>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs pt-1">
+                                    <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                                        <span class="text-[10px] uppercase text-slate-500 font-bold block">Cabecera Server</span>
+                                        <span id="apx-banner-server" class="font-mono text-slate-200 block truncate mt-0.5"></span>
+                                    </div>
+                                    <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                                        <span class="text-[10px] uppercase text-slate-500 font-bold block">Cabecera X-Powered-By</span>
+                                        <span id="apx-banner-powered" class="font-mono text-slate-200 block truncate mt-0.5"></span>
+                                    </div>
+                                    <div class="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+                                        <span class="text-[10px] uppercase text-slate-500 font-bold block">Riesgo Tecnológico</span>
+                                        <span id="apx-banner-risk" class="text-slate-300 block truncate mt-0.5"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 8-Method Matrix -->
+                            <div class="space-y-2">
+                                <h4 class="text-xs font-bold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                                    <i class="fa-solid fa-table-cells text-amber-400"></i> Matriz de Respuesta por Método HTTP (RFC 9110)
+                                </h4>
+                                <div id="apx-methods-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3"></div>
+                            </div>
+
+                            <!-- Hardening Configuration Snippets -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-3">
+                                <div class="flex items-center justify-between">
+                                    <h4 class="text-xs font-bold uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                                        <i class="fa-solid fa-shield-halved text-cyan-400"></i> Guía de Hardening: Bloqueo de Verbos Inseguros
+                                    </h4>
+                                    <span class="text-[10px] text-slate-500 font-mono">Nginx / Apache / IIS</span>
+                                </div>
+                                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                                    <div class="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-bold text-slate-200">Nginx Hardening</span>
+                                            <button onclick="copyToClipboard('apx-snippet-nginx', 'Regla Nginx copiada')" class="text-[10px] text-cyan-400 hover:text-cyan-300"><i class="fa-solid fa-copy"></i> Copiar</button>
+                                        </div>
+                                        <pre id="apx-snippet-nginx" class="text-[10px] font-mono text-slate-300 bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto whitespace-pre">if ($request_method !~ ^(GET|HEAD|POST)$ ) {
+    return 405;
+}</pre>
+                                    </div>
+                                    <div class="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-bold text-slate-200">Apache HTTPD (.htaccess)</span>
+                                            <button onclick="copyToClipboard('apx-snippet-apache', 'Regla Apache copiada')" class="text-[10px] text-cyan-400 hover:text-cyan-300"><i class="fa-solid fa-copy"></i> Copiar</button>
+                                        </div>
+                                        <pre id="apx-snippet-apache" class="text-[10px] font-mono text-slate-300 bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto whitespace-pre">TraceEnable Off
+&lt;LimitExcept GET POST HEAD&gt;
+    Require all denied
+&lt;/LimitExcept&gt;</pre>
+                                    </div>
+                                    <div class="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-bold text-slate-200">Microsoft IIS (web.config)</span>
+                                            <button onclick="copyToClipboard('apx-snippet-iis', 'Regla IIS copiada')" class="text-[10px] text-cyan-400 hover:text-cyan-300"><i class="fa-solid fa-copy"></i> Copiar</button>
+                                        </div>
+                                        <pre id="apx-snippet-iis" class="text-[10px] font-mono text-slate-300 bg-slate-950 p-2 rounded border border-slate-800 overflow-x-auto whitespace-pre">&lt;security&gt;
+  &lt;requestFiltering&gt;
+    &lt;verbs allowUnlisted="false"&gt;
+      &lt;add verb="GET" allowed="true"/&gt;
+      &lt;add verb="POST" allowed="true"/&gt;
+    &lt;/verbs&gt;
+  &lt;/requestFiltering&gt;
+&lt;/security&gt;</pre>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- APX SUB-PANEL 3: Generador de Informes (PDF / Ejecutivo) -->
+                <div id="apx-panel-report" class="space-y-4 hidden">
+                    <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4 no-print">
+                        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-xl bg-rose-950 border border-rose-800 flex items-center justify-center text-rose-400 text-lg">
+                                    <i class="fa-solid fa-file-invoice"></i>
+                                </div>
+                                <div>
+                                    <h3 class="text-sm font-bold text-white">Generador de Informes de Seguridad & Pentesting</h3>
+                                    <p class="text-xs text-slate-400">Compila hallazgos registrados, métricas de cumplimiento normativo y dictámenes ejecutivos.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <select id="apx-report-target-select" class="bg-slate-900 border border-cyber-border text-xs text-white rounded-xl px-3 py-2 focus:outline-none focus:border-rose-500">
+                                    <option value="">Seleccionar activo...</option>
+                                </select>
+                                <button onclick="generateAutoPentestXReport()" id="btn-apx-generate-report" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-rose-950/50">
+                                    <i class="fa-solid fa-arrows-rotate"></i>
+                                    <span>Compilar Informe</span>
+                                </button>
+                                <button onclick="printAutoPentestXReport()" id="btn-apx-print-report" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 transition flex items-center gap-2">
+                                    <i class="fa-solid fa-print"></i>
+                                    <span>Imprimir / PDF</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Printable Formal Report Container -->
+                    <div id="apx-printable-report" class="bg-cyber-card border border-cyber-border rounded-2xl p-6 md:p-8 space-y-6 text-slate-200">
+                        <div class="text-center py-12 text-slate-500 space-y-2">
+                            <i class="fa-solid fa-file-circle-check text-4xl text-slate-600"></i>
+                            <p class="text-xs">Selecciona un activo y pulsa "Compilar Informe" para generar el documento formal de auditoría.</p>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- CLOSE #container-suite-autopentestx -->
         </section>
 
     </main>
@@ -2938,6 +3309,11 @@
             }
 
             select.innerHTML = optionsHtml;
+
+            const apxSelect = document.getElementById('apx-asset-quick-select');
+            if (apxSelect) apxSelect.innerHTML = optionsHtml;
+            const apxReportSelect = document.getElementById('apx-report-target-select');
+            if (apxReportSelect) apxReportSelect.innerHTML = optionsHtml;
         }
 
         function applyStrixSelectedAsset() {
@@ -2958,6 +3334,7 @@
         function launchStrixForUrl(url, vulnTitle) {
             if (!url) return;
             switchTab('strix');
+            switchPentestSuite('strix');
             switchStrixSubTool('poc');
 
             const domain = url.replace(/^https?:\/\//i, '').split('/')[0];
@@ -3489,6 +3866,557 @@
                 btn.classList.remove('opacity-75');
                 btn.innerHTML = '<i class="fa-solid fa-network-wired"></i><span>Consultar DNS RFC</span>';
             }
+        }
+
+        // ==========================================
+        // SUITE SWITCHER & AUTOPENTESTX FRAMEWORK
+        // ==========================================
+        let currentPentestSuite = 'strix';
+        function switchPentestSuite(suite) {
+            currentPentestSuite = suite;
+            const isStrix = (suite === 'strix');
+            const containerStrix = document.getElementById('container-suite-strix');
+            const containerApx = document.getElementById('container-suite-autopentestx');
+            const btnStrix = document.getElementById('btn-suite-strix');
+            const btnApx = document.getElementById('btn-suite-autopentestx');
+
+            if (containerStrix) containerStrix.classList.toggle('hidden', !isStrix);
+            if (containerApx) containerApx.classList.toggle('hidden', isStrix);
+
+            if (btnStrix) {
+                btnStrix.className = isStrix 
+                    ? 'px-4 py-2 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-bold flex items-center gap-2 transition shadow'
+                    : 'px-4 py-2 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-transparent text-xs font-bold flex items-center gap-2 transition';
+            }
+            if (btnApx) {
+                btnApx.className = !isStrix
+                    ? 'px-4 py-2 rounded-lg bg-purple-950 text-purple-300 border border-purple-700 text-xs font-bold flex items-center gap-2 transition shadow'
+                    : 'px-4 py-2 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-transparent text-xs font-bold flex items-center gap-2 transition';
+            }
+        }
+
+        let currentAutoPentestXSubTool = 'pipeline';
+        function switchAutoPentestXSubTool(tool) {
+            currentAutoPentestXSubTool = tool;
+            ['pipeline', 'methods', 'report'].forEach(t => {
+                const btn = document.getElementById(`apx-subtab-${t}`);
+                const panel = document.getElementById(`apx-panel-${t}`);
+                if (btn) {
+                    if (t === tool) {
+                        btn.className = 'px-4 py-2 rounded-xl bg-purple-950/80 text-purple-300 border border-purple-700/80 flex items-center gap-2 transition';
+                    } else {
+                        btn.className = 'px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-cyber-border flex items-center gap-2 transition';
+                    }
+                }
+                if (panel) {
+                    panel.classList.toggle('hidden', t !== tool);
+                }
+            });
+        }
+
+        function applyApxSelectedAsset() {
+            const select = document.getElementById('apx-asset-quick-select');
+            if (!select || !select.value) return;
+            const targetUrl = select.value;
+            const domain = targetUrl.replace(/^https?:\/\//i, '').split('/')[0];
+
+            document.getElementById('apx-pipeline-target').value = targetUrl;
+            document.getElementById('apx-methods-target').value = targetUrl;
+            const rSelect = document.getElementById('apx-report-target-select');
+            if (rSelect) rSelect.value = targetUrl;
+
+            showToast(`Activo ${domain} cargado en AutoPentestX`);
+        }
+
+        function launchAutoPentestXForUrl(url) {
+            if (!url) return;
+            switchTab('strix');
+            switchPentestSuite('autopentestx');
+            switchAutoPentestXSubTool('pipeline');
+
+            document.getElementById('apx-pipeline-target').value = url;
+            document.getElementById('apx-methods-target').value = url;
+            const rSelect = document.getElementById('apx-report-target-select');
+            if (rSelect) rSelect.value = url;
+
+            showToast(`Objetivo ${url} preparado en AutoPentestX`);
+        }
+
+        async function runAutoPentestXPipeline() {
+            const targetInput = document.getElementById('apx-pipeline-target');
+            const profileSelect = document.getElementById('apx-pipeline-profile');
+            const btn = document.getElementById('btn-apx-run-pipeline');
+            const timerEl = document.getElementById('apx-pipeline-timer');
+
+            let target = (targetInput.value || '').trim();
+            const profile = profileSelect.value || 'full';
+
+            if (!target) {
+                showToast('Ingresa una URL o dominio para el Pipeline AutoPentestX', true);
+                return;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Ejecutando Pipeline...</span>';
+
+            // Reset phase indicators
+            for (let i = 1; i <= 5; i++) {
+                const phaseEl = document.getElementById(`apx-phase-${i}`);
+                if (phaseEl) {
+                    phaseEl.className = 'p-3 rounded-lg border border-slate-800 bg-slate-900/50 transition';
+                    const statusSpan = phaseEl.querySelector('.phase-status');
+                    if (statusSpan) {
+                        statusSpan.innerText = 'En espera';
+                        statusSpan.className = 'phase-status text-[10px] text-slate-500 font-mono';
+                    }
+                }
+            }
+
+            document.getElementById('apx-pipeline-results').classList.add('hidden');
+            let startTime = Date.now();
+            timerEl.innerText = 'Iniciando fases...';
+
+            // Simulate progressive visual feedback
+            let phaseInterval = setInterval(() => {
+                let elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                timerEl.innerText = `Tiempo transcurrido: ${elapsed}s`;
+            }, 500);
+
+            try {
+                // Phase 1 active
+                const p1 = document.getElementById('apx-phase-1');
+                if (p1) {
+                    p1.className = 'p-3 rounded-lg border border-purple-500/80 bg-purple-950/30 transition shadow-lg shadow-purple-950/50';
+                    p1.querySelector('.phase-status').innerHTML = '<i class="fa-solid fa-spinner fa-spin text-purple-400"></i>';
+                }
+
+                const res = await fetch(`${API_URL}?action=autopentestx_run_pipeline&target=${encodeURIComponent(target)}&profile=${encodeURIComponent(profile)}`);
+                const data = await res.json();
+                clearInterval(phaseInterval);
+
+                if (!data.success) {
+                    timerEl.innerText = 'Error en pipeline';
+                    showToast(data.error || 'Fallo en la ejecución del pipeline', true);
+                    return;
+                }
+
+                let totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                const executedPhases = data.phases || data.phases_executed || [];
+                timerEl.innerText = `Completado en ${totalTime}s (${executedPhases.length} fases)`;
+
+                // Mark executed phases as completed
+                executedPhases.forEach((phaseObj, idx) => {
+                    const phaseEl = document.getElementById(`apx-phase-${idx + 1}`);
+                    if (phaseEl) {
+                        phaseEl.className = 'p-3 rounded-lg border border-emerald-500/60 bg-emerald-950/20 transition';
+                        const statusSpan = phaseEl.querySelector('.phase-status');
+                        if (statusSpan) {
+                            const statusLabel = (typeof phaseObj === 'object' && phaseObj.status) ? phaseObj.status : 'OK';
+                            statusSpan.innerHTML = `<i class="fa-solid fa-check-circle text-emerald-400"></i> ${statusLabel}`;
+                            statusSpan.className = 'phase-status text-[10px] text-emerald-400 font-mono font-bold';
+                        }
+                    }
+                });
+
+                // Display Results
+                document.getElementById('apx-pipeline-results').classList.remove('hidden');
+
+                // Score Card
+                const scoreEl = document.getElementById('apx-pipeline-score');
+                const postureBadge = document.getElementById('apx-pipeline-posture-badge');
+                const postureDesc = document.getElementById('apx-pipeline-posture-desc');
+                const scoreCard = document.getElementById('apx-pipeline-score-card');
+
+                scoreEl.innerText = data.risk_score;
+                postureBadge.innerText = `Postura: ${data.posture}`;
+
+                if (data.posture === 'Crítica' || data.posture === 'Alta') {
+                    scoreCard.className = 'lg:col-span-4 p-5 rounded-xl border border-rose-800/80 bg-rose-950/20 flex flex-col items-center justify-center text-center space-y-2';
+                    postureBadge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-950 text-rose-300 border border-rose-700';
+                    scoreEl.className = 'text-5xl font-black text-rose-400 font-mono';
+                } else if (data.posture === 'Media') {
+                    scoreCard.className = 'lg:col-span-4 p-5 rounded-xl border border-amber-800/80 bg-amber-950/20 flex flex-col items-center justify-center text-center space-y-2';
+                    postureBadge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-950 text-amber-300 border border-amber-700';
+                    scoreEl.className = 'text-5xl font-black text-amber-400 font-mono';
+                } else {
+                    scoreCard.className = 'lg:col-span-4 p-5 rounded-xl border border-emerald-800/80 bg-emerald-950/20 flex flex-col items-center justify-center text-center space-y-2';
+                    postureBadge.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-950 text-emerald-300 border border-emerald-700';
+                    scoreEl.className = 'text-5xl font-black text-emerald-400 font-mono';
+                }
+
+                const totalVulns = (data.vulnerabilities || []).length;
+                postureDesc.innerText = `Activo analizado: ${data.target} (${data.ip || 'Perímetro'}) con ${totalVulns} hallazgo(s).`;
+
+                // Executive Briefing
+                document.getElementById('apx-pipeline-summary').innerText = data.executive_summary;
+                document.getElementById('apx-pipeline-timestamp').innerText = data.timestamp || new Date().toLocaleString();
+
+                // Counters
+                const sev = data.severity_counts || data.severity_breakdown || {};
+                document.getElementById('apx-count-critical').innerText = sev.CRITICAL || 0;
+                document.getElementById('apx-count-high').innerText = sev.HIGH || 0;
+                document.getElementById('apx-count-medium').innerText = sev.MEDIUM || 0;
+                document.getElementById('apx-count-low').innerText = sev.LOW || 0;
+                document.getElementById('apx-count-info').innerText = sev.INFO || 0;
+
+                // Vulnerabilities Table
+                const tbody = document.getElementById('apx-pipeline-vulns-tbody');
+                const vCount = document.getElementById('apx-pipeline-vuln-count');
+                vCount.innerText = `${data.vulnerabilities.length} hallazgo(s) registrado(s)`;
+
+                if (data.vulnerabilities.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="py-8 text-center text-slate-500 font-mono text-xs">
+                                <i class="fa-solid fa-shield-check text-emerald-400 text-2xl mb-2 block"></i>
+                                No se identificaron vulnerabilidades perimetrales evidentes bajo las fases ejecutadas.
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    tbody.innerHTML = data.vulnerabilities.map(v => {
+                        let sevBadgeClass = 'bg-slate-800 text-slate-300 border-slate-700';
+                        if (v.severity === 'CRITICAL') sevBadgeClass = 'bg-rose-950 text-rose-300 border-rose-700';
+                        else if (v.severity === 'HIGH') sevBadgeClass = 'bg-orange-950 text-orange-300 border-orange-700';
+                        else if (v.severity === 'MEDIUM') sevBadgeClass = 'bg-amber-950 text-amber-300 border-amber-700';
+                        else if (v.severity === 'LOW') sevBadgeClass = 'bg-blue-950 text-blue-300 border-blue-700';
+
+                        let phaseBadge = v.phase ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-purple-950 text-purple-300 border border-purple-800">${v.phase}</span>` : '';
+                        let targetUrl = target.startsWith('http') ? target : `https://${target}`;
+
+                        return `
+                            <tr class="hover:bg-slate-900/60 transition">
+                                <td class="py-3 px-3 align-top">${phaseBadge}</td>
+                                <td class="py-3 px-3 align-top">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${sevBadgeClass}">
+                                        ${v.severity}
+                                    </span>
+                                </td>
+                                <td class="py-3 px-3 align-top">
+                                    <div class="font-bold text-white text-xs">${v.title}</div>
+                                    <div class="text-[10px] text-slate-400 font-mono mt-0.5">Categoría: ${v.category || 'General'}</div>
+                                </td>
+                                <td class="py-3 px-3 align-top font-mono text-[11px] text-slate-300">
+                                    ${v.evidence ? `<div class="bg-slate-900/80 p-1.5 rounded border border-slate-800 max-w-xl break-all">${v.evidence}</div>` : (v.details || '-')}
+                                </td>
+                                <td class="py-3 px-3 align-top text-right whitespace-nowrap">
+                                    <button onclick="launchStrixForUrl('${targetUrl}', '${v.title.replace(/'/g, "\'")}')" class="px-2.5 py-1 rounded-lg bg-emerald-950 text-emerald-300 hover:bg-emerald-900 border border-emerald-700 text-[11px] font-bold transition flex items-center gap-1.5 ml-auto">
+                                        <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+                                        <span>Strix PoC</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                showToast(`Pipeline completado para ${data.target}: ${data.total_vulnerabilities} hallazgo(s)`);
+            } catch (err) {
+                clearInterval(phaseInterval);
+                timerEl.innerText = 'Error de conexión';
+                showToast('Error de comunicación con el pipeline de AutoPentestX', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-play"></i><span>Ejecutar Pipeline AutoPentestX</span>';
+            }
+        }
+
+        async function runAutoPentestXHttpMethods() {
+            const targetInput = document.getElementById('apx-methods-target');
+            const btn = document.getElementById('btn-apx-run-methods');
+            let url = (targetInput.value || '').trim();
+
+            if (!url) {
+                showToast('Ingresa una URL objetivo para la auditoría de verbos HTTP', true);
+                return;
+            }
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                url = 'https://' + url;
+                targetInput.value = url;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Auditando Verbos...</span>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=autopentestx_http_methods&url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    showToast(data.error || 'Error en auditoría de verbos', true);
+                    return;
+                }
+
+                document.getElementById('apx-methods-results').classList.remove('hidden');
+
+                // Server Banner Information
+                const serverEl = document.getElementById('apx-banner-server');
+                const poweredEl = document.getElementById('apx-banner-powered');
+                const riskEl = document.getElementById('apx-banner-risk');
+                const verdictEl = document.getElementById('apx-banner-verdict');
+
+                const hasLeak = !!(data.server_banner || data.x_powered_by);
+                serverEl.innerText = data.server_banner || 'Oculto (Seguro)';
+                serverEl.className = data.server_banner ? 'font-mono text-amber-300 block truncate mt-0.5' : 'font-mono text-emerald-400 block truncate mt-0.5';
+
+                poweredEl.innerText = data.x_powered_by || 'Oculto (Seguro)';
+                poweredEl.className = data.x_powered_by ? 'font-mono text-rose-300 block truncate mt-0.5' : 'font-mono text-emerald-400 block truncate mt-0.5';
+
+                if (hasLeak) {
+                    verdictEl.innerText = 'Fuga de Versión Detectada';
+                    verdictEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800';
+                    riskEl.innerText = 'El servidor revela tecnología de backend facilitando ataques dirigidos (CVEs conocidos).';
+                } else {
+                    verdictEl.innerText = 'Sin Fuga de Cabeceras';
+                    verdictEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800';
+                    riskEl.innerText = 'Cabeceras de servidor ocultas o genéricas.';
+                }
+
+                // 8-Method Matrix
+                const grid = document.getElementById('apx-methods-grid');
+                const rawMethods = data.methods || data.methods_tested || {};
+                const methodsList = Array.isArray(rawMethods) ? rawMethods : Object.values(rawMethods);
+
+                grid.innerHTML = methodsList.map(m => {
+                    let badgeClass = m.badge_class || 'bg-emerald-950 text-emerald-300 border-emerald-700';
+                    let borderCard = 'border-slate-800 bg-slate-900/60';
+                    let code = m.code || m.status_code || 0;
+                    let vText = m.verdict || 'OK';
+
+                    if (vText.includes('CRÍTICO') || m.security_flag === 'CRITICAL_RISK') {
+                        badgeClass = 'bg-rose-950 text-rose-300 border border-rose-700';
+                        borderCard = 'border-rose-900/80 bg-rose-950/20';
+                    } else if (vText.includes('ALERTA') || vText.includes('DECLARATIVO') || m.security_flag === 'WARNING') {
+                        badgeClass = 'bg-amber-950 text-amber-300 border border-amber-700';
+                        borderCard = 'border-amber-900/80 bg-amber-950/20';
+                    }
+
+                    return `
+                        <div class="p-3.5 rounded-xl border ${borderCard} space-y-2">
+                            <div class="flex items-center justify-between">
+                                <span class="font-mono font-bold text-white text-xs px-2 py-0.5 rounded bg-slate-950 border border-slate-800">${m.method}</span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold font-mono ${badgeClass}">${vText}</span>
+                            </div>
+                            <div class="flex items-baseline justify-between text-xs font-mono">
+                                <span class="text-slate-400">HTTP Status:</span>
+                                <span class="font-bold ${code >= 200 && code < 400 ? 'text-amber-400' : 'text-slate-400'}">${code || 'Err'}</span>
+                            </div>
+                            <div class="text-[11px] text-slate-300 leading-tight">
+                                ${m.analysis || m.status_text || (m.latency_ms ? `Latencia: ${m.latency_ms}ms` : 'Método evaluado')}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                // Update Hardening Snippets if provided
+                if (data.recommendations) {
+                    if (data.recommendations.nginx) document.getElementById('apx-snippet-nginx').innerText = data.recommendations.nginx;
+                    if (data.recommendations.apache) document.getElementById('apx-snippet-apache').innerText = data.recommendations.apache;
+                    if (data.recommendations.iis) document.getElementById('apx-snippet-iis').innerText = data.recommendations.iis;
+                }
+
+                showToast(`Auditoría de métodos HTTP para ${data.target_url} finalizada`);
+            } catch (err) {
+                showToast('Error al auditar verbos HTTP', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-arrows-split-up-and-left"></i><span>Auditar Verbos HTTP</span>';
+            }
+        }
+
+        async function generateAutoPentestXReport() {
+            const select = document.getElementById('apx-report-target-select');
+            const btn = document.getElementById('btn-apx-generate-report');
+            const container = document.getElementById('apx-printable-report');
+
+            let target = (select.value || '').trim();
+            if (!target) {
+                // If not in select, fallback to pipeline target
+                target = (document.getElementById('apx-pipeline-target').value || '').trim();
+            }
+
+            if (!target) {
+                showToast('Selecciona o ingresa el activo a reportar', true);
+                return;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Compilando...</span>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=autopentestx_generate_report&target=${encodeURIComponent(target)}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    showToast(data.error || 'Error al generar informe', true);
+                    return;
+                }
+
+                const r = data.report || data;
+                r.target = r.target || r.target_host || target;
+                const meta = r.metadata || {
+                    report_id: r.report_id || `APX-${Date.now()}`,
+                    generation_date: r.generated_at || new Date().toLocaleString(),
+                    classification: 'CONFIDENCIAL / AUDITORÍA',
+                    framework: 'OpenRecon & AutoPentestX Suite',
+                    auditor: r.auditor || 'Equipo de Ciberseguridad & Analistas EASM'
+                };
+                const sev = r.severity_summary || r.severity_counts || {};
+                const reportVulns = r.vulnerabilities || r.vulns || [];
+
+                // Build Printable Report HTML
+                let vulnsHtml = '';
+                if (!reportVulns || reportVulns.length === 0) {
+                    vulnsHtml = `
+                        <tr>
+                            <td colspan="5" class="py-6 text-center text-slate-500 font-mono text-xs">
+                                No hay vulnerabilidades críticas abiertas en la base de datos para este activo.
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    vulnsHtml = reportVulns.map(v => {
+                        let sevBadgeClass = 'bg-slate-800 text-slate-300';
+                        if (v.severity === 'CRITICAL') sevBadgeClass = 'bg-rose-900 text-rose-200';
+                        else if (v.severity === 'HIGH') sevBadgeClass = 'bg-orange-900 text-orange-200';
+                        else if (v.severity === 'MEDIUM') sevBadgeClass = 'bg-amber-900 text-amber-200';
+                        else if (v.severity === 'LOW') sevBadgeClass = 'bg-blue-900 text-blue-200';
+
+                        return `
+                            <tr class="border-b border-slate-700/60">
+                                <td class="py-2.5 px-3">
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase ${sevBadgeClass}">${v.severity}</span>
+                                </td>
+                                <td class="py-2.5 px-3">
+                                    <div class="font-bold text-white text-xs">${v.title}</div>
+                                    <div class="text-[10px] text-slate-400 font-mono mt-0.5">${v.category || 'Vulnerabilidad Web'}</div>
+                                </td>
+                                <td class="py-2.5 px-3 font-mono text-[11px] text-slate-300">
+                                    ${v.cve_cwe || 'CWE-200'}
+                                </td>
+                                <td class="py-2.5 px-3 text-[11px] text-slate-300">
+                                    ${v.remediation || 'Aplicar control defensivo y validar con WAF/Servidor.'}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                // Frameworks Badges
+                let frameworksHtml = (r.compliance_frameworks || []).map(f => `
+                    <div class="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-xs">${f.name}</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded ${f.status === 'En Riesgo' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'}">${f.status}</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 leading-tight">${f.details}</p>
+                    </div>
+                `).join('');
+
+                container.innerHTML = `
+                    <!-- Formal Header -->
+                    <div class="border-b-2 border-purple-500 pb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-950 text-purple-300 border border-purple-800">
+                                    ${meta.classification || 'CONFIDENCIAL'}
+                                </span>
+                                <span class="text-xs font-mono text-slate-400">ID: ${meta.report_id}</span>
+                            </div>
+                            <h2 class="text-2xl font-black text-white mt-1">Informe de Pruebas de Penetración & Evaluación EASM</h2>
+                            <p class="text-xs text-slate-400 font-mono mt-0.5">Generado por: ${meta.framework} | Auditor: ${meta.auditor}</p>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs font-mono text-slate-400">Fecha de Auditoría: <span class="text-white font-bold">${meta.generation_date}</span></div>
+                            <div class="text-xs font-mono text-purple-400 font-bold mt-1">Objetivo: ${r.target}</div>
+                        </div>
+                    </div>
+
+                    <!-- Executive Score & Summary -->
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        <div class="md:col-span-4 p-5 rounded-xl border border-slate-800 bg-slate-900/60 flex flex-col items-center justify-center text-center space-y-2">
+                            <span class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Puntuación de Riesgo Global</span>
+                            <div class="text-5xl font-black ${r.risk_score >= 70 ? 'text-rose-400' : (r.risk_score >= 40 ? 'text-amber-400' : 'text-emerald-400')} font-mono">
+                                ${r.risk_score}<span class="text-slate-500 text-lg">/100</span>
+                            </div>
+                            <div class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${r.posture === 'Crítica' || r.posture === 'Alta' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-emerald-950 text-emerald-300 border border-emerald-800'}">
+                                Postura: ${r.posture}
+                            </div>
+                        </div>
+                        <div class="md:col-span-8 p-5 rounded-xl border border-slate-800 bg-slate-900/60 space-y-3">
+                            <h3 class="text-xs font-bold uppercase text-slate-300 tracking-wider flex items-center gap-1.5 border-b border-slate-800 pb-2">
+                                <i class="fa-solid fa-file-lines text-purple-400"></i> Resumen Ejecutivo para la Alta Dirección
+                            </h3>
+                            <p class="text-xs text-slate-300 leading-relaxed">${r.executive_summary}</p>
+                            <div class="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800 text-center font-mono">
+                                <div class="p-1.5 rounded bg-rose-950/40 text-rose-300 text-xs font-bold">Críticas: ${sev.CRITICAL || 0}</div>
+                                <div class="p-1.5 rounded bg-orange-950/40 text-orange-300 text-xs font-bold">Altas: ${sev.HIGH || 0}</div>
+                                <div class="p-1.5 rounded bg-amber-950/40 text-amber-300 text-xs font-bold">Medias: ${sev.MEDIUM || 0}</div>
+                                <div class="p-1.5 rounded bg-blue-950/40 text-blue-300 text-xs font-bold">Bajas/Info: ${(sev.LOW || 0) + (sev.INFO || 0)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Compliance Alignment -->
+                    <div class="space-y-3">
+                        <h3 class="text-xs font-bold uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-scale-balanced text-purple-400"></i> Alineación con Estándares y Marcos de Cumplimiento
+                        </h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">${frameworksHtml}</div>
+                    </div>
+
+                    <!-- Vulnerability Findings Ledger -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-xs font-bold uppercase text-slate-300 tracking-wider flex items-center gap-1.5">
+                                <i class="fa-solid fa-bug text-purple-400"></i> Registro Consolidado de Vulnerabilidades y Mitigaciones
+                            </h3>
+                            <span class="text-[10px] font-mono text-purple-400">${reportVulns.length} ítems auditados</span>
+                        </div>
+                        <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900/40">
+                            <table class="w-full text-left text-xs">
+                                <thead>
+                                    <tr class="border-b border-slate-800 text-[10px] font-bold uppercase text-slate-400 bg-slate-950">
+                                        <th class="py-2.5 px-3">Severidad</th>
+                                        <th class="py-2.5 px-3">Vulnerabilidad</th>
+                                        <th class="py-2.5 px-3">Control / CVE</th>
+                                        <th class="py-2.5 px-3">Plan de Remediación Recomendado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${vulnsHtml}</tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Sign-off Footer -->
+                    <div class="border-t border-slate-800 pt-4 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 font-mono">
+                        <div>Documento emitido conforme al estándar PTES (Penetration Testing Execution Standard)</div>
+                        <div class="mt-2 sm:mt-0 font-bold text-slate-400">OpenRecon & AutoPentestX Platform</div>
+                    </div>
+                `;
+
+                showToast(`Informe AutoPentestX generado con éxito para ${r.target}`);
+            } catch (err) {
+                showToast('Error al compilar el informe ejecutivo', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i><span>Compilar Informe</span>';
+            }
+        }
+
+        function printAutoPentestXReport() {
+            const reportContent = document.getElementById('apx-printable-report');
+            if (!reportContent || reportContent.innerText.includes('Selecciona un activo')) {
+                showToast('Primero compila el informe antes de imprimir o exportar a PDF', true);
+                return;
+            }
+            window.print();
         }
 
         window.onload = init;

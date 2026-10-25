@@ -220,6 +220,15 @@ switch ($action) {
     case 'strix_dns_inspect':
         strixDnsInspect($pdo);
         break;
+    case 'autopentestx_run_pipeline':
+        autoPentestXRunPipeline($pdo);
+        break;
+    case 'autopentestx_http_methods':
+        autoPentestXHttpMethods($pdo);
+        break;
+    case 'autopentestx_generate_report':
+        autoPentestXGenerateReport($pdo);
+        break;
     default:
         echo json_encode(['status' => 'ok', 'message' => 'OpenRecon API v1.0 running']);
         break;
@@ -2623,5 +2632,598 @@ function strixDnsInspect($pdo) {
         'spf_record' => $spf ?: 'NO CONFIGURADO',
         'has_dnssec' => !empty($dnskey),
         'has_mta_sts' => !empty($mtaSts)
+    ]);
+}
+
+/**
+ * =========================================================================
+ * AUTOPENTESTX - Automated Multi-Phase Pentest Engine & Executive Reporting
+ * Inspired by Gowtham-Darkseid/AutoPentestX
+ * =========================================================================
+ */
+
+function autoPentestXRunPipeline($pdo) {
+    set_time_limit(180);
+    $target = trim($_POST['target'] ?? $_GET['target'] ?? '');
+    $profile = strtolower(trim($_POST['profile'] ?? $_GET['profile'] ?? 'fast'));
+
+    if (empty($target)) {
+        echo json_encode(['success' => false, 'error' => 'Objetivo no especificado para AutoPentestX']);
+        return;
+    }
+
+    $startTotal = microtime(true);
+
+    // Normalize target
+    $rawHost = preg_replace('#^https?://#i', '', $target);
+    $host = explode('/', $rawHost)[0];
+    $host = explode(':', $host)[0];
+
+    // Determine scheme
+    $scheme = 'https';
+    if (stripos($target, 'http://') === 0) {
+        $scheme = 'http';
+    }
+
+    $phasesLog = [];
+    $vulns = [];
+
+    // -------------------------------------------------------------
+    // FASE 1: Reconocimiento DNS y Red
+    // -------------------------------------------------------------
+    $ip = gethostbyname($host);
+    $hasDns = ($ip !== $host);
+    $ptr = $hasDns ? @gethostbyaddr($ip) : 'No resuelto';
+
+    // Cloud provider detection
+    $cloudProvider = 'On-Premise / Datacenter Local';
+    $ptrLower = strtolower($ptr . ' ' . $host);
+    if (strpos($ptrLower, 'amazonaws') !== false || strpos($ptrLower, 'awsglobal') !== false) {
+        $cloudProvider = 'Amazon Web Services (AWS)';
+    } elseif (strpos($ptrLower, 'azure') !== false || strpos($ptrLower, 'microsoft') !== false) {
+        $cloudProvider = 'Microsoft Azure Cloud';
+    } elseif (strpos($ptrLower, 'google') !== false || strpos($ptrLower, '1e100') !== false || strpos($ptrLower, 'bc.googleusercontent') !== false) {
+        $cloudProvider = 'Google Cloud Platform (GCP)';
+    } elseif (strpos($ptrLower, 'cloudflare') !== false) {
+        $cloudProvider = 'Cloudflare Edge CDN / WAF';
+    } elseif (strpos($ptrLower, 'digitalocean') !== false) {
+        $cloudProvider = 'DigitalOcean Cloud';
+    } elseif (strpos($ptrLower, 'oracle') !== false) {
+        $cloudProvider = 'Oracle Cloud Infrastructure (OCI)';
+    }
+
+    $phasesLog[] = [
+        'phase' => 1,
+        'name' => 'Reconocimiento DNS & Perímetro',
+        'status' => $hasDns ? 'SUCCESS' : 'WARNING',
+        'details' => $hasDns ? "Resuelto a IP: {$ip} ({$cloudProvider}) | PTR: {$ptr}" : "No se pudo resolver DNS para {$host}"
+    ];
+
+    if (!$hasDns) {
+        $vulns[] = [
+            'severity' => 'MEDIUM',
+            'title' => 'Fallo de Resolución de Nombre DNS',
+            'description' => "El host {$host} no resolvió a una dirección IPv4 pública. Posible dominio caducado o zona mal configurada.",
+            'cwe' => 'CWE-20',
+            'remediation' => 'Verificar la zona DNS en el registrador de dominio.'
+        ];
+    }
+
+    // -------------------------------------------------------------
+    // FASE 2: Escaneo de Puertos y Detección de Servicios
+    // -------------------------------------------------------------
+    $checkPorts = [
+        80 => 'HTTP (Web)',
+        443 => 'HTTPS (Web Segura)',
+        8080 => 'HTTP-Alt / Proxy',
+        8443 => 'HTTPS-Alt / Admin Web',
+        21 => 'FTP (Transferencia de Archivos)',
+        22 => 'SSH (Administración Remota)',
+        3306 => 'MySQL Database',
+        5432 => 'PostgreSQL Database',
+        6379 => 'Redis Cache In-Memory',
+        27017 => 'MongoDB NoSQL Database'
+    ];
+
+    if ($profile === 'deep') {
+        $checkPorts[8000] = 'HTTP Dev Server';
+        $checkPorts[3000] = 'Node.js / React Dev Server';
+        $checkPorts[8888] = 'Jupyter / Alt Admin';
+        $checkPorts[25] = 'SMTP Mail Server';
+    }
+
+    $openPorts = [];
+    foreach ($checkPorts as $p => $srv) {
+        $fp = @fsockopen($host, $p, $errno, $errstr, 1.2);
+        if ($fp) {
+            $openPorts[$p] = $srv;
+            fclose($fp);
+        }
+    }
+
+    // Determine working scheme if not decided
+    if (isset($openPorts[443])) {
+        $scheme = 'https';
+    } elseif (isset($openPorts[80])) {
+        $scheme = 'http';
+    }
+
+    $phasesLog[] = [
+        'phase' => 2,
+        'name' => 'Escaneo de Puertos y Servicios',
+        'status' => 'SUCCESS',
+        'details' => count($openPorts) > 0 ? "Se detectaron " . count($openPorts) . " puertos abiertos: " . implode(', ', array_keys($openPorts)) : "No se detectaron puertos TCP comunes abiertos (posible firewall restrictivo o IP inactiva)"
+    ];
+
+    // Check dangerous open database ports
+    foreach ([3306, 5432, 6379, 27017] as $dbPort) {
+        if (isset($openPorts[$dbPort])) {
+            $vulns[] = [
+                'severity' => 'CRITICAL',
+                'title' => "Base de Datos Expuesta en Perímetro Público (Puerto {$dbPort} {$openPorts[$dbPort]})",
+                'description' => "El puerto de base de datos {$dbPort} ({$openPorts[$dbPort]}) se encuentra directamente accesible desde Internet sin restricción de firewall perimetral, permitiendo ataques de fuerza bruta y explotación directa.",
+                'cwe' => 'CWE-284',
+                'owasp' => 'A05:2021-Security Misconfiguration',
+                'remediation' => "Bloquear el puerto {$dbPort} en el Security Group/Firewall perimetral y permitir acceso exclusivamente a través de VPN corporativa o Bastion Host."
+            ];
+        }
+    }
+
+    if (isset($openPorts[21])) {
+        $vulns[] = [
+            'severity' => 'HIGH',
+            'title' => 'Servicio FTP Expuesto sin Cifrado Obligatorio (Puerto 21)',
+            'description' => 'El servicio FTP transmite credenciales y datos en texto claro a través de la red perimetral.',
+            'cwe' => 'CWE-319',
+            'owasp' => 'A02:2021-Cryptographic Failures',
+            'remediation' => 'Migrar hacia SFTP (sobre SSH puerto 22) o FTPS con TLS forzado y deshabilitar FTP plano.'
+        ];
+    }
+
+    // -------------------------------------------------------------
+    // FASE 3: Auditoría de Cabeceras Web & Server Banner Leaks
+    // -------------------------------------------------------------
+    $targetUrl = "{$scheme}://{$host}";
+    $ch = curl_init($targetUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'AutoPentestX-Orchestrator/2.0 (OpenRecon Audit Suite)');
+    $resp = curl_exec($ch);
+    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $rawHeaders = substr($resp, 0, $headerSize);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    $serverBanner = 'No especificado';
+    $xPoweredBy = null;
+    $hasHsts = false;
+    $hasXfo = false;
+    $hasCsp = false;
+    $hasXcto = false;
+
+    if ($resp !== false) {
+        foreach (explode("\r\n", $rawHeaders) as $line) {
+            if (stripos($line, 'Server:') === 0) {
+                $serverBanner = trim(substr($line, 7));
+            } elseif (stripos($line, 'X-Powered-By:') === 0) {
+                $xPoweredBy = trim(substr($line, 13));
+            } elseif (stripos($line, 'Strict-Transport-Security:') === 0) {
+                $hasHsts = true;
+            } elseif (stripos($line, 'X-Frame-Options:') === 0) {
+                $hasXfo = true;
+            } elseif (stripos($line, 'Content-Security-Policy:') === 0) {
+                $hasCsp = true;
+            } elseif (stripos($line, 'X-Content-Type-Options:') === 0) {
+                $hasXcto = true;
+            }
+        }
+
+        // Evaluate server banner leaks
+        if (!empty($serverBanner) && preg_match('#[0-9]+\.[0-9]+#', $serverBanner)) {
+            $vulns[] = [
+                'severity' => 'MEDIUM',
+                'title' => "Divulgación de Versión Exacta en Cabecera Server ({$serverBanner})",
+                'description' => "El servidor web expone públicamente su versión exacta ('{$serverBanner}'). Los actores maliciosos utilizan esta información para buscar exploits específicos (CVEs conocidos).",
+                'cwe' => 'CWE-200',
+                'owasp' => 'A05:2021-Security Misconfiguration',
+                'remediation' => "Ocultar la versión en el servidor web (En Apache: ServerTokens Prod; En Nginx: server_tokens off; En IIS: removeServerHeader=true)."
+            ];
+        }
+
+        if (!empty($xPoweredBy)) {
+            $vulns[] = [
+                'severity' => 'LOW',
+                'title' => "Fuga Tecnológica en Cabecera X-Powered-By ({$xPoweredBy})",
+                'description' => "La aplicación web informa el framework o runtime subyacente ({$xPoweredBy}), facilitando el perfilado tecnológico del objetivo.",
+                'cwe' => 'CWE-200',
+                'owasp' => 'A05:2021-Security Misconfiguration',
+                'remediation' => "Deshabilitar la emisión de la cabecera en php.ini (expose_php = Off) o en el framework de la aplicación."
+            ];
+        }
+
+        if ($scheme === 'https' && !$hasHsts) {
+            $vulns[] = [
+                'severity' => 'MEDIUM',
+                'title' => 'Ausencia de Cabecera HSTS (Strict-Transport-Security)',
+                'description' => 'El portal no implementa HSTS (RFC 6797), permitiendo a atacantes en la misma red degradar la conexión HTTPS a HTTP plano (SSL Stripping).',
+                'cwe' => 'CWE-319',
+                'owasp' => 'A02:2021-Cryptographic Failures',
+                'remediation' => "Configurar la cabecera 'Strict-Transport-Security: max-age=31536000; includeSubDomains; preload' en el proxy inverso o servidor web."
+            ];
+        }
+
+        if (!$hasXfo && !$hasCsp) {
+            $vulns[] = [
+                'severity' => 'MEDIUM',
+                'title' => 'Ausencia de Protección Anti-Clickjacking (X-Frame-Options / CSP frame-ancestors)',
+                'description' => 'La aplicación web puede ser embebida dentro de un marco <iframe> o <frame> en un sitio malicioso, exponiendo a los usuarios a robo de clics y credenciales.',
+                'cwe' => 'CWE-1021',
+                'owasp' => 'A04:2021-Insecure Design',
+                'remediation' => "Añadir la cabecera 'X-Frame-Options: SAMEORIGIN' o la directiva 'frame-ancestors \'self\'' en Content-Security-Policy."
+            ];
+        }
+
+        if (!$hasXcto) {
+            $vulns[] = [
+                'severity' => 'LOW',
+                'title' => 'Ausencia de Cabecera Anti-MIME Sniffing (X-Content-Type-Options)',
+                'description' => 'Los navegadores pueden interpretar erróneamente archivos como scripts ejecutables (MIME confusion attacks).',
+                'cwe' => 'CWE-16',
+                'owasp' => 'A05:2021-Security Misconfiguration',
+                'remediation' => "Configurar 'X-Content-Type-Options: nosniff' en todas las respuestas HTTP."
+            ];
+        }
+    }
+
+    $phasesLog[] = [
+        'phase' => 3,
+        'name' => 'Auditoría de Cabeceras Defensivas & Software',
+        'status' => ($resp !== false) ? 'SUCCESS' : 'WARNING',
+        'details' => ($resp !== false) ? "Código HTTP: {$httpCode} | Servidor: {$serverBanner} | HSTS: " . ($hasHsts ? 'OK' : 'Falta') . " | Anti-Clickjacking: " . ($hasXfo ? 'OK' : 'Falta') : "No se obtuvo respuesta HTTP: {$curlErr}"
+    ];
+
+    // -------------------------------------------------------------
+    // FASE 4: Auditoría de Verbos HTTP Inseguros (OPTIONS, TRACE, PUT, DELETE)
+    // -------------------------------------------------------------
+    $methodsAudit = [];
+
+    // OPTIONS
+    $chOpt = curl_init($targetUrl);
+    curl_setopt($chOpt, CURLOPT_CUSTOMREQUEST, 'OPTIONS');
+    curl_setopt($chOpt, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($chOpt, CURLOPT_HEADER, true);
+    curl_setopt($chOpt, CURLOPT_TIMEOUT, 4);
+    curl_setopt($chOpt, CURLOPT_SSL_VERIFYPEER, false);
+    $respOpt = curl_exec($chOpt);
+    $optHeaders = substr($respOpt, 0, curl_getinfo($chOpt, CURLINFO_HEADER_SIZE));
+    curl_close($chOpt);
+
+    $allowHeader = 'No listado';
+    foreach (explode("\r\n", $optHeaders) as $line) {
+        if (stripos($line, 'Allow:') === 0 || stripos($line, 'Public:') === 0) {
+            $allowHeader = trim(substr($line, strpos($line, ':') + 1));
+        }
+    }
+    $methodsAudit['OPTIONS'] = ['allowed' => true, 'allow_header' => $allowHeader];
+
+    // TRACE (XST Test)
+    $chTrace = curl_init($targetUrl);
+    curl_setopt($chTrace, CURLOPT_CUSTOMREQUEST, 'TRACE');
+    curl_setopt($chTrace, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($chTrace, CURLOPT_HEADER, true);
+    curl_setopt($chTrace, CURLOPT_TIMEOUT, 4);
+    curl_setopt($chTrace, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($chTrace, CURLOPT_HTTPHEADER, ["X-AutoPentestX-Canary: TraceProbeTest"]);
+    $respTrace = curl_exec($chTrace);
+    $codeTrace = curl_getinfo($chTrace, CURLINFO_HTTP_CODE);
+    curl_close($chTrace);
+
+    $traceVulnerable = ($codeTrace === 200 && strpos($respTrace, 'X-AutoPentestX-Canary: TraceProbeTest') !== false);
+    $methodsAudit['TRACE'] = ['code' => $codeTrace, 'vulnerable' => $traceVulnerable];
+
+    if ($traceVulnerable) {
+        $vulns[] = [
+            'severity' => 'HIGH',
+            'title' => 'Método HTTP TRACE Habilitado (Cross-Site Tracing - XST)',
+            'description' => 'El servidor web responde positivamente a peticiones TRACE y refleja cabeceras de autenticación en el cuerpo de la respuesta. Esto permite a atacantes eludir la bandera HttpOnly en cookies mediante XSS.',
+            'cwe' => 'CWE-693',
+            'owasp' => 'A05:2021-Security Misconfiguration',
+            'remediation' => "Deshabilitar el método TRACE (En Apache: TraceEnable Off; En Nginx: rechazar TRACE en location block; En IIS: desmarcar TRACE en Request Filtering)."
+        ];
+    }
+
+    // PUT / DELETE Probe
+    $chPut = curl_init("{$targetUrl}/__autopentestx_probe_tmp.txt");
+    curl_setopt($chPut, CURLOPT_CUSTOMREQUEST, 'PUT');
+    curl_setopt($chPut, CURLOPT_POSTFIELDS, 'AutoPentestX Probe Check');
+    curl_setopt($chPut, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($chPut, CURLOPT_TIMEOUT, 4);
+    curl_setopt($chPut, CURLOPT_SSL_VERIFYPEER, false);
+    curl_exec($chPut);
+    $codePut = curl_getinfo($chPut, CURLINFO_HTTP_CODE);
+    curl_close($chPut);
+
+    $putVulnerable = ($codePut === 200 || $codePut === 201 || $codePut === 204);
+    $methodsAudit['PUT'] = ['code' => $codePut, 'vulnerable' => $putVulnerable];
+
+    if ($putVulnerable) {
+        $vulns[] = [
+            'severity' => 'CRITICAL',
+            'title' => 'Método HTTP PUT Habilitado para Carga Arbitraria de Archivos',
+            'description' => 'El servidor web permitió la escritura de archivos en la raíz mediante el método PUT sin requerir autenticación previa.',
+            'cwe' => 'CWE-284',
+            'owasp' => 'A01:2021-Broken Access Control',
+            'remediation' => 'Deshabilitar el método PUT o WebDAV en la configuración pública del servidor web.'
+        ];
+    }
+
+    $phasesLog[] = [
+        'phase' => 4,
+        'name' => 'Auditoría de Verbos HTTP Inseguros',
+        'status' => ($traceVulnerable || $putVulnerable) ? 'WARNING' : 'SUCCESS',
+        'details' => "Métodos declarados: {$allowHeader} | TRACE (XST): " . ($traceVulnerable ? 'VULNERABLE (200)' : 'Seguro (' . ($codeTrace ?: 'Bloqueado') . ')') . " | PUT: " . ($putVulnerable ? 'VULNERABLE (' . $codePut . ')' : 'Bloqueado (' . ($codePut ?: 'Denegado') . ')')
+    ];
+
+    // -------------------------------------------------------------
+    // FASE 5: Fuzzing de Rutas y Secretos Críticos
+    // -------------------------------------------------------------
+    $fuzzTargets = [
+        '/robots.txt' => ['title' => 'Archivo robots.txt Expuesto', 'sev' => 'INFO', 'desc' => 'Divulgación de estructura de directorios privados mediante robots.txt'],
+        '/swagger/index.html' => ['title' => 'Consola Interactiva Swagger / OpenAPI Expuesta', 'sev' => 'HIGH', 'desc' => 'Consola interactiva de documentación y ejecución de endpoints REST accesible'],
+        '/.env' => ['title' => 'Archivo de Configuración .env Expuesto', 'sev' => 'CRITICAL', 'desc' => 'Variables de entorno con credenciales de base de datos y llaves API expuestas'],
+        '/.git/HEAD' => ['title' => 'Repositorio Git Expuesto (.git/HEAD)', 'sev' => 'CRITICAL', 'desc' => 'Estructura interna de control de versiones accesible públicamente'],
+        '/status_check.jsp' => ['title' => 'Endpoint de Diagnóstico del Servidor Expuesto', 'sev' => 'MEDIUM', 'desc' => 'Estado de hilos y conexiones del servidor web accesible sin autenticación'],
+        '/admin/login.jsp' => ['title' => 'Portal de Acceso Administrativo en Perímetro Público', 'sev' => 'MEDIUM', 'desc' => 'Formulario de autenticación administrativa accesible sin restricción IP'],
+        '/phpinfo.php' => ['title' => 'Página PHPInfo Expuesta', 'sev' => 'HIGH', 'desc' => 'Diagnóstico detallado de configuración del entorno PHP accesible públicamente']
+    ];
+
+    $fuzzHits = [];
+    foreach ($fuzzTargets as $route => $info) {
+        $chF = curl_init("{$targetUrl}{$route}");
+        curl_setopt($chF, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($chF, CURLOPT_TIMEOUT, 3);
+        curl_setopt($chF, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($chF, CURLOPT_FOLLOWLOCATION, false);
+        $bodyF = curl_exec($chF);
+        $codeF = curl_getinfo($chF, CURLINFO_HTTP_CODE);
+        curl_close($chF);
+
+        if ($codeF === 200 && strlen($bodyF) > 20) {
+            $fuzzHits[] = ['route' => $route, 'title' => $info['title'], 'size' => strlen($bodyF)];
+            if ($info['sev'] !== 'INFO') {
+                $vulns[] = [
+                    'severity' => $info['sev'],
+                    'title' => $info['title'],
+                    'description' => $info['desc'] . " (Ruta: {$route}).",
+                    'cwe' => ($info['sev'] === 'CRITICAL') ? 'CWE-200 / CWE-538' : 'CWE-200',
+                    'owasp' => ($info['sev'] === 'CRITICAL') ? 'A01:2021-Broken Access Control' : 'A05:2021-Security Misconfiguration',
+                    'remediation' => "Restringir el acceso a la ruta {$route} mediante reglas de firewall o permisos de directorio en el servidor web."
+                ];
+            }
+        }
+    }
+
+    $phasesLog[] = [
+        'phase' => 5,
+        'name' => 'Fuzzing de Rutas y Secretos Críticos',
+        'status' => count($fuzzHits) > 0 ? 'WARNING' : 'SUCCESS',
+        'details' => count($fuzzHits) > 0 ? "Se confirmaron " . count($fuzzHits) . " rutas expuestas (200 OK): " . implode(', ', array_column($fuzzHits, 'route')) : "No se detectaron rutas sensibles de administración o respaldos expuestas"
+    ];
+
+    // -------------------------------------------------------------
+    // Cálculo de Puntaje y Severidades AutoPentestX
+    // -------------------------------------------------------------
+    $counts = ['CRITICAL' => 0, 'HIGH' => 0, 'MEDIUM' => 0, 'LOW' => 0, 'INFO' => 0];
+    foreach ($vulns as $v) {
+        $s = strtoupper($v['severity'] ?? 'LOW');
+        if (isset($counts[$s])) $counts[$s]++;
+        else $counts['INFO']++;
+    }
+
+    $riskScore = 100;
+    $riskScore -= ($counts['CRITICAL'] * 25);
+    $riskScore -= ($counts['HIGH'] * 15);
+    $riskScore -= ($counts['MEDIUM'] * 7);
+    $riskScore -= ($counts['LOW'] * 3);
+    if ($riskScore < 5) $riskScore = 5;
+
+    $posture = 'Excelente / Fortificado';
+    $postureClass = 'text-emerald-400';
+    if ($riskScore < 50) {
+        $posture = 'Crítico / Exposición Severa';
+        $postureClass = 'text-rose-400';
+    } elseif ($riskScore < 70) {
+        $posture = 'Deficiente / Riesgo Alto';
+        $postureClass = 'text-orange-400';
+    } elseif ($riskScore < 85) {
+        $posture = 'Bueno / Riesgo Moderado';
+        $postureClass = 'text-amber-400';
+    }
+
+    $execSummary = "La evaluación de pentesting automatizado AutoPentestX sobre el objetivo '{$host}' identificó un puntaje de seguridad de {$riskScore} / 100 ({$posture}). ";
+    if ($counts['CRITICAL'] > 0 || $counts['HIGH'] > 0) {
+        $execSummary .= "Se confirmaron {$counts['CRITICAL']} vulnerabilidades críticas y {$counts['HIGH']} de severidad alta que requieren remediación perimetral prioritaria (0 - 48 horas).";
+    } else {
+        $execSummary .= "No se detectaron vectores de intrusión inmediata en el perímetro web evaluado. Se recomienda implementar el endurecimiento de cabeceras defensivas para alcanzar el cumplimiento estándar.";
+    }
+
+    $totalDuration = round((microtime(true) - $startTotal) * 1000, 1);
+
+    echo json_encode([
+        'success' => true,
+        'target' => $targetUrl,
+        'host' => $host,
+        'ip' => $ip,
+        'cloud_provider' => $cloudProvider,
+        'reverse_dns' => $ptr,
+        'open_ports' => $openPorts,
+        'server_banner' => $serverBanner,
+        'http_code' => $httpCode,
+        'phases' => $phasesLog,
+        'methods_audit' => $methodsAudit,
+        'fuzz_hits' => $fuzzHits,
+        'vulnerabilities' => $vulns,
+        'severity_counts' => $counts,
+        'risk_score' => $riskScore,
+        'posture' => $posture,
+        'posture_class' => $postureClass,
+        'executive_summary' => $execSummary,
+        'duration_ms' => $totalDuration
+    ]);
+}
+
+function autoPentestXHttpMethods($pdo) {
+    $url = trim($_POST['url'] ?? $_GET['url'] ?? '');
+    if (empty($url)) {
+        echo json_encode(['success' => false, 'error' => 'URL objetivo no especificada']);
+        return;
+    }
+    if (!preg_match('#^https?://#i', $url)) {
+        $url = 'https://' . $url;
+    }
+
+    $methods = ['GET', 'POST', 'HEAD', 'OPTIONS', 'TRACE', 'PUT', 'DELETE', 'PATCH'];
+    $results = [];
+    $serverBanner = 'No especificado';
+    $xPoweredBy = null;
+
+    foreach ($methods as $m) {
+        $start = microtime(true);
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $m);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'AutoPentestX-MethodAuditor/1.0');
+        if ($m === 'TRACE') {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ["X-AutoPentestX-Probe: True"]);
+        } elseif ($m === 'PUT') {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, 'AutoPentestX Probe');
+        }
+        $resp = curl_exec($ch);
+        $timeMs = round((microtime(true) - $start) * 1000, 1);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+        $headers = substr($resp, 0, $headerSize);
+        curl_close($ch);
+
+        if ($serverBanner === 'No especificado') {
+            foreach (explode("\r\n", $headers) as $line) {
+                if (stripos($line, 'Server:') === 0) $serverBanner = trim(substr($line, 7));
+                if (stripos($line, 'X-Powered-By:') === 0) $xPoweredBy = trim(substr($line, 13));
+            }
+        }
+
+        $verdict = 'SEGURO / RESTRINGIDO';
+        $badgeClass = 'bg-slate-800 text-slate-300';
+        if ($m === 'TRACE' && $code === 200 && strpos($resp, 'X-AutoPentestX-Probe: True') !== false) {
+            $verdict = 'VULNERABLE (XST Reflect)';
+            $badgeClass = 'bg-rose-950 text-rose-300 border border-rose-800';
+        } elseif (($m === 'PUT' || $m === 'DELETE') && in_array($code, [200, 201, 204])) {
+            $verdict = 'CRÍTICO (Escritura Permitida)';
+            $badgeClass = 'bg-rose-950 text-rose-300 border border-rose-800';
+        } elseif ($m === 'OPTIONS' && in_array($code, [200, 204])) {
+            $verdict = 'DECLARATIVO (Informativo)';
+            $badgeClass = 'bg-cyan-950 text-cyan-300 border border-cyan-800';
+        } elseif (in_array($code, [403, 401, 405])) {
+            $verdict = 'PROTEGIDO (Denegado)';
+            $badgeClass = 'bg-emerald-950 text-emerald-300 border border-emerald-800';
+        }
+
+        $results[$m] = [
+            'method' => $m,
+            'code' => $code,
+            'latency_ms' => $timeMs,
+            'verdict' => $verdict,
+            'badge_class' => $badgeClass,
+            'header_snippet' => trim(substr($headers, 0, 300))
+        ];
+    }
+
+    echo json_encode([
+        'success' => true,
+        'url' => $url,
+        'server_banner' => $serverBanner,
+        'x_powered_by' => $xPoweredBy,
+        'methods' => $results,
+        'recommendations' => [
+            'nginx' => "if (\$request_method !~ ^(GET|HEAD|POST)\$ ) { return 405; }",
+            'apache' => "<LimitExcept GET POST HEAD>\n  deny from all\n</LimitExcept>\nTraceEnable Off",
+            'iis' => "<system.webServer><security><requestFiltering><verbs allowUnlisted=\"false\"><add verb=\"GET\" allowed=\"true\" /><add verb=\"POST\" allowed=\"true\" /><add verb=\"HEAD\" allowed=\"true\" /></verbs></requestFiltering></security></system.webServer>"
+        ]
+    ]);
+}
+
+function autoPentestXGenerateReport($pdo) {
+    $target = trim($_POST['target'] ?? $_GET['target'] ?? '');
+    if (empty($target)) {
+        echo json_encode(['success' => false, 'error' => 'Objetivo no especificado']);
+        return;
+    }
+
+    $rawHost = preg_replace('#^https?://#i', '', $target);
+    $host = explode('/', $rawHost)[0];
+    $host = explode(':', $host)[0];
+
+    // Check if we have cataloged vulns in DB for this target or seed
+    $stmt = $pdo->prepare("SELECT v.* FROM vulnerabilities v WHERE v.asset_subdomain = ? OR v.asset_subdomain LIKE ? ORDER BY CASE v.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END");
+    $stmt->execute([$host, "%{$host}%"]);
+    $dbVulns = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $counts = ['CRITICAL' => 0, 'HIGH' => 0, 'MEDIUM' => 0, 'LOW' => 0, 'INFO' => 0];
+    foreach ($dbVulns as $v) {
+        $s = strtoupper($v['severity'] ?? 'INFO');
+        if (isset($counts[$s])) $counts[$s]++;
+        else $counts['INFO']++;
+    }
+
+    // Calculate score
+    $riskScore = 100 - ($counts['CRITICAL'] * 25) - ($counts['HIGH'] * 15) - ($counts['MEDIUM'] * 7) - ($counts['LOW'] * 2);
+    if ($riskScore < 10) $riskScore = 10;
+    if ($riskScore > 100) $riskScore = 100;
+
+    $posture = 'Excelente';
+    if ($counts['CRITICAL'] > 0 || $riskScore < 50) $posture = 'Crítica';
+    else if ($counts['HIGH'] > 0 || $riskScore < 70) $posture = 'Alta';
+    else if ($counts['MEDIUM'] > 0 || $riskScore < 85) $posture = 'Media';
+
+    $execSummary = "El presente informe técnico-ejecutivo recopila los resultados de la evaluación de seguridad ofensiva y auditoría perimetral sobre el activo {$host}. ";
+    if ($counts['CRITICAL'] > 0 || $counts['HIGH'] > 0) {
+        $execSummary .= "Se identificaron {$counts['CRITICAL']} vulnerabilidades críticas y {$counts['HIGH']} de alta severidad que comprometen la confidencialidad e integridad del entorno web. Se recomienda remediación inmediata de acuerdo al estándar OWASP.";
+    } else if ($counts['MEDIUM'] > 0) {
+        $execSummary .= "Se detectaron {$counts['MEDIUM']} vulnerabilidades de riesgo moderado relacionadas principalmente con configuraciones defensivas de cabeceras HTTP y divulgación de versiones.";
+    } else {
+        $execSummary .= "El objetivo presenta una postura de seguridad sólida sin vulnerabilidades de severidad alta detectadas en el repositorio de auditoría.";
+    }
+
+    $frameworks = [
+        ['name' => 'OWASP Top 10:2021', 'status' => ($counts['CRITICAL'] > 0 ? 'En Riesgo' : 'Cumplimiento Parcial'), 'details' => 'Evaluación de categorías A01 (Broken Access Control) hasta A05 (Security Misconfiguration).'],
+        ['name' => 'NIST CSF 2.0 (PR.DS)', 'status' => ($counts['HIGH'] > 0 ? 'En Riesgo' : 'Adecuado'), 'details' => 'Controles de protección de datos en tránsito e integridad de interfaces web perimetrales.'],
+        ['name' => 'ISO/IEC 27001:2022 (A.8.8)', 'status' => ($counts['CRITICAL'] > 0 ? 'No Conforme' : 'Conforme con Observaciones'), 'details' => 'Gestión de vulnerabilidades técnicas y parcheo preventivo de activos perimetrales.'],
+        ['name' => 'PCI-DSS v4.0 (Req. 6 & 11)', 'status' => ($counts['CRITICAL'] > 0 || $counts['HIGH'] > 0 ? 'En Riesgo' : 'Alineado'), 'details' => 'Desarrollo y mantenimiento de aplicaciones seguras; escaneos perimetrales periódicos.']
+    ];
+
+    $reportId = 'APX-' . date('Ymd') . '-' . strtoupper(substr(md5($host . time()), 0, 6));
+
+    echo json_encode([
+        'success' => true,
+        'report_id' => $reportId,
+        'generated_at' => date('Y-m-d H:i:s T'),
+        'target_host' => $host,
+        'auditor' => 'Analista de Seguridad OpenRecon / AutoPentestX',
+        'scope' => "Auditoría Perimetral y Evaluación de Vulnerabilidades Web ({$host})",
+        'risk_score' => $riskScore,
+        'posture' => $posture,
+        'executive_summary' => $execSummary,
+        'severity_counts' => $counts,
+        'total_vulnerabilities' => count($dbVulns),
+        'vulnerabilities' => $dbVulns,
+        'compliance_frameworks' => $frameworks
     ]);
 }
