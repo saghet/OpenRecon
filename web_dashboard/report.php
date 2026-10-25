@@ -28,6 +28,8 @@ try {
         $assets = $pdo->query("SELECT * FROM assets WHERE seed_domain = " . $pdo->quote($requestedSeed) . " ORDER BY is_live DESC LIMIT 25")->fetchAll();
         $vulns = $pdo->query("SELECT v.* FROM vulnerabilities v JOIN assets a ON v.asset_subdomain = a.subdomain WHERE a.seed_domain = " . $pdo->quote($requestedSeed) . " AND (v.status != 'RESOLVED' OR v.status IS NULL) ORDER BY CASE v.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END LIMIT 15")->fetchAll();
         $threats = $pdo->query("SELECT * FROM drp_threats WHERE seed_domain = " . $pdo->quote($requestedSeed) . " LIMIT 10")->fetchAll();
+        $leaks = $pdo->query("SELECT * FROM credential_leaks WHERE seed_domain = " . $pdo->quote($requestedSeed))->fetchAll();
+        $totalIocs = (int)$pdo->query("SELECT COUNT(*) FROM threat_iocs")->fetchColumn();
 
     } else {
         $seeds = $pdo->query("SELECT domain FROM seeds")->fetchAll(PDO::FETCH_COLUMN);
@@ -51,6 +53,8 @@ try {
         $assets = $pdo->query("SELECT * FROM assets WHERE seed_domain IN (SELECT domain FROM seeds) ORDER BY is_live DESC LIMIT 25")->fetchAll();
         $vulns = $pdo->query("SELECT v.* FROM vulnerabilities v JOIN assets a ON v.asset_subdomain = a.subdomain WHERE a.seed_domain IN (SELECT domain FROM seeds) AND (v.status != 'RESOLVED' OR v.status IS NULL) ORDER BY CASE v.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 ELSE 3 END LIMIT 15")->fetchAll();
         $threats = $pdo->query("SELECT * FROM drp_threats WHERE seed_domain IN (SELECT domain FROM seeds) LIMIT 10")->fetchAll();
+        $leaks = $pdo->query("SELECT * FROM credential_leaks WHERE seed_domain IN (SELECT domain FROM seeds)")->fetchAll();
+        $totalIocs = (int)$pdo->query("SELECT COUNT(*) FROM threat_iocs")->fetchColumn();
     }
 
 } catch (Exception $e) {
@@ -239,6 +243,44 @@ try {
             </div>
         </div>
 
+        <!-- Breach Intelligence & Identity Exposure Detail -->
+        <div class="space-y-3 pt-4 border-t border-slate-200">
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-key text-amber-600"></i>
+                Fugas de Credenciales e Inteligencia de Identidad (Breach Intelligence)
+            </h3>
+
+            <?php if (empty($leaks)): ?>
+                <p class="text-xs text-slate-500 italic p-4 bg-slate-50 rounded-xl border border-slate-200">
+                    No se han registrado credenciales asociadas al dominio corporativo en bases de datos públicas o volcados analizados.
+                </p>
+            <?php else: ?>
+                <div class="space-y-3">
+                    <?php foreach ($leaks as $l): ?>
+                    <div class="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 border-b border-amber-200/80 pb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="font-mono font-bold text-slate-900 text-xs"><?php echo htmlspecialchars($l['email']); ?></span>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 uppercase"><?php echo htmlspecialchars($l['severity']); ?> (<?php echo htmlspecialchars($l['pwn_count']); ?> Registros Pwned)</span>
+                            </div>
+                            <span class="text-[11px] text-slate-500 font-mono">Brecha: <?php echo htmlspecialchars($l['source_breach']); ?> (<?php echo htmlspecialchars($l['breach_date']); ?>)</span>
+                        </div>
+                        <div class="text-xs text-slate-700">
+                            <strong>Clases de Datos Comprometidas:</strong> <?php echo htmlspecialchars($l['data_classes'] ?: 'Contraseñas en texto plano, Hashes'); ?>
+                        </div>
+                        <div class="text-[11px] text-slate-600 leading-relaxed bg-white/80 p-2.5 rounded border border-amber-100">
+                            <strong>Justificación Técnica de Severidad ALTA:</strong> <?php echo htmlspecialchars($l['risk_justification'] ?: 'Riesgo inminente de Account Takeover por reutilización de contraseñas (MITRE T1078/T1110).'); ?>
+                        </div>
+                        <div class="text-[11px] text-slate-700 font-mono bg-slate-100 p-2.5 rounded whitespace-pre-line border border-slate-200">
+<strong>Playbook de Remediación Inmediata:</strong>
+<?php echo htmlspecialchars($l['playbook_actions'] ?: '1. Reset de contraseñas. 2. Forzar MFA FIDO2.'); ?>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+
         <!-- DRP & Threat Landscape Summary -->
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-slate-200">
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
@@ -254,7 +296,7 @@ try {
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-xl">
                 <h4 class="text-xs font-bold text-slate-900 uppercase flex items-center gap-2 mb-2">
                     <i class="fa-solid fa-radiation text-purple-600"></i>
-                    Vigilancia en la Dark Web
+                    Vigilancia en la Dark Web & CTI (<?php echo $totalIocs; ?> C2s Activos)
                 </h4>
                 <p class="text-xs text-slate-600">
                     <?php if ($ransomMatched > 0): ?>
@@ -262,6 +304,7 @@ try {
                     <?php else: ?>
                         No se han encontrado filtraciones o anuncios de secuestro de datos activos vinculados a la entidad en foros o blogs de ransomware monitoreados.
                     <?php endif; ?>
+                    Se mantienen sincronizados <strong><?php echo $totalIocs; ?> servidores de Comando y Control (C2)</strong> hostiles listos para bloqueo perimetral.
                 </p>
             </div>
         </div>
