@@ -1086,7 +1086,6 @@
                 showToast('Fallo al conectar con la API', true);
             }
         }
-        }
 
         // Load Vulnerabilities & Exposures
         async function loadVulns() {
