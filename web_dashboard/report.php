@@ -220,7 +220,7 @@ try {
                             <th class="p-3">Subdominio</th>
                             <th class="p-3">Dirección IP</th>
                             <th class="p-3">Proveedor / Infraestructura</th>
-                            <th class="p-3">Tecnologías</th>
+                            <th class="p-3">Fuente Descubrimiento</th>
                             <th class="p-3 text-center">Estado</th>
                         </tr>
                     </thead>
@@ -230,7 +230,7 @@ try {
                             <td class="p-3 font-mono font-semibold text-slate-900"><?php echo htmlspecialchars($a['subdomain']); ?></td>
                             <td class="p-3 font-mono text-slate-500"><?php echo htmlspecialchars($a['ip_address'] ?: '-'); ?></td>
                             <td class="p-3"><?php echo htmlspecialchars($a['cloud_provider'] ?: 'Directo / On-Premise'); ?></td>
-                            <td class="p-3 text-[11px] text-slate-600"><?php echo htmlspecialchars($a['tech_stack'] ?: '-'); ?></td>
+                            <td class="p-3 text-[11px] font-mono text-cyan-800"><?php echo htmlspecialchars($a['discovery_source'] ?: 'DNSDumpster / Passive'); ?></td>
                             <td class="p-3 text-center">
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold <?php echo $a['is_live'] ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'; ?>">
                                     <?php echo $a['is_live'] ? 'ONLINE' : 'OFFLINE'; ?>

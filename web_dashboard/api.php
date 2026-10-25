@@ -133,6 +133,7 @@ try {
     try { $pdo->exec("ALTER TABLE credential_leaks ADD COLUMN data_classes TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE credential_leaks ADD COLUMN risk_justification TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE credential_leaks ADD COLUMN playbook_actions TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE assets ADD COLUMN discovery_source TEXT DEFAULT 'OSINT / Passive DNS'"); } catch (Exception $e) {}
 
 } catch (Exception $e) {
     echo json_encode(['error' => 'Database initialization failed: ' . $e->getMessage()]);
@@ -187,6 +188,9 @@ switch ($action) {
         break;
     case 'add_seed':
         addSeed($pdo);
+        break;
+    case 'promote_to_seed':
+        promoteAssetToSeed($pdo);
         break;
     case 'delete_seed':
         deleteSeed($pdo);
@@ -558,6 +562,24 @@ function addSeed($pdo) {
     }
 }
 
+function promoteAssetToSeed($pdo) {
+    $subdomain = trim($_POST['subdomain'] ?? $_GET['subdomain'] ?? '');
+    if (empty($subdomain)) {
+        echo json_encode(['error' => 'Subdominio inválido']);
+        return;
+    }
+    $subdomain = preg_replace('#^https?://#', '', strtolower($subdomain));
+    $subdomain = explode('/', $subdomain)[0];
+
+    try {
+        $stmt = $pdo->prepare("INSERT OR IGNORE INTO seeds (domain) VALUES (?)");
+        $stmt->execute([$subdomain]);
+        echo json_encode(['success' => true, 'promoted_domain' => $subdomain]);
+    } catch (Exception $e) {
+        echo json_encode(['error' => $e->getMessage()]);
+    }
+}
+
 // Cascade delete seed + assets + ports + vulns + drp
 function deleteSeed($pdo) {
     $id = (int)($_POST['id'] ?? 0);
@@ -830,23 +852,61 @@ function runScan($pdo) {
     $leaksFoundCount = 0;
 
     foreach ($seeds as $domain) {
+        $rootDomain = preg_replace('/^www\./i', '', $domain);
         $subdomains = [];
-        $subdomains[$domain] = true;
+        $subdomains[$domain] = ['source' => 'Semilla Inicial', 'known_ip' => null];
+        $subdomains[$rootDomain] = ['source' => 'Dominio Raíz', 'known_ip' => null];
 
-        $commonSubs = ['www', 'mail', 'vpn', 'api', 'dev', 'staging', 'portal', 'admin', 'git', 'app', 'remote'];
-        foreach ($commonSubs as $prefix) {
-            $candidate = $prefix . '.' . $domain;
-            $records = @dns_get_record($candidate, DNS_A);
-            if (!empty($records)) {
-                $subdomains[$candidate] = true;
-            }
-        }
-
-        $ch = curl_init("https://crt.sh/?q=%25." . urlencode($domain) . "&output=json");
+        // 1. Source: DNSDumpster / HackerTarget HostSearch
+        $ch = curl_init("https://api.hackertarget.com/hostsearch/?q=" . urlencode($rootDomain));
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 6);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_USERAGENT, "OpenRecon-Engine/1.0");
+        curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
+        $htRes = curl_exec($ch);
+        curl_close($ch);
+
+        if ($htRes && strpos($htRes, 'error') === false) {
+            foreach (explode("\n", trim($htRes)) as $line) {
+                $parts = explode(',', trim($line));
+                $host = strtolower(trim($parts[0] ?? ''));
+                if (!empty($host) && strpos($host, $rootDomain) !== false) {
+                    $subdomains[$host] = [
+                        'source' => 'DNSDumpster / HackerTarget',
+                        'known_ip' => trim($parts[1] ?? '')
+                    ];
+                }
+            }
+        }
+
+        // 2. Source: RapidDNS Passive Database
+        $ch = curl_init("https://rapiddns.io/subdomain/" . urlencode($rootDomain) . "?page=1");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
+        $rapidRes = curl_exec($ch);
+        curl_close($ch);
+
+        if ($rapidRes) {
+            preg_match_all('/<td>([a-zA-Z0-9_\-\.]+\.' . preg_quote($rootDomain, '/') . ')<\/td>/i', $rapidRes, $rMatches);
+            foreach ($rMatches[1] ?? [] as $rHost) {
+                $rHost = strtolower(trim($rHost));
+                if (!isset($subdomains[$rHost])) {
+                    $subdomains[$rHost] = [
+                        'source' => 'RapidDNS',
+                        'known_ip' => null
+                    ];
+                }
+            }
+        }
+
+        // 3. Source: crt.sh (Certificate Transparency Logs)
+        $ch = curl_init("https://crt.sh/?q=%25." . urlencode($rootDomain) . "&output=json");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
         $crtJson = curl_exec($ch);
         curl_close($ch);
 
@@ -860,36 +920,69 @@ function runScan($pdo) {
                     $lines = explode("\n", $nameVal);
                     foreach ($lines as $line) {
                         $clean = strtolower(trim($line));
-                        if (str_starts_with($clean, '*.')) {
-                            $clean = substr($clean, 2);
-                        }
-                        if (!empty($clean) && strpos($clean, $domain) !== false && !strpos($clean, '@')) {
-                            $subdomains[$clean] = true;
-                            $count++;
+                        if (str_starts_with($clean, '*.')) $clean = substr($clean, 2);
+                        if (!empty($clean) && strpos($clean, $rootDomain) !== false && !strpos($clean, '@')) {
+                            if (!isset($subdomains[$clean])) {
+                                $subdomains[$clean] = [
+                                    'source' => 'crt.sh (Cert Logs)',
+                                    'known_ip' => null
+                                ];
+                                $count++;
+                            }
                         }
                     }
                 }
             }
         }
 
-        foreach (array_keys($subdomains) as $sub) {
+        // 4. Source: Common Subdomains Dictionary
+        $commonSubs = ['www', 'mail', 'vpn', 'api', 'dev', 'staging', 'portal', 'admin', 'git', 'app', 'remote', 'secure', 'apps', 'enlinea'];
+        foreach ($commonSubs as $prefix) {
+            $candidate = $prefix . '.' . $rootDomain;
+            if (!isset($subdomains[$candidate])) {
+                $subdomains[$candidate] = [
+                    'source' => 'DNS Dictionary',
+                    'known_ip' => null
+                ];
+            }
+        }
+
+        // Cap at 60 highest priority subdomains per scan for responsiveness
+        $candidates = array_slice($subdomains, 0, 60, true);
+
+        foreach ($candidates as $sub => $meta) {
+            $source = $meta['source'] ?? 'OSINT / Passive DNS';
+            $knownIp = $meta['known_ip'] ?? null;
             $ip = null;
             $cloud = null;
             $isLive = 0;
 
-            $dnsA = @dns_get_record($sub, DNS_A);
-            if (!empty($dnsA) && isset($dnsA[0]['ip'])) {
-                $ip = $dnsA[0]['ip'];
+            if ($knownIp && filter_var($knownIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $ip = $knownIp;
                 $isLive = 1;
+            } else {
+                $dnsA = @dns_get_record($sub, DNS_A);
+                if (!empty($dnsA) && isset($dnsA[0]['ip'])) {
+                    $ip = $dnsA[0]['ip'];
+                    $isLive = 1;
+                }
+            }
 
-                if (str_starts_with($ip, '104.') || str_starts_with($ip, '172.67.')) {
+            if ($ip) {
+                if (str_starts_with($ip, '179.42.')) {
+                    $cloud = 'Banco Agrario Datacenter (AS271825)';
+                } elseif (str_starts_with($ip, '104.') || str_starts_with($ip, '172.67.')) {
                     $cloud = 'Cloudflare';
                 } elseif (str_starts_with($ip, '52.') || str_starts_with($ip, '54.') || str_starts_with($ip, '3.')) {
                     $cloud = 'AWS';
-                } elseif (str_starts_with($ip, '34.') || str_starts_with($ip, '35.')) {
-                    $cloud = 'Google Cloud';
-                } elseif (str_starts_with($ip, '20.') || str_starts_with($ip, '40.')) {
-                    $cloud = 'Azure';
+                } elseif (str_starts_with($ip, '34.') || str_starts_with($ip, '35.') || str_starts_with($ip, '136.')) {
+                    $cloud = 'Google Cloud / Apigee';
+                } elseif (str_starts_with($ip, '20.') || str_starts_with($ip, '40.') || str_starts_with($ip, '13.')) {
+                    $cloud = 'Microsoft Azure';
+                } elseif (str_starts_with($ip, '144.217.')) {
+                    $cloud = 'OVHcloud';
+                } else {
+                    $cloud = 'Infraestructura Propia / On-Premise';
                 }
             }
 
@@ -897,7 +990,7 @@ function runScan($pdo) {
             $statusCode = null;
             $techStack = [];
 
-            if ($isLive) {
+            if ($isLive && $discoveredAssetsCount < 20) {
                 $httpInfo = probeHttp($sub);
                 $webTitle = $httpInfo['title'];
                 $statusCode = $httpInfo['code'];
@@ -907,8 +1000,8 @@ function runScan($pdo) {
             $techStr = implode(', ', $techStack);
 
             $stmt = $pdo->prepare("
-                INSERT INTO assets (seed_domain, subdomain, ip_address, cloud_provider, web_title, status_code, tech_stack, is_live, last_scanned)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                INSERT INTO assets (seed_domain, subdomain, ip_address, cloud_provider, web_title, status_code, tech_stack, is_live, discovery_source, last_scanned)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(subdomain) DO UPDATE SET
                     seed_domain = excluded.seed_domain,
                     ip_address = excluded.ip_address,
@@ -917,125 +1010,81 @@ function runScan($pdo) {
                     status_code = excluded.status_code,
                     tech_stack = excluded.tech_stack,
                     is_live = excluded.is_live,
+                    discovery_source = excluded.discovery_source,
                     last_scanned = CURRENT_TIMESTAMP
             ");
-            $stmt->execute([$domain, $sub, $ip, $cloud, $webTitle, $statusCode, $techStr, $isLive]);
+            $stmt->execute([$domain, $sub, $ip, $cloud, $webTitle, $statusCode, $techStr, $isLive, $source]);
             $discoveredAssetsCount++;
 
             if ($isLive) {
-                $targetHost = $ip ?: $sub;
-                $portsToScan = [
-                    80 => 'HTTP',
-                    443 => 'HTTPS',
-                    8080 => 'HTTP-Proxy',
-                    8443 => 'HTTPS-Alt',
-                    21 => 'FTP',
-                    22 => 'SSH',
-                    3389 => 'RDP (Remote Desktop)',
-                    3306 => 'MySQL Database',
-                    5432 => 'PostgreSQL Database',
-                    6379 => 'Redis Cache/DB',
-                    27017 => 'MongoDB'
-                ];
+                if ($discoveredAssetsCount <= 25) {
+                    $targetHost = $ip ?: $sub;
+                    $portsToScan = [
+                        80 => 'HTTP',
+                        443 => 'HTTPS',
+                        8080 => 'HTTP-Proxy',
+                        8443 => 'HTTPS-Alt'
+                    ];
 
-                foreach ($portsToScan as $p => $srvName) {
-                    $connection = @fsockopen($targetHost, $p, $errno, $errstr, 0.4);
-                    if (is_resource($connection)) {
-                        fclose($connection);
-
-                        $stmtPort = $pdo->prepare("INSERT OR IGNORE INTO open_ports (asset_subdomain, port, service_name) VALUES (?, ?, ?)");
-                        $stmtPort->execute([$sub, $p, $srvName]);
-
-                        if (in_array($p, [3306, 5432, 6379, 27017])) {
-                            $vulnTitle = "Servicio de Base de Datos Expuesto a Internet ($srvName en puerto $p)";
-                            $stmtVuln = $pdo->prepare("
-                                INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
-                                VALUES (?, ?, 'CRITICAL', ?, ?)
-                            ");
-                            $stmtVuln->execute([
-                                $sub,
-                                $vulnTitle,
-                                "El puerto $p ($srvName) está accesible públicamente sin protección perimetral, permitiendo escaneos automatizados y ataques de fuerza bruta directos contra la base de datos.",
-                                "Aislar el puerto $p detrás de un Security Group o Firewall. Solo permitir acceso desde direcciones IP autorizadas o mediante túnel VPN corporativo."
-                            ]);
-                            $vulnsDetectedCount++;
-                        } elseif ($p == 3389) {
-                            $vulnTitle = "Escritorio Remoto (RDP) Expuesto Públicamente (puerto 3389)";
-                            $stmtVuln = $pdo->prepare("
-                                INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
-                                VALUES (?, ?, 'HIGH', ?, ?)
-                            ");
-                            $stmtVuln->execute([
-                                $sub,
-                                $vulnTitle,
-                                "El servicio de Microsoft Remote Desktop Protocol (3389) está expuesto directamente a Internet, siendo el vector #1 de acceso inicial en incidentes de Ransomware corporativo.",
-                                "Cerrar inmediatamente el puerto 3389 en el router/firewall y forzar autenticación mediante VPN con doble factor (MFA)."
-                            ]);
-                            $vulnsDetectedCount++;
-                        } elseif ($p == 21) {
-                            $vulnTitle = "Servicio FTP No Cifrado Expuesto (puerto 21)";
-                            $stmtVuln = $pdo->prepare("
-                                INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
-                                VALUES (?, ?, 'MEDIUM', ?, ?)
-                            ");
-                            $stmtVuln->execute([
-                                $sub,
-                                $vulnTitle,
-                                "FTP transmite credenciales y datos en texto claro a través de la red pública.",
-                                "Migrar el servicio a SFTP (puerto 22 SSH) o FTPS con cifrado TLS obligatorio."
-                            ]);
-                            $vulnsDetectedCount++;
+                    foreach ($portsToScan as $p => $srvName) {
+                        $connection = @fsockopen($targetHost, $p, $errno, $errstr, 0.2);
+                        if (is_resource($connection)) {
+                            fclose($connection);
+                            $stmtPort = $pdo->prepare("INSERT OR IGNORE INTO open_ports (asset_subdomain, port, service_name) VALUES (?, ?, ?)");
+                            $stmtPort->execute([$sub, $p, $srvName]);
                         }
                     }
                 }
 
-                $sensitiveEndpoints = [
-                    '/.env' => 'Variables de Entorno (.env)',
-                    '/.git/config' => 'Repositorio Git Expuesto (.git/config)',
-                    '/wp-config.php.bak' => 'Copia de Respaldo WordPress (wp-config.php.bak)'
-                ];
+                if ($discoveredAssetsCount <= 5) {
+                    $sensitiveEndpoints = [
+                        '/.env' => 'Variables de Entorno (.env)',
+                        '/.git/config' => 'Repositorio Git Expuesto (.git/config)',
+                        '/wp-config.php.bak' => 'Copia de Respaldo WordPress (wp-config.php.bak)'
+                    ];
 
-                foreach ($sensitiveEndpoints as $ep => $secretDesc) {
-                    $probeUrl = "https://" . $sub . $ep;
-                    $ch = curl_init($probeUrl);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
-                    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
-                    $epBody = curl_exec($ch);
-                    $epCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                    curl_close($ch);
+                    foreach ($sensitiveEndpoints as $ep => $secretDesc) {
+                        $probeUrl = "https://" . $sub . $ep;
+                        $ch = curl_init($probeUrl);
+                        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
+                        $epBody = curl_exec($ch);
+                        $epCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
 
-                    if ($epCode === 200 && $epBody && strlen($epBody) > 10) {
-                        $isExposed = false;
-                        $snippet = substr($epBody, 0, 80);
+                        if ($epCode === 200 && $epBody && strlen($epBody) > 10) {
+                            $isExposed = false;
+                            $snippet = substr($epBody, 0, 80);
 
-                        if ($ep === '/.env' && (strpos($epBody, 'DB_') !== false || strpos($epBody, 'APP_KEY') !== false || strpos($epBody, 'SECRET') !== false)) {
-                            $isExposed = true;
-                        } elseif ($ep === '/.git/config' && strpos($epBody, '[core]') !== false) {
-                            $isExposed = true;
-                        }
+                            if ($ep === '/.env' && (strpos($epBody, 'DB_') !== false || strpos($epBody, 'APP_KEY') !== false || strpos($epBody, 'SECRET') !== false)) {
+                                $isExposed = true;
+                            } elseif ($ep === '/.git/config' && strpos($epBody, '[core]') !== false) {
+                                $isExposed = true;
+                            }
 
-                        if ($isExposed) {
-                            $stmtSec = $pdo->prepare("
-                                INSERT INTO exposed_secrets (asset_subdomain, secret_type, matched_snippet, endpoint_url, severity)
-                                VALUES (?, ?, ?, ?, 'CRITICAL')
-                                ON CONFLICT(endpoint_url, secret_type) DO NOTHING
-                            ");
-                            $stmtSec->execute([$sub, $secretDesc, $snippet, $probeUrl]);
-                            $secretsFoundCount++;
+                            if ($isExposed) {
+                                $stmtSec = $pdo->prepare("
+                                    INSERT INTO exposed_secrets (asset_subdomain, secret_type, matched_snippet, endpoint_url, severity)
+                                    VALUES (?, ?, ?, ?, 'CRITICAL')
+                                    ON CONFLICT(endpoint_url, secret_type) DO NOTHING
+                                ");
+                                $stmtSec->execute([$sub, $secretDesc, $snippet, $probeUrl]);
+                                $secretsFoundCount++;
 
-                            $stmtVuln = $pdo->prepare("
-                                INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
-                                VALUES (?, ?, 'CRITICAL', ?, ?)
-                            ");
-                            $stmtVuln->execute([
-                                $sub,
-                                "Archivo Crítico Expuesto Públicamente: $secretDesc",
-                                "Se ha detectado el endpoint $probeUrl con acceso libre y sin autenticación, revelando credenciales y configuración interna.",
-                                "Configurar el servidor web (Nginx / Apache) para denegar el acceso a archivos ocultos (denied location ~ /\\.) de inmediato."
-                            ]);
-                            $vulnsDetectedCount++;
+                                $stmtVuln = $pdo->prepare("
+                                    INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
+                                    VALUES (?, ?, 'CRITICAL', ?, ?)
+                                ");
+                                $stmtVuln->execute([
+                                    $sub,
+                                    "Archivo Crítico Expuesto Públicamente: $secretDesc",
+                                    "Se ha detectado el endpoint $probeUrl con acceso libre y sin autenticación, revelando credenciales y configuración interna.",
+                                    "Configurar el servidor web (Nginx / Apache) para denegar el acceso a archivos ocultos (denied location ~ /\\.) de inmediato."
+                                ]);
+                                $vulnsDetectedCount++;
+                            }
                         }
                     }
                 }

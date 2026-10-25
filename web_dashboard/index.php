@@ -254,10 +254,11 @@
                             <tr>
                                 <th class="p-4">Activo / Subdominio</th>
                                 <th class="p-4">Dirección IP</th>
-                                <th class="p-4">Proveedor / CDN</th>
+                                <th class="p-4">Proveedor / Infraestructura</th>
+                                <th class="p-4">Fuente de Descubrimiento</th>
                                 <th class="p-4">Puertos Detectados</th>
-                                <th class="p-4">Servicio Web / Tecnologías</th>
                                 <th class="p-4 text-center">Estado</th>
+                                <th class="p-4 text-center">Gestión Semillas</th>
                             </tr>
                         </thead>
                         <tbody id="assets-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
@@ -1021,7 +1022,7 @@
             );
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-500">No se encontraron activos perimetrales para la semilla seleccionada. Ejecuta un escaneo para descubrirlos.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-500">No se encontraron activos perimetrales para la semilla seleccionada. Ejecuta un escaneo para descubrirlos.</td></tr>`;
                 return;
             }
 
@@ -1038,6 +1039,10 @@
                     `<span class="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 text-[10px]"><i class="fa-solid fa-cloud text-cyan-400 mr-1"></i>${a.cloud_provider}</span>` : 
                     `<span class="text-slate-500 text-[11px]">Directo</span>`;
 
+                const sourceBadge = a.discovery_source ?
+                    `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-cyan-950 text-cyan-300 border border-cyan-800"><i class="fa-solid fa-radar mr-1"></i>${a.discovery_source}</span>` :
+                    `<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 text-slate-400 border border-slate-800">DNS Pasivo</span>`;
+
                 return `
                     <tr class="hover:bg-slate-800/40 transition">
                         <td class="p-4 font-mono font-medium text-white flex items-center gap-2">
@@ -1046,19 +1051,41 @@
                         </td>
                         <td class="p-4 font-mono text-slate-400">${a.ip_address || '<span class="text-slate-600">No resuelve</span>'}</td>
                         <td class="p-4">${cloudBadge}</td>
+                        <td class="p-4">${sourceBadge}</td>
                         <td class="p-4 flex flex-wrap gap-1 max-w-xs">${portsBadges}</td>
-                        <td class="p-4 max-w-xs truncate">
-                            <span class="text-white block font-medium truncate" title="${a.web_title || ''}">${a.web_title || '<span class="text-slate-600 italic">Sin título HTTP</span>'}</span>
-                            <span class="text-[10px] text-slate-400">${a.tech_stack || ''}</span>
-                        </td>
                         <td class="p-4 text-center">
                             ${a.is_live ? 
                                 '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800/60"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>ONLINE</span>' : 
                                 '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-500 border border-slate-800">OFFLINE</span>'}
                         </td>
+                        <td class="p-4 text-center">
+                            <button onclick="promoteToSeed('${a.subdomain}')" class="px-2.5 py-1 rounded-lg bg-blue-950 hover:bg-blue-900 text-blue-300 border border-blue-800 text-[11px] font-semibold transition flex items-center gap-1 mx-auto" title="Añadir a semillas para vigilancia perimetral independiente">
+                                <i class="fa-solid fa-plus-circle text-blue-400"></i>
+                                <span>Añadir a Semillas</span>
+                            </button>
+                        </td>
                     </tr>
                 `;
             }).join('');
+        }
+
+        async function promoteToSeed(subdomain) {
+            try {
+                showToast(`Promoviendo ${subdomain} a semilla de vigilancia...`);
+                const formData = new FormData();
+                formData.append('subdomain', subdomain);
+                const res = await fetch(`${API_URL}?action=promote_to_seed`, { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`¡Activo ${subdomain} añadido exitosamente a las semillas!`);
+                    await loadSeeds();
+                } else {
+                    showToast('Error: ' + (data.error || 'No se pudo promover'), true);
+                }
+            } catch (err) {
+                showToast('Fallo al conectar con la API', true);
+            }
+        }
         }
 
         // Load Vulnerabilities & Exposures
