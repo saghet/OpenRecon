@@ -2886,18 +2886,57 @@
             if (!select) return;
 
             let optionsHtml = '<option value="">Seleccionar activo...</option>';
+
+            // Filter assets for current active seed or all
+            let relevantAssets = (globalAssets || []).slice();
             if (activeSeed && activeSeed !== 'ALL') {
-                optionsHtml += `<option value="https://${activeSeed}">${activeSeed} (Semilla activa)</option>`;
+                relevantAssets = relevantAssets.filter(a => a.seed_domain === activeSeed || a.subdomain === activeSeed || (a.subdomain && a.subdomain.endsWith('.' + activeSeed)));
             }
 
-            if (globalAssets && globalAssets.length > 0) {
-                globalAssets.forEach(a => {
-                    const host = a.subdomain || a.ip_address;
-                    if (host && host !== activeSeed) {
-                        optionsHtml += `<option value="https://${host}">${host}</option>`;
-                    }
-                });
+            // Sort: assets with open ports or status_code 200 first, then live, then others
+            relevantAssets.sort((a, b) => {
+                const aHasPort = (a.ports && a.ports.length > 0) ? 1 : 0;
+                const bHasPort = (b.ports && b.ports.length > 0) ? 1 : 0;
+                if (aHasPort !== bHasPort) return bHasPort - aHasPort;
+                return (b.is_live || 0) - (a.is_live || 0);
+            });
+
+            let liveGroup = [];
+            let otherGroup = [];
+
+            relevantAssets.forEach(a => {
+                const host = a.subdomain || a.ip_address;
+                if (!host) return;
+
+                const portsStr = a.ports || '';
+                const portList = portsStr.split(',').map(p => p.trim());
+                const has443 = portList.includes('443') || portList.includes('8443');
+                const has80 = portList.includes('80') || portList.includes('8080');
+
+                let scheme = has443 ? 'https' : (has80 ? 'http' : 'https');
+                let portBadge = '';
+                if (has443 && has80) portBadge = ' [HTTP:80, HTTPS:443]';
+                else if (has443) portBadge = ' [HTTPS:443]';
+                else if (has80) portBadge = ' [HTTP:80]';
+
+                const optValue = `${scheme}://${host}`;
+                const isRoot = (host === activeSeed);
+                const optLabel = `${host}${portBadge}` + (isRoot ? ' (Semilla activa)' : '') + (a.is_live ? ' 🟢' : '');
+
+                if (portBadge || isRoot || a.is_live) {
+                    liveGroup.push(`<option value="${optValue}" class="bg-slate-900 text-white font-medium">${optLabel}</option>`);
+                } else {
+                    otherGroup.push(`<option value="${optValue}" class="bg-slate-900 text-slate-400">${host}</option>`);
+                }
+            });
+
+            if (liveGroup.length > 0) {
+                optionsHtml += `<optgroup label="Activos Prioritarios (Servicios / Semilla)">${liveGroup.join('')}</optgroup>`;
             }
+            if (otherGroup.length > 0) {
+                optionsHtml += `<optgroup label="Otros Subdominios Descubiertos">${otherGroup.slice(0, 60).join('')}</optgroup>`;
+            }
+
             select.innerHTML = optionsHtml;
         }
 
@@ -3001,9 +3040,36 @@
                         diagContent += `
                             <div class="mt-2 pt-2 border-t border-rose-900/40 flex flex-wrap items-center gap-2">
                                 <span class="text-slate-400 text-[11px]">¿Deseas probar el protocolo alternativo?</span>
-                                <button onclick="setStrixPocUrl('${data.alt_url}')" class="px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-white text-[11px] font-bold transition flex items-center gap-1">
+                                <button onclick="setStrixPocUrl('${data.alt_url}')" class="px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-white text-[11px] font-bold transition flex items-center gap-1 shadow-sm">
                                     <i class="fa-solid fa-rotate mr-1"></i> Probar en ${data.alt_scheme.toUpperCase()} (${data.alt_url})
                                 </button>
+                            </div>
+                        `;
+                    }
+
+                    // Check if there are live subdomains discovered for this host
+                    const hostOnly = targetUrl.replace(/^https?:\/\//i, '').split('/')[0];
+                    const subLive = (globalAssets || []).filter(a => {
+                        const sub = a.subdomain || '';
+                        return (sub.endsWith('.' + hostOnly) || a.seed_domain === hostOnly) && sub !== hostOnly && (a.ports || a.is_live);
+                    });
+
+                    if (subLive.length > 0) {
+                        diagContent += `
+                            <div class="mt-3 p-3 bg-slate-900/90 rounded-xl border border-slate-700/60 text-xs">
+                                <div class="text-emerald-400 font-bold mb-1.5 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-server"></i> Subdominios con Servicios Activos Descubiertos (${subLive.length}):
+                                </div>
+                                <p class="text-[11px] text-slate-400 mb-2">Este dominio aloja sus aplicaciones de prueba en subdominios independientes. Selecciona uno para validar inmediatamente:</p>
+                                <div class="flex flex-wrap gap-2">
+                                    ${subLive.slice(0, 8).map(s => {
+                                        const portsStr = s.ports || '';
+                                        const proto = portsStr.includes('443') ? 'https' : 'http';
+                                        return `<button onclick="setStrixPocUrl('${proto}://${s.subdomain}')" class="px-2.5 py-1 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 font-mono text-[11px] font-semibold transition flex items-center gap-1 shadow-sm">
+                                            <i class="fa-solid fa-bolt text-emerald-400"></i> ${proto}://${s.subdomain}
+                                        </button>`;
+                                    }).join('')}
+                                </div>
                             </div>
                         `;
                     }
