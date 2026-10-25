@@ -1186,7 +1186,25 @@
         function getVulnStandardTags(v) {
             const title = (v.title || '').toLowerCase();
             const tags = [];
-            if (title.includes('cifrada') || title.includes('tls') || title.includes('http en claro')) {
+            if (title.includes('certificado') || title.includes('expirado')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-298</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A02:2021 Criptografía</span>');
+            } else if (title.includes('cookie') || title.includes('samesite') || title.includes('httponly')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-614 / CWE-1275</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A05:2021 Gestión de Sesión</span>');
+            } else if (title.includes('formulario de autenticación')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-523 / CWE-319</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">PCI-DSS 4.1 / Plaintext Auth</span>');
+            } else if (title.includes('swagger') || title.includes('openapi')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-200 / CWE-651</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">OWASP API9:2023 Gestión de Inventario</span>');
+            } else if (title.includes('diagnóstico') || title.includes('estado del servidor')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">CWE-200 / CWE-918</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A05:2021 Server Status</span>');
+            } else if (title.includes('portal de gestión') || title.includes('portal admin')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">CWE-284</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A01:2021 Broken Access Control</span>');
+            } else if (title.includes('cifrada') || title.includes('tls') || title.includes('http en claro')) {
                 tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-319</span>');
                 tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A02:2021 Criptografía</span>');
             } else if (title.includes('hsts') || title.includes('strict-transport')) {

@@ -1234,55 +1234,142 @@ function runScan($pdo) {
                         ]);
                         $vulnsDetectedCount++;
                     }
+
+                    // 8. SSL Certificate Validity & Expiration (CWE-298)
+                    $sslInfo = checkSslCertificate($sub);
+                    if ($sslInfo['has_ssl'] && $sslInfo['is_expired']) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Certificado Digital SSL/TLS Expirado en Puerto 443 (CWE-298)',
+                            'HIGH',
+                            "El certificado TLS/SSL presentado en el puerto seguro 443 expiró el {$sslInfo['valid_to']} (hace " . abs($sslInfo['days_left']) . " días). Autoridad Emisora: '{$sslInfo['issuer']}'. Cualquier cliente que intente establecer una conexión cifrada recibirá una alerta crítica del navegador, impidiendo el acceso e imposibilitando la validación de identidad (CWE-298).",
+                            "Renovar e instalar de manera urgente un nuevo certificado SSL/TLS emitido por una Autoridad de Certificación (CA) de confianza o Let's Encrypt."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 9. Login / Password Form over Unencrypted HTTP (CWE-523 / CWE-319)
+                    if (!empty($httpInfo['has_login_form']) && (!$httpInfo['has_https'] || $httpInfo['scheme'] === 'http')) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Formulario de Autenticación Transmitido en Claro (CWE-523)',
+                            'HIGH',
+                            "Se detectó un formulario de autenticación con campos de contraseña (<input type='password'>) servido a través del protocolo no cifrado HTTP (puerto 80). Todas las credenciales enviadas por los usuarios se transmiten en texto plano sin protección criptográfica.",
+                            "Migrar obligatoriamente todos los formularios de autenticación a HTTPS y aplicar una política HSTS para forzar el cifrado de las credenciales."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 10. Insecure Cookie Flags (CWE-614 / CWE-1275 / CWE-1004)
+                    if (!empty($httpInfo['cookies'])) {
+                        foreach ($httpInfo['cookies'] as $cookieStr) {
+                            $cookieParts = explode(';', $cookieStr);
+                            $cookieNameVal = explode('=', trim($cookieParts[0]));
+                            $cookieName = trim($cookieNameVal[0]);
+
+                            $hasSecure = (stripos($cookieStr, 'secure') !== false);
+                            $hasHttpOnly = (stripos($cookieStr, 'httponly') !== false);
+                            $hasSameSite = (stripos($cookieStr, 'samesite') !== false);
+
+                            $isSessionCookie = (preg_match('/(sess|token|auth|id|jsession|phpsess|asp\.net)/i', $cookieName) === 1);
+
+                            if ($isSessionCookie && !$hasSecure) {
+                                $stmtVuln->execute([
+                                    $sub,
+                                    "Cookie de Sesión Transmitida sin Atributo Secure ($cookieName - CWE-614)",
+                                    'HIGH',
+                                    "La cookie de sesión '$cookieName' se establece sin el flag 'Secure'. El navegador web la transmitirá en texto plano a través de cualquier solicitud HTTP no cifrada, permitiendo su intercepción por intermediarios en la red (Sniffing de credenciales y secuestro de sesión).",
+                                    "Configurar la directiva 'Secure' al emitir la cookie (en web.xml: <cookie-config><secure>true</secure></cookie-config> o en el encabezado 'Set-Cookie: $cookieName=...; Secure; HttpOnly; SameSite=Lax')."
+                                ]);
+                                $vulnsDetectedCount++;
+                            }
+
+                            if ($isSessionCookie && !$hasSameSite) {
+                                $stmtVuln->execute([
+                                    $sub,
+                                    "Ausencia de Atributo SameSite en Cookie de Sesión ($cookieName - CWE-1275)",
+                                    'MEDIUM',
+                                    "La cookie de sesión '$cookieName' carece del atributo 'SameSite' (Lax o Strict). Esto permite que solicitudes forjadas desde otros dominios incluyan automáticamente las credenciales del usuario, facilitando ataques de falsificación de petición en sitios cruzados (CSRF - CWE-352).",
+                                    "Añadir la directiva 'SameSite=Lax' (o 'SameSite=Strict') en la emisión de cookies del servidor web."
+                                ]);
+                                $vulnsDetectedCount++;
+                            }
+
+                            if ($isSessionCookie && !$hasHttpOnly) {
+                                $stmtVuln->execute([
+                                    $sub,
+                                    "Cookie de Sesión sin Protección HttpOnly ($cookieName - CWE-1004)",
+                                    'MEDIUM',
+                                    "La cookie '$cookieName' carece del atributo 'HttpOnly'. Scripts del lado del cliente (JavaScript) pueden acceder a su contenido, permitiendo la exfiltración directa del token de sesión ante cualquier vulnerabilidad de Cross-Site Scripting (XSS).",
+                                    "Activar el flag 'HttpOnly' en la configuración de cookies de sesión."
+                                ]);
+                                $vulnsDetectedCount++;
+                            }
+                        }
+                    }
                 }
 
-                if ($discoveredAssetsCount <= 15) {
-                    $sensitiveEndpoints = [
-                        '/.env' => 'Variables de Entorno (.env)',
-                        '/.git/config' => 'Repositorio Git Expuesto (.git/config)',
-                        '/wp-config.php.bak' => 'Copia de Respaldo WordPress (wp-config.php.bak)'
+                if ($discoveredAssetsCount <= 20) {
+                    $scheme = ($httpInfo && $httpInfo['has_https']) ? 'https' : 'http';
+                    $sensitiveProbes = [
+                        '/swagger/index.html' => ['Swagger UI', 'Consola Swagger UI / Documentación de API Expuesta (CWE-200)', 'HIGH', 'swagger'],
+                        '/swagger/properties.json' => ['Definición Swagger', 'Definición de API OpenAPI / Swagger properties.json Expuesta (CWE-200)', 'HIGH', 'paths'],
+                        '/api/swagger.json' => ['Swagger JSON', 'Definición de API REST Swagger JSON Expuesta (CWE-200)', 'HIGH', 'swagger'],
+                        '/status_check.jsp' => ['Diagnóstico Servidor', 'Endpoint de Diagnóstico y Estado del Servidor Expuesto (CWE-200 / CWE-918)', 'MEDIUM', 'HostStatus'],
+                        '/admin/login.jsp' => ['Portal Admin', 'Portal de Gestión y Administración Expuesto Públicamente (CWE-284)', 'MEDIUM', 'login'],
+                        '/.env' => ['Variables Entorno', 'Archivo Crítico Expuesto Públicamente: Variables de Entorno (.env)', 'CRITICAL', 'DB_'],
+                        '/.git/config' => ['Git Expuesto', 'Archivo Crítico Expuesto Públicamente: Repositorio Git Expuesto (.git/config)', 'CRITICAL', '[core]'],
+                        '/wp-config.php.bak' => ['Backup WordPress', 'Copia de Respaldo Expuesta: wp-config.php.bak', 'CRITICAL', 'DB_PASSWORD'],
+                        '/crossdomain.xml' => ['Crossdomain', 'Política Cross-Domain Insegura (crossdomain.xml con Comodín)', 'MEDIUM', 'domain="*"'],
+                        '/robots.txt' => ['Robots.txt', 'Archivo robots.txt Divulga Rutas Internas de Administración', 'LOW', 'Disallow:']
                     ];
 
-                    foreach ($sensitiveEndpoints as $ep => $secretDesc) {
-                        $scheme = ($httpInfo && $httpInfo['has_https']) ? 'https' : 'http';
+                    foreach ($sensitiveProbes as $ep => $probeMeta) {
                         $probeUrl = $scheme . "://" . $sub . $ep;
                         $ch = curl_init($probeUrl);
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+                        curl_setopt($ch, CURLOPT_TIMEOUT, 2.5);
+                        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
                         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
                         curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
                         $epBody = curl_exec($ch);
                         $epCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                         curl_close($ch);
 
-                        if ($epCode === 200 && $epBody && strlen($epBody) > 10) {
-                            $isExposed = false;
-                            $snippet = substr($epBody, 0, 80);
-
-                            if ($ep === '/.env' && (strpos($epBody, 'DB_') !== false || strpos($epBody, 'APP_KEY') !== false || strpos($epBody, 'SECRET') !== false)) {
-                                $isExposed = true;
-                            } elseif ($ep === '/.git/config' && strpos($epBody, '[core]') !== false) {
-                                $isExposed = true;
+                        if (($epCode === 200 || $epCode === 302) && $epBody) {
+                            $matchPattern = $probeMeta[3];
+                            $matched = false;
+                            if ($ep === '/admin/login.jsp' && ($epCode === 200 || $epCode === 302)) {
+                                $matched = true;
+                            } elseif (stripos($epBody, $matchPattern) !== false) {
+                                $matched = true;
                             }
 
-                            if ($isExposed) {
-                                $stmtSec = $pdo->prepare("
-                                    INSERT INTO exposed_secrets (asset_subdomain, secret_type, matched_snippet, endpoint_url, severity)
-                                    VALUES (?, ?, ?, ?, 'CRITICAL')
-                                    ON CONFLICT(endpoint_url, secret_type) DO NOTHING
-                                ");
-                                $stmtSec->execute([$sub, $secretDesc, $snippet, $probeUrl]);
-                                $secretsFoundCount++;
+                            if ($matched) {
+                                if ($probeMeta[2] === 'CRITICAL') {
+                                    $stmtSec = $pdo->prepare("
+                                        INSERT INTO exposed_secrets (asset_subdomain, secret_type, matched_snippet, endpoint_url, severity)
+                                        VALUES (?, ?, ?, ?, 'CRITICAL')
+                                        ON CONFLICT(endpoint_url, secret_type) DO NOTHING
+                                    ");
+                                    $stmtSec->execute([$sub, $probeMeta[0], substr($epBody, 0, 80), $probeUrl]);
+                                    $secretsFoundCount++;
+                                }
 
                                 $stmtVuln = $pdo->prepare("
-                                    INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
-                                    VALUES (?, ?, 'CRITICAL', ?, ?)
+                                    INSERT INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
+                                    VALUES (?, ?, ?, ?, ?)
+                                    ON CONFLICT(asset_subdomain, title) DO UPDATE SET
+                                        severity = excluded.severity,
+                                        description = excluded.description,
+                                        remediation = excluded.remediation
                                 ");
                                 $stmtVuln->execute([
                                     $sub,
-                                    "Archivo Crítico Expuesto Públicamente: $secretDesc",
-                                    "Se ha detectado el endpoint $probeUrl con acceso libre y sin autenticación, revelando credenciales y configuración interna.",
-                                    "Configurar el servidor web (Nginx / Apache) para denegar el acceso a archivos ocultos (denied location ~ /\\.) de inmediato."
+                                    $probeMeta[1],
+                                    $probeMeta[2],
+                                    "Se detectó acceso público al endpoint '$probeUrl' (HTTP $epCode). " . ($epCode === 200 ? "El recurso responde revelando información interna del sistema, utilidades o esquemas de la aplicación." : "La ruta redirige al panel administrativo sin aislamiento de red."),
+                                    "Restringir el acceso al endpoint '$ep' mediante autenticación obligatoria o reglas de cortafuegos perimetral / WAF."
                                 ]);
                                 $vulnsDetectedCount++;
                             }
@@ -1392,12 +1479,51 @@ function runScan($pdo) {
     ]);
 }
 
+function checkSslCertificate($host) {
+    $result = [
+        'has_ssl' => false,
+        'is_expired' => false,
+        'valid_to' => null,
+        'days_left' => null,
+        'issuer' => null
+    ];
+
+    $g = stream_context_create([
+        "ssl" => [
+            "capture_peer_cert" => true,
+            "verify_peer" => false,
+            "verify_peer_name" => false
+        ]
+    ]);
+
+    $client = @stream_socket_client("ssl://" . $host . ":443", $errno, $errstr, 2.5, STREAM_CLIENT_CONNECT, $g);
+    if ($client) {
+        $params = stream_context_get_params($client);
+        if (isset($params["options"]["ssl"]["peer_certificate"])) {
+            $cert = openssl_x509_parse($params["options"]["ssl"]["peer_certificate"]);
+            if ($cert && isset($cert['validTo_time_t'])) {
+                $result['has_ssl'] = true;
+                $result['valid_to'] = date('Y-m-d H:i:s', $cert['validTo_time_t']);
+                $result['days_left'] = round(($cert['validTo_time_t'] - time()) / 86400);
+                $result['issuer'] = $cert['issuer']['CN'] ?? $cert['issuer']['O'] ?? 'Entidad CA';
+                if ($cert['validTo_time_t'] < time()) {
+                    $result['is_expired'] = true;
+                }
+            }
+        }
+        fclose($client);
+    }
+    return $result;
+}
+
 function probeHttp($host) {
     $result = [
         'title' => null,
         'code' => null,
         'tech' => [],
         'headers' => [],
+        'cookies' => [],
+        'has_login_form' => false,
         'scheme' => null,
         'has_https' => false,
         'has_hsts' => false,
@@ -1415,6 +1541,11 @@ function probeHttp($host) {
 
         $lines = explode("\r\n", $rawHeaders);
         foreach ($lines as $line) {
+            if (stripos($line, 'Set-Cookie:') === 0) {
+                $cookieVal = trim(substr($line, 11));
+                $result['cookies'][] = $cookieVal;
+            }
+
             if (strpos($line, ':') !== false) {
                 list($key, $val) = explode(':', $line, 2);
                 $k = strtolower(trim($key));
@@ -1449,6 +1580,11 @@ function probeHttp($host) {
             if (strpos($lower, 'laravel') !== false) $result['tech'][] = 'Laravel';
             if (strpos($lower, 'elementor') !== false) $result['tech'][] = 'Elementor';
             if (strpos($lower, 'acunetix') !== false || strpos($lower, 'vulnweb') !== false) $result['tech'][] = 'Acunetix Testbed';
+            if (strpos($lower, 'altoroj') !== false || strpos($lower, 'altoro') !== false || strpos($lower, 'testfire') !== false) $result['tech'][] = 'AltoroJ (IBM/HCL AppScan Testbed)';
+
+            if (preg_match('/<input[^>]+type=["\']password["\']/i', $html)) {
+                $result['has_login_form'] = true;
+            }
         }
     };
 
