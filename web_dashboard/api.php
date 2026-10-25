@@ -205,6 +205,21 @@ switch ($action) {
     case 'run_scan':
         runScan($pdo);
         break;
+    case 'strix_poc_test':
+        strixPocTest($pdo);
+        break;
+    case 'strix_route_fuzz':
+        strixRouteFuzz($pdo);
+        break;
+    case 'strix_tls_inspect':
+        strixTlsInspect($pdo);
+        break;
+    case 'strix_cors_test':
+        strixCorsTest($pdo);
+        break;
+    case 'strix_dns_inspect':
+        strixDnsInspect($pdo);
+        break;
     default:
         echo json_encode(['status' => 'ok', 'message' => 'OpenRecon API v1.0 running']);
         break;
@@ -2038,4 +2053,425 @@ function probeHttp($host) {
 
     $result['tech'] = array_values(array_unique($result['tech']));
     return $result;
+}
+
+// =========================================================================
+// STRIX OFFENSIVE PENTESTING & SWISS ARMY KNIFE TOOLKIT (usestrix/strix)
+// =========================================================================
+
+/**
+ * Strix Live PoC Validator & HTTP Interception Proxy
+ */
+function strixPocTest($pdo) {
+    $url = trim($_POST['url'] ?? $_GET['url'] ?? '');
+    $method = strtoupper(trim($_POST['method'] ?? $_GET['method'] ?? 'GET'));
+    $customHeadersRaw = trim($_POST['headers'] ?? $_GET['headers'] ?? '');
+    $postBody = trim($_POST['body'] ?? $_GET['body'] ?? '');
+
+    if (empty($url)) {
+        echo json_encode(['error' => 'URL objetivo no especificada']);
+        return;
+    }
+    if (!preg_match('#^https?://#i', $url)) {
+        $url = 'https://' . $url;
+    }
+
+    $customHeaders = [];
+    if (!empty($customHeadersRaw)) {
+        foreach (explode("\n", str_replace("\r", "", $customHeadersRaw)) as $h) {
+            $h = trim($h);
+            if (!empty($h)) $customHeaders[] = $h;
+        }
+    }
+
+    $start = microtime(true);
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLINFO_HEADER_OUT, true);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, "Strix-PoC-Validator/1.0 (OpenRecon-Pentest-Suite)");
+
+    if (!empty($customHeaders)) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $customHeaders);
+    }
+    if (!empty($postBody) && in_array($method, ['POST', 'PUT', 'PATCH'])) {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postBody);
+    }
+
+    $resp = curl_exec($ch);
+    $duration = round((microtime(true) - $start) * 1000, 1);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $rawReq = curl_getinfo($ch, CURLINFO_HEADER_OUT);
+    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $rawRespHeaders = substr($resp, 0, $headerSize);
+    $respBody = substr($resp, $headerSize);
+    $effUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($code === 0 && !empty($err)) {
+        echo json_encode([
+            'success' => false,
+            'url' => $url,
+            'error' => "Fallo de conexión: $err",
+            'duration_ms' => $duration
+        ]);
+        return;
+    }
+
+    // Determine verdict
+    $verdict = 'NEUTRO';
+    $verdictClass = 'text-slate-400';
+    if ($code === 200) {
+        $verdict = 'EXPUESTO / VULNERABLE (HTTP 200 OK)';
+        $verdictClass = 'text-rose-400';
+    } elseif ($code === 403) {
+        $verdict = 'BLOQUEADO POR POLÍTICA / WAF (HTTP 403 Forbidden)';
+        $verdictClass = 'text-emerald-400';
+    } elseif ($code >= 300 && $code < 400) {
+        $verdict = "REDIRECCIÓN (HTTP $code)";
+        $verdictClass = 'text-amber-400';
+    } elseif ($code === 404) {
+        $verdict = 'RECURSO NO ENCONTRADO (HTTP 404 Not Found)';
+        $verdictClass = 'text-slate-400';
+    } else {
+        $verdict = "RESPUESTA SERVIDOR (HTTP $code)";
+        $verdictClass = 'text-cyan-400';
+    }
+
+    $curlCmd = "curl -i -s -k -X {$method} \"{$url}\"";
+    foreach ($customHeaders as $chdr) {
+        $curlCmd .= " -H \"" . addslashes($chdr) . "\"";
+    }
+    if (!empty($postBody)) {
+        $curlCmd .= " -d '" . addslashes($postBody) . "'";
+    }
+
+    echo json_encode([
+        'success' => true,
+        'url' => $url,
+        'effective_url' => $effUrl,
+        'method' => $method,
+        'status_code' => $code,
+        'duration_ms' => $duration,
+        'verdict' => $verdict,
+        'verdict_class' => $verdictClass,
+        'raw_request' => $rawReq ?: "{$method} " . parse_url($url, PHP_URL_PATH) . " HTTP/1.1\r\nHost: " . parse_url($url, PHP_URL_HOST) . "\r\nUser-Agent: Strix-PoC/1.0\r\n\r\n",
+        'raw_response_headers' => trim($rawRespHeaders),
+        'response_preview' => substr($respBody, 0, 4000),
+        'reproduction_curl' => $curlCmd,
+        'reproduction_python' => "import requests\n\nurl = '{$url}'\nheaders = " . json_encode($customHeaders) . "\nresponse = requests.{$method}('{$url}', headers=headers, verify=False)\nprint('Status:', response.status_code)\nprint(response.text[:500])"
+    ]);
+}
+
+/**
+ * Strix API & Route Fuzzer (Katana / Ffuf style)
+ */
+function strixRouteFuzz($pdo) {
+    set_time_limit(120);
+    $host = trim($_POST['host'] ?? $_GET['host'] ?? $_POST['url'] ?? $_GET['url'] ?? '');
+    if (empty($host)) {
+        echo json_encode(['error' => 'Host o URL no especificado']);
+        return;
+    }
+    $host = preg_replace('#^https?://#', '', strtolower($host));
+    $host = explode('/', $host)[0];
+
+    $scheme = 'https';
+    $canaryUrl = "{$scheme}://{$host}/__strix_canary_404_chk_" . substr(md5($host), 0, 6);
+    $chC = curl_init($canaryUrl);
+    curl_setopt($chC, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($chC, CURLOPT_TIMEOUT, 3);
+    curl_setopt($chC, CURLOPT_SSL_VERIFYPEER, false);
+    $canaryBody = curl_exec($chC);
+    $canaryCode = curl_getinfo($chC, CURLINFO_HTTP_CODE);
+    curl_close($chC);
+
+    $isSpa = ($canaryCode === 200 && strlen($canaryBody) > 100);
+    $canaryLen = strlen($canaryBody);
+
+    $routes = [
+        '/swagger/index.html' => ['Swagger UI', 'Consola interactiva de API'],
+        '/swagger/properties.json' => ['Definición Swagger', 'Esquema OpenAPI JSON'],
+        '/api/swagger.json' => ['REST Swagger JSON', 'Endpoints y especificación API'],
+        '/v2/api-docs' => ['Spring Swagger Docs', 'Documentación Spring Boot'],
+        '/status_check.jsp' => ['Diagnóstico Servidor', 'Endpoint de salud interno'],
+        '/admin/login.jsp' => ['Portal Admin JSP', 'Panel de autenticación'],
+        '/.env' => ['Variables de Entorno', 'Secretos y credenciales de BD'],
+        '/.git/HEAD' => ['Repositorio Git', 'Control de versiones expuesto'],
+        '/.git/config' => ['Configuración Git', 'Rutas de repositorio remoto'],
+        '/backup.zip' => ['Respaldo ZIP', 'Copia de seguridad comprimida'],
+        '/dump.sql' => ['Volcado SQL', 'Base de datos en texto plano'],
+        '/phpinfo.php' => ['PHPInfo', 'Diagnóstico del runtime PHP'],
+        '/actuator/health' => ['Spring Actuator', 'Métricas internas de microservicios'],
+        '/graphql' => ['Endpoint GraphQL', 'Consola / Query endpoint GraphQL'],
+        '/.well-known/security.txt' => ['security.txt', 'Directiva de divulgación RFC 9116'],
+        '/robots.txt' => ['robots.txt', 'Políticas de rastreo web']
+    ];
+
+    $results = [];
+    foreach ($routes as $route => $meta) {
+        $url = "{$scheme}://{$host}{$route}";
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2.5);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $soft404 = false;
+        if ($isSpa && $code === 200) {
+            if (abs(strlen($body) - $canaryLen) < 120 || substr($body, 0, 250) === substr($canaryBody, 0, 250)) {
+                $soft404 = true;
+            }
+        }
+
+        $interesting = ($code === 200 || $code === 302) && !$soft404;
+
+        $results[] = [
+            'route' => $route,
+            'name' => $meta[0],
+            'description' => $meta[1],
+            'status_code' => $code,
+            'size_bytes' => strlen($body),
+            'is_soft404' => $soft404,
+            'is_interesting' => $interesting
+        ];
+    }
+
+    echo json_encode([
+        'success' => true,
+        'host' => $host,
+        'is_spa_catchall' => $isSpa,
+        'total_fuzzed' => count($results),
+        'findings' => $results
+    ]);
+}
+
+/**
+ * Strix Deep SSL/TLS & Handshake Inspector
+ */
+function strixTlsInspect($pdo) {
+    $host = trim($_POST['host'] ?? $_GET['host'] ?? '');
+    $port = (int)($_POST['port'] ?? $_GET['port'] ?? 443);
+    if ($port <= 0) $port = 443;
+
+    if (empty($host)) {
+        echo json_encode(['error' => 'Host no especificado']);
+        return;
+    }
+    $host = preg_replace('#^https?://#', '', strtolower($host));
+    $host = explode('/', $host)[0];
+
+    $ctx = stream_context_create([
+        "ssl" => [
+            "capture_peer_cert" => true,
+            "verify_peer" => false,
+            "verify_peer_name" => false
+        ]
+    ]);
+
+    $start = microtime(true);
+    $client = @stream_socket_client("ssl://{$host}:{$port}", $errno, $errstr, 4, STREAM_CLIENT_CONNECT, $ctx);
+    $duration = round((microtime(true) - $start) * 1000, 1);
+
+    if (!$client) {
+        echo json_encode([
+            'success' => false,
+            'host' => $host,
+            'port' => $port,
+            'error' => "No se pudo establecer negociación TLS en puerto $port: $errstr"
+        ]);
+        return;
+    }
+
+    $params = stream_context_get_params($client);
+    fclose($client);
+    $cert = $params['options']['ssl']['peer_certificate'] ?? null;
+    if (!$cert) {
+        echo json_encode(['success' => false, 'error' => 'No se pudo capturar el certificado del peer']);
+        return;
+    }
+
+    $parsed = openssl_x509_parse($cert);
+    $validFrom = date('Y-m-d H:i:s T', $parsed['validFrom_time_t']);
+    $validTo = date('Y-m-d H:i:s T', $parsed['validTo_time_t']);
+    $isExpired = (time() > $parsed['validTo_time_t']);
+    $daysLeft = round(($parsed['validTo_time_t'] - time()) / 86400);
+
+    echo json_encode([
+        'success' => true,
+        'host' => $host,
+        'port' => $port,
+        'handshake_time_ms' => $duration,
+        'subject_cn' => $parsed['subject']['CN'] ?? 'N/A',
+        'organization' => $parsed['subject']['O'] ?? 'N/A',
+        'issuer_cn' => $parsed['issuer']['CN'] ?? ($parsed['issuer']['O'] ?? 'N/A'),
+        'valid_from' => $validFrom,
+        'valid_to' => $validTo,
+        'is_expired' => $isExpired,
+        'days_remaining' => $daysLeft,
+        'sans' => $parsed['extensions']['subjectAltName'] ?? 'N/A',
+        'signature_algorithm' => $parsed['signatureTypeSN'] ?? 'N/A',
+        'serial_number' => $parsed['serialNumberHex'] ?? 'N/A',
+        'status_badge' => $isExpired ? 'EXPIRADO (CRÍTICO)' : ($daysLeft < 30 ? 'POR EXPIRAR (PRÓXIMO)' : 'VÁLIDO (SEGURO)')
+    ]);
+}
+
+/**
+ * Strix CORS & HTTP Header Security Lab
+ */
+function strixCorsTest($pdo) {
+    $url = trim($_POST['url'] ?? $_GET['url'] ?? '');
+    $testOrigin = trim($_POST['origin'] ?? $_GET['origin'] ?? 'https://evil-attacker.com');
+    if (empty($url)) {
+        echo json_encode(['error' => 'URL objetivo no especificada']);
+        return;
+    }
+    if (!preg_match('#^https?://#i', $url)) {
+        $url = 'https://' . $url;
+    }
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Origin: {$testOrigin}"]);
+    $resp = curl_exec($ch);
+    $size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
+    $headers = substr($resp, 0, $size);
+    curl_close($ch);
+
+    $acao = null;
+    $acac = null;
+    $methods = null;
+    $hstsVal = null;
+    $cspVal = null;
+    $xfoVal = null;
+    $xctoVal = null;
+
+    foreach (explode("\r\n", $headers) as $line) {
+        if (stripos($line, 'Access-Control-Allow-Origin:') === 0) {
+            $acao = trim(substr($line, 27));
+        } elseif (stripos($line, 'Access-Control-Allow-Credentials:') === 0) {
+            $acac = trim(substr($line, 32));
+        } elseif (stripos($line, 'Access-Control-Allow-Methods:') === 0) {
+            $methods = trim(substr($line, 29));
+        } elseif (stripos($line, 'Strict-Transport-Security:') === 0) {
+            $hstsVal = trim(substr($line, 26));
+        } elseif (stripos($line, 'Content-Security-Policy:') === 0) {
+            $cspVal = trim(substr($line, 24));
+        } elseif (stripos($line, 'X-Frame-Options:') === 0) {
+            $xfoVal = trim(substr($line, 16));
+        } elseif (stripos($line, 'X-Content-Type-Options:') === 0) {
+            $xctoVal = trim(substr($line, 23));
+        }
+    }
+
+    $isReflection = ($acao === $testOrigin);
+    $isWildcard = ($acao === '*');
+    $hasCreds = (strtolower($acac ?? '') === 'true');
+
+    $isVulnerable = ($isReflection || ($isWildcard && $hasCreds));
+    $verdict = $isVulnerable ? 'VULNERABLE' : 'SEGURO';
+
+    $explanation = 'El servidor no refleja orígenes arbitrarios no autorizados.';
+    if ($isReflection && $hasCreds) {
+        $explanation = "VULNERABILIDAD CRÍTICA: El servidor refleja el Origin inyectado ({$testOrigin}) y habilita Access-Control-Allow-Credentials: true. Un atacante puede exfiltrar datos autenticados y cookies de sesión.";
+    } elseif ($isReflection) {
+        $explanation = "VULNERABILIDAD ALTA: El servidor refleja cualquier Origin arbitrario ({$testOrigin}) en Access-Control-Allow-Origin.";
+    } elseif ($isWildcard) {
+        $explanation = "Permite acceso universal (Access-Control-Allow-Origin: *). Es aceptable para APIs públicas, pero riesgoso si maneja endpoints privados.";
+    }
+
+    echo json_encode([
+        'success' => true,
+        'url' => $url,
+        'test_origin' => $testOrigin,
+        'verdict' => $verdict,
+        'explanation' => $explanation,
+        'acao' => $acao ?? 'No presente (Restringido)',
+        'acac' => $acac ?? 'No presente',
+        'allow_credentials' => $hasCreds,
+        'allowed_methods' => $methods ?? 'No especificado',
+        'is_reflection' => $isReflection,
+        'is_wildcard' => $isWildcard,
+        'defensive_headers' => [
+            'strict-transport-security' => $hstsVal,
+            'x-frame-options' => $xfoVal,
+            'content-security-policy' => $cspVal,
+            'x-content-type-options' => $xctoVal
+        ],
+        'reproduction_curl' => "curl -I -s -k -H \"Origin: {$testOrigin}\" \"{$url}\""
+    ]);
+}
+
+/**
+ * Strix DNS & Zone Hygiene Inspector
+ */
+function strixDnsInspect($pdo) {
+    $domain = trim($_POST['domain'] ?? $_GET['domain'] ?? '');
+    if (empty($domain)) {
+        echo json_encode(['error' => 'Dominio no especificado']);
+        return;
+    }
+    $domain = preg_replace('#^https?://#', '', strtolower($domain));
+    $rootDomain = preg_replace('/^www\./i', '', explode('/', $domain)[0]);
+
+    $a = @dns_get_record($rootDomain, DNS_A) ?: [];
+    $aaaa = @dns_get_record($rootDomain, DNS_AAAA) ?: [];
+    $ns = @dns_get_record($rootDomain, DNS_NS) ?: [];
+    $mx = @dns_get_record($rootDomain, DNS_MX) ?: [];
+    $txt = @dns_get_record($rootDomain, DNS_TXT) ?: [];
+    $dmarc = @dns_get_record("_dmarc.{$rootDomain}", DNS_TXT) ?: [];
+    $mtaSts = @dns_get_record("_mta-sts.{$rootDomain}", DNS_TXT) ?: [];
+    $dnskey = defined('DNS_DNSKEY') ? (@dns_get_record($rootDomain, DNS_DNSKEY) ?: []) : [];
+    $all = @dns_get_record($rootDomain, DNS_ALL) ?: [];
+
+    $caa = [];
+    if (!empty($all)) {
+        foreach ($all as $rec) {
+            if (($rec['type'] ?? '') === 'CAA') $caa[] = $rec;
+        }
+    }
+
+    $spf = null;
+    if (!empty($txt)) {
+        foreach ($txt as $t) {
+            $val = $t['txt'] ?? ($t['entries'][0] ?? '');
+            if (stripos($val, 'v=spf1') === 0) $spf = $val;
+        }
+    }
+
+    $dmarcVal = null;
+    if (!empty($dmarc)) {
+        foreach ($dmarc as $d) {
+            $val = $d['txt'] ?? ($d['entries'][0] ?? '');
+            if (stripos($val, 'v=DMARC1') === 0) $dmarcVal = $val;
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'domain' => $rootDomain,
+        'records' => [
+            'A' => $a,
+            'AAAA' => $aaaa,
+            'NS' => $ns,
+            'MX' => $mx,
+            'TXT' => $txt,
+            'CAA' => $caa
+        ],
+        'dmarc_policy' => $dmarcVal ? ['record' => $dmarcVal] : null,
+        'spf_record' => $spf ?: 'NO CONFIGURADO',
+        'has_dnssec' => !empty($dnskey),
+        'has_mta_sts' => !empty($mtaSts)
+    ]);
 }

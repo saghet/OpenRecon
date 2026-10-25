@@ -221,6 +221,10 @@
                 <i class="fa-solid fa-crosshairs"></i>
                 Semillas / Dominios
             </button>
+            <button onclick="switchTab('strix')" id="tab-btn-strix" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Suite de pentesting interactivo, PoCs reproducibles y herramientas ofensivas">
+                <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+                Navaja Suiza Strix (Pentesting)
+            </button>
         </div>
 
         <!-- TAB CONTENT: EASM (Assets) -->
@@ -570,6 +574,431 @@
                     </button>
                 </div>
                 <div id="seeds-list" class="divide-y divide-cyber-border/60"></div>
+            </div>
+        </section>
+
+        <!-- TAB CONTENT: STRIX PENTESTING TOOLKIT (NAVAJA SUIZA) -->
+        <section id="tab-content-strix" class="space-y-6 hidden">
+            <!-- Header Card -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6 relative overflow-hidden">
+                <div class="absolute -right-10 -bottom-10 opacity-5 pointer-events-none text-9xl text-emerald-400">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                </div>
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-800">
+                                <i class="fa-solid fa-bolt mr-1"></i> Pentesting Suite & PoC Engine
+                            </span>
+                            <span class="text-xs text-slate-500 font-mono">Inspirado en Strix (OpenSource)</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-screwdriver-wrench text-emerald-400"></i>
+                            Navaja Suiza Strix (Auditoría Ofensiva & Validación)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1 max-w-3xl">
+                            Herramientas multi-plataforma de pentesting interactivo: inspección cruda de paquetes HTTP (estilo Caido/Burp Suite), validación determinista de PoCs con comandos cURL y scripts Python listos para replicar, fuzzing de rutas de exposición, inspección de certificados X.509 y auditorías RFC DNS.
+                        </p>
+                    </div>
+
+                    <!-- Asset quick-loader -->
+                    <div class="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-xl border border-cyber-border">
+                        <i class="fa-solid fa-crosshairs text-cyan-400 text-xs"></i>
+                        <select id="strix-asset-quick-select" class="bg-slate-950 text-xs text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-500 max-w-[200px]">
+                            <option value="">Seleccionar activo...</option>
+                        </select>
+                        <button onclick="applyStrixSelectedAsset()" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition">
+                            Cargar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Sub-tools Navigation Pills -->
+                <div class="flex items-center gap-2 mt-5 border-t border-cyber-border/70 pt-4 overflow-x-auto text-xs font-semibold">
+                    <button onclick="switchStrixSubTool('poc')" id="strix-subtab-poc" class="px-4 py-2 rounded-xl bg-emerald-950/80 text-emerald-300 border border-emerald-700/80 flex items-center gap-2 transition">
+                        <i class="fa-solid fa-bolt text-emerald-400"></i>
+                        <span>PoC & Raw HTTP Inspector</span>
+                    </button>
+                    <button onclick="switchStrixSubTool('fuzz')" id="strix-subtab-fuzz" class="px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-cyber-border flex items-center gap-2 transition">
+                        <i class="fa-solid fa-folder-tree text-amber-400"></i>
+                        <span>Fuzzing de Rutas Críticas</span>
+                    </button>
+                    <button onclick="switchStrixSubTool('tls')" id="strix-subtab-tls" class="px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-cyber-border flex items-center gap-2 transition">
+                        <i class="fa-solid fa-lock text-cyan-400"></i>
+                        <span>Inspección Certificado X.509 / TLS</span>
+                    </button>
+                    <button onclick="switchStrixSubTool('cors')" id="strix-subtab-cors" class="px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-cyber-border flex items-center gap-2 transition">
+                        <i class="fa-solid fa-shield-halved text-purple-400"></i>
+                        <span>Laboratorio CORS & Headers</span>
+                    </button>
+                    <button onclick="switchStrixSubTool('dns')" id="strix-subtab-dns" class="px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-cyber-border flex items-center gap-2 transition">
+                        <i class="fa-solid fa-network-wired text-blue-400"></i>
+                        <span>Auditoría RFC DNS & Resiliencia</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- SUB-PANEL 1: PoC & Raw HTTP Inspector -->
+            <div id="strix-panel-poc" class="space-y-4">
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                    <div class="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+                        <div class="w-full md:w-32">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Método</label>
+                            <select id="strix-poc-method" class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono">
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="HEAD">HEAD</option>
+                                <option value="OPTIONS">OPTIONS</option>
+                            </select>
+                        </div>
+                        <div class="flex-1">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">URL Objetivo / Endpoint a Validar</label>
+                            <div class="relative">
+                                <i class="fa-solid fa-globe absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                                <input type="text" id="strix-poc-url" placeholder="https://ejemplo.com/endpoint-o-archivo" class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+                            </div>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="runStrixPocTest()" id="btn-strix-run-poc" class="w-full md:w-auto px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950/50">
+                                <i class="fa-solid fa-play"></i>
+                                <span>Ejecutar PoC</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Result Container -->
+                    <div id="strix-poc-results" class="hidden space-y-4 pt-2">
+                        <!-- Summary Status Bar -->
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div class="bg-slate-900/90 border border-cyber-border rounded-xl p-3">
+                                <span class="text-[10px] text-slate-400 uppercase font-medium">Veredicto PoC</span>
+                                <div id="strix-poc-badge" class="mt-1 font-bold text-xs"></div>
+                            </div>
+                            <div class="bg-slate-900/90 border border-cyber-border rounded-xl p-3">
+                                <span class="text-[10px] text-slate-400 uppercase font-medium">Código HTTP</span>
+                                <div id="strix-poc-http-code" class="mt-1 font-bold font-mono text-xs text-white"></div>
+                            </div>
+                            <div class="bg-slate-900/90 border border-cyber-border rounded-xl p-3">
+                                <span class="text-[10px] text-slate-400 uppercase font-medium">Latencia RTT</span>
+                                <div id="strix-poc-latency" class="mt-1 font-bold font-mono text-xs text-cyan-400"></div>
+                            </div>
+                            <div class="bg-slate-900/90 border border-cyber-border rounded-xl p-3">
+                                <span class="text-[10px] text-slate-400 uppercase font-medium">Tipo / Tamaño</span>
+                                <div id="strix-poc-content-type" class="mt-1 font-mono text-xs text-slate-300 truncate"></div>
+                            </div>
+                        </div>
+
+                        <!-- Technical Diagnostic -->
+                        <div id="strix-poc-diag-box" class="p-4 rounded-xl border text-xs">
+                            <div class="font-bold flex items-center gap-2 mb-1" id="strix-poc-diag-title"></div>
+                            <p id="strix-poc-diag-msg" class="text-slate-300 leading-relaxed"></p>
+                        </div>
+
+                        <!-- Two-pane Caido / Burp Raw HTTP Inspector -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <!-- Request Pane -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl overflow-hidden flex flex-col">
+                                <div class="bg-slate-900/90 px-4 py-2 border-b border-cyber-border flex items-center justify-between text-xs">
+                                    <span class="font-bold text-slate-300 flex items-center gap-2">
+                                        <i class="fa-solid fa-arrow-up-right-from-square text-cyan-400"></i>
+                                        Petición HTTP Enviada (Raw Request)
+                                    </span>
+                                    <button onclick="copyToClipboard('strix-poc-raw-req', 'Petición copiada')" class="text-slate-400 hover:text-white text-[11px] flex items-center gap-1">
+                                        <i class="fa-regular fa-copy"></i> Copiar
+                                    </button>
+                                </div>
+                                <pre id="strix-poc-raw-req" class="p-4 text-xs font-mono text-emerald-400/90 overflow-x-auto max-h-72 overflow-y-auto whitespace-pre leading-snug"></pre>
+                            </div>
+
+                            <!-- Response Pane -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl overflow-hidden flex flex-col">
+                                <div class="bg-slate-900/90 px-4 py-2 border-b border-cyber-border flex items-center justify-between text-xs">
+                                    <span class="font-bold text-slate-300 flex items-center gap-2">
+                                        <i class="fa-solid fa-arrow-down-left-and-up-right-to-center text-amber-400"></i>
+                                        Respuesta HTTP Recibida (Raw Response)
+                                    </span>
+                                    <button onclick="copyToClipboard('strix-poc-raw-res', 'Respuesta copiada')" class="text-slate-400 hover:text-white text-[11px] flex items-center gap-1">
+                                        <i class="fa-regular fa-copy"></i> Copiar
+                                    </button>
+                                </div>
+                                <pre id="strix-poc-raw-res" class="p-4 text-xs font-mono text-slate-300 overflow-x-auto max-h-72 overflow-y-auto whitespace-pre leading-snug"></pre>
+                            </div>
+                        </div>
+
+                        <!-- Reproducible Commands -->
+                        <div class="space-y-3">
+                            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-terminal text-cyan-400"></i> Comandos de Reproducción Determinista (PoC)
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div class="bg-slate-950 border border-cyber-border rounded-xl p-3">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <span class="text-[11px] font-bold text-cyan-400 font-mono">cURL Command</span>
+                                        <button onclick="copyToClipboard('strix-poc-curl', 'cURL copiado')" class="text-slate-400 hover:text-white text-[11px] flex items-center gap-1">
+                                            <i class="fa-regular fa-copy"></i> Copiar
+                                        </button>
+                                    </div>
+                                    <pre id="strix-poc-curl" class="text-[11px] font-mono text-slate-300 overflow-x-auto p-2 bg-slate-900/60 rounded border border-slate-800"></pre>
+                                </div>
+                                <div class="bg-slate-950 border border-cyber-border rounded-xl p-3">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <span class="text-[11px] font-bold text-amber-400 font-mono">Python 3 Script</span>
+                                        <button onclick="copyToClipboard('strix-poc-python', 'Script Python copiado')" class="text-slate-400 hover:text-white text-[11px] flex items-center gap-1">
+                                            <i class="fa-regular fa-copy"></i> Copiar
+                                        </button>
+                                    </div>
+                                    <pre id="strix-poc-python" class="text-[11px] font-mono text-slate-300 overflow-x-auto p-2 bg-slate-900/60 rounded border border-slate-800 max-h-32 overflow-y-auto"></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-PANEL 2: Fuzzing de Rutas Críticas -->
+            <div id="strix-panel-fuzz" class="space-y-4 hidden">
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <div class="flex-1">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">URL Base del Objetivo</label>
+                            <div class="relative">
+                                <i class="fa-solid fa-network-wired absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                                <input type="text" id="strix-fuzz-url" placeholder="https://ejemplo.com" class="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+                            </div>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="runStrixRouteFuzz()" id="btn-strix-run-fuzz" class="w-full sm:w-auto px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-amber-950/50">
+                                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                <span>Iniciar Fuzzing (16 Rutas)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="strix-fuzz-results" class="hidden space-y-4 pt-2">
+                        <!-- Canary Soft-404 Banner -->
+                        <div class="p-3 bg-slate-900/80 rounded-xl border border-cyber-border flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-shield-virus text-amber-400"></i>
+                                <span class="text-slate-300 font-medium">Filtrado Soft-404 Activo:</span>
+                                <span id="strix-fuzz-canary-status" class="text-slate-400 font-mono text-[11px]"></span>
+                            </div>
+                            <span class="text-[11px] text-cyan-400 font-mono">Descarta falsos positivos de Single Page Apps (SPA)</span>
+                        </div>
+
+                        <!-- Fuzzing Table -->
+                        <div class="bg-slate-950 border border-cyber-border rounded-xl overflow-hidden">
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-cyber-border">
+                                        <tr>
+                                            <th class="p-3.5">Ruta Probada</th>
+                                            <th class="p-3.5 text-center">Código HTTP</th>
+                                            <th class="p-3.5 text-right">Tamaño</th>
+                                            <th class="p-3.5">Clasificación / Veredicto</th>
+                                            <th class="p-3.5 text-center">Acción</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="strix-fuzz-tbody" class="divide-y divide-cyber-border/60 text-slate-300"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-PANEL 3: Inspección Certificado X.509 / TLS -->
+            <div id="strix-panel-tls" class="space-y-4 hidden">
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <div class="flex-1">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Hostname / FQDN Objetivo</label>
+                            <input type="text" id="strix-tls-host" placeholder="ejemplo: demo.testfire.net o fdn.com.co" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+                        </div>
+                        <div class="w-full sm:w-28">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Puerto</label>
+                            <input type="number" id="strix-tls-port" value="443" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white font-mono focus:outline-none focus:border-cyan-500">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="runStrixTlsInspect()" id="btn-strix-run-tls" class="w-full sm:w-auto px-5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/50">
+                                <i class="fa-solid fa-lock"></i>
+                                <span>Inspeccionar X.509</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="strix-tls-results" class="hidden space-y-4 pt-2">
+                        <!-- Status Banner -->
+                        <div id="strix-tls-banner" class="p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div id="strix-tls-icon" class="w-10 h-10 rounded-xl flex items-center justify-center text-lg"></div>
+                                <div>
+                                    <h4 id="strix-tls-status-title" class="font-bold text-sm text-white"></h4>
+                                    <p id="strix-tls-status-desc" class="text-xs text-slate-300 mt-0.5"></p>
+                                </div>
+                            </div>
+                            <div id="strix-tls-days-badge" class="px-3 py-1.5 rounded-xl font-mono text-xs font-bold border"></div>
+                        </div>
+
+                        <!-- Certificate Fields Grid -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-3">
+                                <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-cyber-border/70 pb-2">Identidad y Emisor</h5>
+                                <div class="text-xs space-y-2">
+                                    <div>
+                                        <span class="text-slate-500 block text-[10px] uppercase">Common Name (CN)</span>
+                                        <span id="strix-tls-cn" class="font-mono text-white font-bold"></span>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-500 block text-[10px] uppercase">Autoridad Emisora (Issuer)</span>
+                                        <span id="strix-tls-issuer" class="font-mono text-cyan-300"></span>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-500 block text-[10px] uppercase">Algoritmo de Firma</span>
+                                        <span id="strix-tls-algo" class="font-mono text-amber-300"></span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-3">
+                                <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-cyber-border/70 pb-2">Vigencia y Validez</h5>
+                                <div class="text-xs space-y-2">
+                                    <div>
+                                        <span class="text-slate-500 block text-[10px] uppercase">Válido Desde</span>
+                                        <span id="strix-tls-from" class="font-mono text-slate-300"></span>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-500 block text-[10px] uppercase">Válido Hasta</span>
+                                        <span id="strix-tls-to" class="font-mono text-slate-300"></span>
+                                    </div>
+                                    <div>
+                                        <span class="text-slate-500 block text-[10px] uppercase">Nombres Alternativos (SANs)</span>
+                                        <div id="strix-tls-sans" class="flex flex-wrap gap-1 mt-1"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-PANEL 4: Laboratorio CORS & Headers -->
+            <div id="strix-panel-cors" class="space-y-4 hidden">
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                    <div class="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+                        <div class="flex-1">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">URL Objetivo</label>
+                            <input type="text" id="strix-cors-url" placeholder="https://ejemplo.com/api" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+                        </div>
+                        <div class="w-full md:w-72">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Origin a Inyectar (Test Origin)</label>
+                            <input type="text" id="strix-cors-origin" value="https://evil-attacker.com" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-amber-300 font-mono focus:outline-none focus:border-cyan-500">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="runStrixCorsTest()" id="btn-strix-run-cors" class="w-full md:w-auto px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-purple-950/50">
+                                <i class="fa-solid fa-shield-halved"></i>
+                                <span>Auditar CORS</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="strix-cors-results" class="hidden space-y-4 pt-2">
+                        <!-- Origin Reflection Banner -->
+                        <div id="strix-cors-banner" class="p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div id="strix-cors-icon" class="w-10 h-10 rounded-xl flex items-center justify-center text-lg"></div>
+                                <div>
+                                    <h4 id="strix-cors-verdict" class="font-bold text-sm text-white"></h4>
+                                    <p id="strix-cors-explanation" class="text-xs text-slate-300 mt-0.5"></p>
+                                </div>
+                            </div>
+                            <div class="text-right font-mono text-xs">
+                                <div class="text-slate-400 text-[10px]">Allow-Credentials</div>
+                                <div id="strix-cors-credentials" class="font-bold"></div>
+                            </div>
+                        </div>
+
+                        <!-- Defensive Headers Checklist -->
+                        <div class="bg-slate-950 border border-cyber-border rounded-xl p-4">
+                            <h5 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Auditoría de Cabeceras Defensivas Perimetrales</h5>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3" id="strix-cors-headers-grid"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SUB-PANEL 5: Auditoría RFC DNS & Resiliencia -->
+            <div id="strix-panel-dns" class="space-y-4 hidden">
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <div class="flex-1">
+                            <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Dominio / FQDN</label>
+                            <input type="text" id="strix-dns-domain" placeholder="ejemplo: fdn.com.co" class="w-full px-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="runStrixDnsInspect()" id="btn-strix-run-dns" class="w-full sm:w-auto px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-blue-950/50">
+                                <i class="fa-solid fa-network-wired"></i>
+                                <span>Consultar DNS RFC</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="strix-dns-results" class="hidden space-y-4 pt-2">
+                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- A / AAAA Card -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-2">
+                                <div class="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-cyber-border/70 pb-2">
+                                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-server text-cyan-400"></i> Registros A / AAAA</span>
+                                    <span id="strix-dns-count-a" class="text-[10px] font-mono text-cyan-400"></span>
+                                </div>
+                                <div id="strix-dns-records-a" class="space-y-1 font-mono text-xs max-h-40 overflow-y-auto"></div>
+                            </div>
+
+                            <!-- MX Card -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-2">
+                                <div class="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-cyber-border/70 pb-2">
+                                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-envelope text-amber-400"></i> Servidores MX (Correo)</span>
+                                    <span id="strix-dns-count-mx" class="text-[10px] font-mono text-amber-400"></span>
+                                </div>
+                                <div id="strix-dns-records-mx" class="space-y-1 font-mono text-xs max-h-40 overflow-y-auto"></div>
+                            </div>
+
+                            <!-- NS Card -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-2">
+                                <div class="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-cyber-border/70 pb-2">
+                                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-sitemap text-purple-400"></i> Nameservers (NS)</span>
+                                    <span id="strix-dns-count-ns" class="text-[10px] font-mono text-purple-400"></span>
+                                </div>
+                                <div id="strix-dns-records-ns" class="space-y-1 font-mono text-xs max-h-40 overflow-y-auto"></div>
+                            </div>
+
+                            <!-- TXT Card -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-2 md:col-span-2">
+                                <div class="flex items-center justify-between text-xs font-bold text-slate-300 border-b border-cyber-border/70 pb-2">
+                                    <span class="flex items-center gap-1.5"><i class="fa-solid fa-file-lines text-emerald-400"></i> Registros TXT (SPF, Verificación)</span>
+                                    <span id="strix-dns-count-txt" class="text-[10px] font-mono text-emerald-400"></span>
+                                </div>
+                                <div id="strix-dns-records-txt" class="space-y-1.5 font-mono text-xs max-h-48 overflow-y-auto"></div>
+                            </div>
+
+                            <!-- DMARC & CAA Card -->
+                            <div class="bg-slate-950 border border-cyber-border rounded-xl p-4 space-y-3">
+                                <div class="border-b border-cyber-border/70 pb-2">
+                                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5"><i class="fa-solid fa-shield-halved text-rose-400"></i> DMARC & CAA</span>
+                                </div>
+                                <div class="space-y-2 text-xs">
+                                    <div>
+                                        <span class="text-[10px] text-slate-500 uppercase font-mono block">DMARC Record (_dmarc)</span>
+                                        <div id="strix-dns-record-dmarc" class="font-mono text-slate-300 text-[11px] bg-slate-900 p-1.5 rounded border border-slate-800 break-all mt-0.5"></div>
+                                    </div>
+                                    <div>
+                                        <span class="text-[10px] text-slate-500 uppercase font-mono block">CAA Policy</span>
+                                        <div id="strix-dns-record-caa" class="font-mono text-slate-300 text-[11px] bg-slate-900 p-1.5 rounded border border-slate-800 break-all mt-0.5"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -969,6 +1398,7 @@
                 loadCti(),
                 loadGraph()
             ]);
+            populateStrixAssetDropdown();
         }
 
         function onActiveSeedChange(newSeed) {
@@ -1023,13 +1453,17 @@
                 activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
             }
 
-            ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds'].forEach(t => {
+            ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix'].forEach(t => {
                 const el = document.getElementById(`tab-content-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tabId);
             });
 
             if (tabId === 'graph' && networkInstance) {
                 setTimeout(() => { networkInstance.fit(); }, 100);
+            }
+
+            if (tabId === 'strix') {
+                populateStrixAssetDropdown();
             }
         }
 
@@ -1445,9 +1879,14 @@
                         </div>
 
                         <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-                            <button onclick="openVulnPlaybookModal(${v.id})" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 transition shadow-sm">
-                                <i class="fa-solid fa-code"></i> Playbook & Guía de Hardening
-                            </button>
+                            <div class="flex items-center gap-2">
+                                <button onclick="openVulnPlaybookModal(${v.id})" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 transition shadow-sm">
+                                    <i class="fa-solid fa-code"></i> Playbook & Guía de Hardening
+                                </button>
+                                <button onclick="launchStrixForUrl('${v.asset_subdomain ? (v.asset_subdomain.startsWith('http') ? v.asset_subdomain : 'https://' + v.asset_subdomain) : ''}', '${(v.title || '').replace(/'/g, "\\'")}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 transition shadow-sm" title="Ejecutar validación de evidencia y Raw HTTP en la Navaja Suiza Strix">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> Validar con Strix
+                                </button>
+                            </div>
                             <span class="text-[11px] text-slate-500 font-mono">
                                 Detectado: ${(v.created_at || '').slice(0, 16)}
                             </span>
@@ -2416,6 +2855,493 @@
                 btn.classList.remove('opacity-75');
                 icon.className = 'fa-solid fa-radar text-black group-hover:rotate-45 transition-transform';
                 text.innerText = 'Escanear';
+            }
+        }
+
+        // ==========================================
+        // STRIX PENTESTING TOOLKIT (NAVAJA SUIZA)
+        // ==========================================
+        let currentStrixSubTool = 'poc';
+
+        function switchStrixSubTool(tool) {
+            currentStrixSubTool = tool;
+            ['poc', 'fuzz', 'tls', 'cors', 'dns'].forEach(t => {
+                const btn = document.getElementById(`strix-subtab-${t}`);
+                const panel = document.getElementById(`strix-panel-${t}`);
+                if (btn) {
+                    if (t === tool) {
+                        btn.className = 'px-4 py-2 rounded-xl bg-emerald-950/80 text-emerald-300 border border-emerald-700/80 flex items-center gap-2 transition';
+                    } else {
+                        btn.className = 'px-4 py-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-cyber-border flex items-center gap-2 transition';
+                    }
+                }
+                if (panel) {
+                    panel.classList.toggle('hidden', t !== tool);
+                }
+            });
+        }
+
+        function populateStrixAssetDropdown() {
+            const select = document.getElementById('strix-asset-quick-select');
+            if (!select) return;
+
+            let optionsHtml = '<option value="">Seleccionar activo...</option>';
+            if (activeSeed && activeSeed !== 'ALL') {
+                optionsHtml += `<option value="https://${activeSeed}">${activeSeed} (Semilla activa)</option>`;
+            }
+
+            if (globalAssets && globalAssets.length > 0) {
+                globalAssets.forEach(a => {
+                    const host = a.subdomain || a.ip_address;
+                    if (host && host !== activeSeed) {
+                        optionsHtml += `<option value="https://${host}">${host}</option>`;
+                    }
+                });
+            }
+            select.innerHTML = optionsHtml;
+        }
+
+        function applyStrixSelectedAsset() {
+            const select = document.getElementById('strix-asset-quick-select');
+            if (!select || !select.value) return;
+            const targetUrl = select.value;
+            const domain = targetUrl.replace(/^https?:\/\//i, '').split('/')[0];
+
+            document.getElementById('strix-poc-url').value = targetUrl;
+            document.getElementById('strix-fuzz-url').value = targetUrl;
+            document.getElementById('strix-tls-host').value = domain;
+            document.getElementById('strix-cors-url').value = targetUrl;
+            document.getElementById('strix-dns-domain').value = domain;
+
+            showToast(`Activo ${domain} cargado en la Navaja Suiza`);
+        }
+
+        function launchStrixForUrl(url, vulnTitle) {
+            if (!url) return;
+            switchTab('strix');
+            switchStrixSubTool('poc');
+
+            const domain = url.replace(/^https?:\/\//i, '').split('/')[0];
+            document.getElementById('strix-poc-url').value = url;
+            document.getElementById('strix-fuzz-url').value = 'https://' + domain;
+            document.getElementById('strix-tls-host').value = domain;
+            document.getElementById('strix-cors-url').value = url;
+            document.getElementById('strix-dns-domain').value = domain;
+
+            showToast(`Cargado en Strix PoC: ${vulnTitle ? vulnTitle.substring(0, 30) + '...' : url}`);
+            runStrixPocTest();
+        }
+
+        function copyToClipboard(elementId, successMsg) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            const text = el.innerText || el.value;
+            navigator.clipboard.writeText(text).then(() => {
+                showToast(successMsg || 'Copiado al portapapeles');
+            }).catch(() => {
+                showToast('No se pudo copiar automáticamente', true);
+            });
+        }
+
+        async function runStrixPocTest() {
+            const urlInput = document.getElementById('strix-poc-url');
+            const methodSelect = document.getElementById('strix-poc-method');
+            const btn = document.getElementById('btn-strix-run-poc');
+            let targetUrl = urlInput.value.trim();
+
+            if (!targetUrl) {
+                showToast('Ingresa una URL objetivo para validar', true);
+                return;
+            }
+            if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+                targetUrl = 'https://' + targetUrl;
+                urlInput.value = targetUrl;
+            }
+
+            const method = methodSelect.value || 'GET';
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Ejecutando PoC...</span>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=strix_poc_test&url=${encodeURIComponent(targetUrl)}&method=${encodeURIComponent(method)}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    showToast(data.error || 'Error al ejecutar PoC', true);
+                    return;
+                }
+
+                document.getElementById('strix-poc-results').classList.remove('hidden');
+
+                // Badge
+                const badgeEl = document.getElementById('strix-poc-badge');
+                let badgeClass = 'text-rose-400';
+                if (data.verdict === 'PROTEGIDO') badgeClass = 'text-emerald-400';
+                else if (data.verdict === 'INFO_LEAK') badgeClass = 'text-amber-400';
+                badgeEl.className = `mt-1 font-bold text-xs ${badgeClass}`;
+                badgeEl.innerText = `${data.verdict}`;
+
+                // HTTP Code
+                document.getElementById('strix-poc-http-code').innerText = data.http_code ? `${data.http_code}` : 'N/A';
+                document.getElementById('strix-poc-latency').innerText = `${data.latency_ms} ms`;
+                document.getElementById('strix-poc-content-type').innerText = data.content_type || 'N/A';
+
+                // Diagnostic Box
+                const diagBox = document.getElementById('strix-poc-diag-box');
+                const diagTitle = document.getElementById('strix-poc-diag-title');
+                const diagMsg = document.getElementById('strix-poc-diag-msg');
+
+                if (data.verdict === 'VULNERABLE') {
+                    diagBox.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/20 text-xs';
+                    diagTitle.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i><span class="text-rose-300 font-bold">Hallazgo Confirmado: Vulnerable / Expuesto</span>';
+                } else if (data.verdict === 'PROTEGIDO') {
+                    diagBox.className = 'p-4 rounded-xl border border-emerald-800 bg-emerald-950/20 text-xs';
+                    diagTitle.innerHTML = '<i class="fa-solid fa-shield-check text-emerald-400"></i><span class="text-emerald-300 font-bold">Endpoint Protegido / Sin Exposición Crítica</span>';
+                } else {
+                    diagBox.className = 'p-4 rounded-xl border border-amber-800 bg-amber-950/20 text-xs';
+                    diagTitle.innerHTML = '<i class="fa-solid fa-circle-info text-amber-400"></i><span class="text-amber-300 font-bold">Fuga Informativa / Exposición Parcial</span>';
+                }
+                diagMsg.innerText = data.diagnostic || 'Respuesta inspeccionada con éxito.';
+
+                // Raw Request & Response
+                document.getElementById('strix-poc-raw-req').innerText = data.raw_request || '(Sin cabeceras crudas)';
+                document.getElementById('strix-poc-raw-res').innerText = (data.raw_response_headers || '') + "\n\n" + (data.response_body_snippet || '');
+
+                // Reproduction
+                document.getElementById('strix-poc-curl').innerText = data.poc_curl || '';
+                document.getElementById('strix-poc-python').innerText = data.poc_python || '';
+
+                showToast(`PoC completado en ${data.latency_ms}ms: ${data.verdict}`);
+            } catch (err) {
+                showToast('Fallo al conectar con el motor PoC de Strix', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-play"></i><span>Ejecutar PoC</span>';
+            }
+        }
+
+        async function runStrixRouteFuzz() {
+            const urlInput = document.getElementById('strix-fuzz-url');
+            const btn = document.getElementById('btn-strix-run-fuzz');
+            let targetUrl = urlInput.value.trim();
+
+            if (!targetUrl) {
+                showToast('Ingresa la URL base del objetivo', true);
+                return;
+            }
+            if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+                targetUrl = 'https://' + targetUrl;
+                urlInput.value = targetUrl;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Fuzzeando rutas...</span>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=strix_route_fuzz&url=${encodeURIComponent(targetUrl)}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    showToast(data.error || 'Error en fuzzing de rutas', true);
+                    return;
+                }
+
+                document.getElementById('strix-fuzz-results').classList.remove('hidden');
+
+                // Canary info
+                const canaryInfo = data.canary_info || {};
+                document.getElementById('strix-fuzz-canary-status').innerText = `Canario: ${canaryInfo.status_code || 404} | Tamaño baseline: ${canaryInfo.length || 0} bytes`;
+
+                // Render table
+                const tbody = document.getElementById('strix-fuzz-tbody');
+                const results = data.results || [];
+
+                tbody.innerHTML = results.map(r => {
+                    let codeBadge = 'bg-slate-800 text-slate-300';
+                    if (r.http_code >= 200 && r.http_code < 300) codeBadge = 'bg-emerald-950 text-emerald-300 border border-emerald-800';
+                    else if (r.http_code >= 300 && r.http_code < 400) codeBadge = 'bg-cyan-950 text-cyan-300 border border-cyan-800';
+                    else if (r.http_code === 403 || r.http_code === 401) codeBadge = 'bg-amber-950 text-amber-300 border border-amber-800';
+                    else if (r.http_code === 404) codeBadge = 'bg-slate-900 text-slate-500';
+
+                    let verdBadge = '<span class="text-slate-500 font-mono text-[11px]">No expuesto</span>';
+                    if (r.verdict === 'EXPOSED') {
+                        verdBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-800">EXPUESTO (200 OK)</span>';
+                    } else if (r.verdict === 'POTENTIAL') {
+                        verdBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800">POTENCIAL (403/302)</span>';
+                    } else if (r.verdict === 'SOFT_404') {
+                        verdBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-mono text-slate-400 bg-slate-900 border border-slate-700">Soft-404 Ignorado</span>';
+                    }
+
+                    return `
+                        <tr class="hover:bg-slate-900/40 transition">
+                            <td class="p-3.5 font-mono text-xs font-semibold text-white">${r.path}</td>
+                            <td class="p-3.5 text-center font-mono"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${codeBadge}">${r.http_code}</span></td>
+                            <td class="p-3.5 text-right font-mono text-xs text-slate-400">${r.size_bytes} B</td>
+                            <td class="p-3.5">${verdBadge}</td>
+                            <td class="p-3.5 text-center">
+                                <button onclick="loadFuzzedRouteInPoc('${targetUrl}${r.path}')" class="px-2.5 py-1 rounded bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 text-[11px] font-semibold transition" title="Cargar ruta en el PoC Inspector">
+                                    <i class="fa-solid fa-bolt mr-1"></i> Probar PoC
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                showToast(`Fuzzing finalizado: ${results.filter(r => r.verdict === 'EXPOSED').length} rutas expuestas confirmadas`);
+            } catch (err) {
+                showToast('Error de conexión durante el fuzzing de rutas', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i><span>Iniciar Fuzzing (16 Rutas)</span>';
+            }
+        }
+
+        function loadFuzzedRouteInPoc(url) {
+            switchStrixSubTool('poc');
+            document.getElementById('strix-poc-url').value = url;
+            runStrixPocTest();
+        }
+
+        async function runStrixTlsInspect() {
+            const hostInput = document.getElementById('strix-tls-host');
+            const portInput = document.getElementById('strix-tls-port');
+            const btn = document.getElementById('btn-strix-run-tls');
+            let host = hostInput.value.trim().replace(/^https?:\/\//i, '').split('/')[0];
+            const port = parseInt(portInput.value) || 443;
+
+            if (!host) {
+                showToast('Ingresa el hostname para inspección X.509', true);
+                return;
+            }
+            hostInput.value = host;
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Inspeccionando...</span>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=strix_tls_inspect&host=${encodeURIComponent(host)}&port=${port}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    showToast(data.error || 'Error al inspeccionar TLS', true);
+                    return;
+                }
+
+                document.getElementById('strix-tls-results').classList.remove('hidden');
+
+                const banner = document.getElementById('strix-tls-banner');
+                const icon = document.getElementById('strix-tls-icon');
+                const daysBadge = document.getElementById('strix-tls-days-badge');
+
+                if (data.is_expired) {
+                    banner.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+                    icon.className = 'w-10 h-10 rounded-xl bg-rose-900/60 text-rose-400 border border-rose-700 flex items-center justify-center text-lg';
+                    icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+                    daysBadge.className = 'px-3 py-1.5 rounded-xl font-mono text-xs font-bold border bg-rose-950 text-rose-300 border-rose-800';
+                    daysBadge.innerText = `EXPIRADO HACE ${Math.abs(data.days_remaining)} DÍAS`;
+                } else if (data.days_remaining <= 30) {
+                    banner.className = 'p-4 rounded-xl border border-amber-800 bg-amber-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+                    icon.className = 'w-10 h-10 rounded-xl bg-amber-900/60 text-amber-400 border border-amber-700 flex items-center justify-center text-lg';
+                    icon.innerHTML = '<i class="fa-solid fa-clock"></i>';
+                    daysBadge.className = 'px-3 py-1.5 rounded-xl font-mono text-xs font-bold border bg-amber-950 text-amber-300 border-amber-800';
+                    daysBadge.innerText = `${data.days_remaining} DÍAS RESTANTES (URGENTE)`;
+                } else {
+                    banner.className = 'p-4 rounded-xl border border-emerald-800 bg-emerald-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+                    icon.className = 'w-10 h-10 rounded-xl bg-emerald-900/60 text-emerald-400 border border-emerald-700 flex items-center justify-center text-lg';
+                    icon.innerHTML = '<i class="fa-solid fa-lock"></i>';
+                    daysBadge.className = 'px-3 py-1.5 rounded-xl font-mono text-xs font-bold border bg-emerald-950 text-emerald-300 border-emerald-800';
+                    daysBadge.innerText = `${data.days_remaining} DÍAS VIGENTE`;
+                }
+
+                document.getElementById('strix-tls-status-title').innerText = data.status || 'Certificado TLS';
+                document.getElementById('strix-tls-status-desc').innerText = data.recommendation || '';
+                document.getElementById('strix-tls-cn').innerText = data.common_name || host;
+                document.getElementById('strix-tls-issuer').innerText = data.issuer || 'N/A';
+                document.getElementById('strix-tls-algo').innerText = data.signature_algorithm || 'N/A';
+                document.getElementById('strix-tls-from').innerText = data.valid_from || 'N/A';
+                document.getElementById('strix-tls-to').innerText = data.valid_to || 'N/A';
+
+                const sansContainer = document.getElementById('strix-tls-sans');
+                const sans = data.subject_alt_names || [];
+                if (sans.length === 0) {
+                    sansContainer.innerHTML = '<span class="text-slate-500 font-mono text-xs">Sin SANs adicionales</span>';
+                } else {
+                    sansContainer.innerHTML = sans.map(s => `<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-900 text-slate-300 border border-slate-700">${s}</span>`).join('');
+                }
+
+                showToast(`TLS inspeccionado: ${data.is_expired ? 'Certificado Expirado' : 'Certificado Válido'}`);
+            } catch (err) {
+                showToast('Error al conectar con el socket TLS', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-lock"></i><span>Inspeccionar X.509</span>';
+            }
+        }
+
+        async function runStrixCorsTest() {
+            const urlInput = document.getElementById('strix-cors-url');
+            const originInput = document.getElementById('strix-cors-origin');
+            const btn = document.getElementById('btn-strix-run-cors');
+            let targetUrl = urlInput.value.trim();
+            const origin = originInput.value.trim() || 'https://evil-attacker.com';
+
+            if (!targetUrl) {
+                showToast('Ingresa la URL objetivo para prueba CORS', true);
+                return;
+            }
+            if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+                targetUrl = 'https://' + targetUrl;
+                urlInput.value = targetUrl;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Auditando CORS...</span>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=strix_cors_test&url=${encodeURIComponent(targetUrl)}&origin=${encodeURIComponent(origin)}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    showToast(data.error || 'Error en auditoría CORS', true);
+                    return;
+                }
+
+                document.getElementById('strix-cors-results').classList.remove('hidden');
+
+                const banner = document.getElementById('strix-cors-banner');
+                const icon = document.getElementById('strix-cors-icon');
+
+                if (data.verdict === 'VULNERABLE') {
+                    banner.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+                    icon.className = 'w-10 h-10 rounded-xl bg-rose-900/60 text-rose-400 border border-rose-700 flex items-center justify-center text-lg';
+                    icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+                } else {
+                    banner.className = 'p-4 rounded-xl border border-emerald-800 bg-emerald-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+                    icon.className = 'w-10 h-10 rounded-xl bg-emerald-900/60 text-emerald-400 border border-emerald-700 flex items-center justify-center text-lg';
+                    icon.innerHTML = '<i class="fa-solid fa-shield-check"></i>';
+                }
+
+                document.getElementById('strix-cors-verdict').innerText = `Veredicto: ${data.verdict}`;
+                document.getElementById('strix-cors-explanation').innerText = data.explanation || '';
+                document.getElementById('strix-cors-credentials').innerHTML = data.allow_credentials 
+                    ? '<span class="text-rose-400 font-bold">TRUE (Peligroso con Origin no confiable)</span>' 
+                    : '<span class="text-emerald-400 font-bold">FALSE (Seguro)</span>';
+
+                // Defensive Headers
+                const headersGrid = document.getElementById('strix-cors-headers-grid');
+                const defHeaders = data.defensive_headers || {};
+                const list = [
+                    { key: 'strict-transport-security', label: 'HSTS (Cifrado Estricto)', val: defHeaders['strict-transport-security'] },
+                    { key: 'x-frame-options', label: 'Anti-Clickjacking (XFO)', val: defHeaders['x-frame-options'] },
+                    { key: 'content-security-policy', label: 'Content Security Policy', val: defHeaders['content-security-policy'] },
+                    { key: 'x-content-type-options', label: 'Anti-MIME Sniffing', val: defHeaders['x-content-type-options'] }
+                ];
+
+                headersGrid.innerHTML = list.map(h => {
+                    const present = !!h.val;
+                    return `
+                        <div class="p-3 rounded-xl border ${present ? 'border-emerald-800/60 bg-emerald-950/10' : 'border-rose-800/60 bg-rose-950/10'} text-xs">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="font-bold text-white">${h.label}</span>
+                                <i class="fa-solid ${present ? 'fa-check text-emerald-400' : 'fa-xmark text-rose-400'}"></i>
+                            </div>
+                            <div class="font-mono text-[11px] truncate ${present ? 'text-slate-300' : 'text-slate-500'}">
+                                ${present ? h.val : 'Ausente (Riesgo)'}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+                showToast(`CORS analizado: ${data.verdict}`);
+            } catch (err) {
+                showToast('Error de conexión en prueba CORS', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-shield-halved"></i><span>Auditar CORS</span>';
+            }
+        }
+
+        async function runStrixDnsInspect() {
+            const domainInput = document.getElementById('strix-dns-domain');
+            const btn = document.getElementById('btn-strix-run-dns');
+            let domain = domainInput.value.trim().replace(/^https?:\/\//i, '').split('/')[0];
+
+            if (!domain) {
+                showToast('Ingresa el dominio para auditoría DNS', true);
+                return;
+            }
+            domainInput.value = domain;
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Consultando DNS...</span>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=strix_dns_inspect&domain=${encodeURIComponent(domain)}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    showToast(data.error || 'Error al consultar DNS', true);
+                    return;
+                }
+
+                document.getElementById('strix-dns-results').classList.remove('hidden');
+
+                const recs = data.records || {};
+
+                // A / AAAA
+                const aRecs = (recs.A || []).concat(recs.AAAA || []);
+                document.getElementById('strix-dns-count-a').innerText = `${aRecs.length} registros`;
+                const aCont = document.getElementById('strix-dns-records-a');
+                aCont.innerHTML = aRecs.length ? aRecs.map(r => `<div class="p-1.5 rounded bg-slate-900 border border-slate-800 text-cyan-300">${r.type || 'A'}: ${r.ip || r.ipv6}</div>`).join('') : '<div class="text-slate-500">Sin registros A/AAAA</div>';
+
+                // MX
+                const mxRecs = recs.MX || [];
+                document.getElementById('strix-dns-count-mx').innerText = `${mxRecs.length} servidores`;
+                const mxCont = document.getElementById('strix-dns-records-mx');
+                mxCont.innerHTML = mxRecs.length ? mxRecs.map(r => `<div class="p-1.5 rounded bg-slate-900 border border-slate-800 text-amber-300">[Pri ${r.pri}] ${r.target}</div>`).join('') : '<div class="text-slate-500">Sin registros MX</div>';
+
+                // NS
+                const nsRecs = recs.NS || [];
+                document.getElementById('strix-dns-count-ns').innerText = `${nsRecs.length} NS`;
+                const nsCont = document.getElementById('strix-dns-records-ns');
+                nsCont.innerHTML = nsRecs.length ? nsRecs.map(r => `<div class="p-1.5 rounded bg-slate-900 border border-slate-800 text-purple-300">${r.target}</div>`).join('') : '<div class="text-slate-500">Sin registros NS</div>';
+
+                // TXT
+                const txtRecs = recs.TXT || [];
+                document.getElementById('strix-dns-count-txt').innerText = `${txtRecs.length} TXT`;
+                const txtCont = document.getElementById('strix-dns-records-txt');
+                txtCont.innerHTML = txtRecs.length ? txtRecs.map(r => {
+                    const isSpf = (r.txt || '').toLowerCase().startsWith('v=spf1');
+                    return `<div class="p-1.5 rounded bg-slate-900 border ${isSpf ? 'border-emerald-800/80 text-emerald-300' : 'border-slate-800 text-slate-300'} break-all">${isSpf ? '<span class="text-[10px] font-bold bg-emerald-950 px-1 py-0.5 rounded mr-1">SPF</span>' : ''}${r.txt}</div>`;
+                }).join('') : '<div class="text-slate-500">Sin registros TXT</div>';
+
+                // DMARC & CAA
+                const dmarc = data.dmarc_policy;
+                const dmarcEl = document.getElementById('strix-dns-record-dmarc');
+                dmarcEl.innerText = dmarc ? dmarc.record : 'No configurado (Vulnerable a Spoofing de Correo)';
+                dmarcEl.className = dmarc ? 'font-mono text-emerald-300 text-[11px] bg-slate-900 p-1.5 rounded border border-emerald-900/60 break-all mt-0.5' : 'font-mono text-rose-400 text-[11px] bg-rose-950/20 p-1.5 rounded border border-rose-900/60 break-all mt-0.5';
+
+                const caaRecs = recs.CAA || [];
+                const caaEl = document.getElementById('strix-dns-record-caa');
+                caaEl.innerText = caaRecs.length ? caaRecs.map(c => `${c.tag} "${c.value}"`).join(', ') : 'Sin registro CAA (Cualquier CA puede emitir certificados)';
+                caaEl.className = caaRecs.length ? 'font-mono text-cyan-300 text-[11px] bg-slate-900 p-1.5 rounded border border-cyan-900/60 break-all mt-0.5' : 'font-mono text-amber-400 text-[11px] bg-amber-950/20 p-1.5 rounded border border-amber-900/60 break-all mt-0.5';
+
+                showToast(`Auditoría DNS RFC para ${domain} completada`);
+            } catch (err) {
+                showToast('Error al consultar registros DNS', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-network-wired"></i><span>Consultar DNS RFC</span>';
             }
         }
 
