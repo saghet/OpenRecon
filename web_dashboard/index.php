@@ -1119,6 +1119,8 @@
                     let badgeColor = 'bg-rose-950 text-rose-400 border-rose-800';
                     if (v.severity === 'HIGH') badgeColor = 'bg-orange-950 text-orange-400 border-orange-800';
                     if (v.severity === 'MEDIUM') badgeColor = 'bg-amber-950 text-amber-400 border-amber-800';
+                    if (v.severity === 'LOW') badgeColor = 'bg-blue-950 text-blue-400 border-blue-800';
+                    if (v.severity === 'INFO') badgeColor = 'bg-slate-800 text-slate-300 border-slate-600';
 
                     const currentStatus = v.status || 'OPEN';
                     const isResolved = currentStatus === 'RESOLVED';

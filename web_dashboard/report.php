@@ -16,6 +16,7 @@ try {
         $critVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = " . $pdo->quote($requestedSeed) . ")")->fetchColumn();
         $highVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = " . $pdo->quote($requestedSeed) . ")")->fetchColumn();
         $medVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = " . $pdo->quote($requestedSeed) . ")")->fetchColumn();
+        $lowVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'LOW' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = " . $pdo->quote($requestedSeed) . ")")->fetchColumn();
         $resolvedVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE status = 'RESOLVED' AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = " . $pdo->quote($requestedSeed) . ")")->fetchColumn();
 
         $drpCount = (int)$pdo->query("SELECT COUNT(*) FROM drp_threats WHERE seed_domain = " . $pdo->quote($requestedSeed) . " AND (status = 'OPEN' OR status IS NULL)")->fetchColumn();
@@ -43,6 +44,7 @@ try {
         $critVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))")->fetchColumn();
         $highVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))")->fetchColumn();
         $medVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))")->fetchColumn();
+        $lowVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'LOW' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))")->fetchColumn();
         $resolvedVulns = (int)$pdo->query("SELECT COUNT(*) FROM vulnerabilities WHERE status = 'RESOLVED' AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))")->fetchColumn();
 
         $drpCount = (int)$pdo->query("SELECT COUNT(*) FROM drp_threats WHERE seed_domain IN (SELECT domain FROM seeds) AND (status = 'OPEN' OR status IS NULL)")->fetchColumn();
@@ -56,6 +58,10 @@ try {
         $leaks = $pdo->query("SELECT * FROM credential_leaks WHERE seed_domain IN (SELECT domain FROM seeds)")->fetchAll();
         $totalIocs = (int)$pdo->query("SELECT COUNT(*) FROM threat_iocs")->fetchColumn();
     }
+
+    // Risk Exposure Score calculation
+    $penalty = ($critVulns * 20) + ($highVulns * 10) + ($medVulns * 4) + ($lowVulns * 1) + ($drpCount * 5) + ($credLeaksCount * 5) + ($secretsCount * 15) + ($ransomMatched * 50);
+    $score = max(0, min(100, 100 - $penalty));
 
 } catch (Exception $e) {
     die("Error cargando base de datos: " . $e->getMessage());
@@ -191,7 +197,7 @@ try {
                             <?php foreach ($vulns as $v): ?>
                             <tr>
                                 <td class="p-3 font-bold whitespace-nowrap">
-                                    <span class="px-2 py-0.5 rounded text-[10px] uppercase <?php echo $v['severity'] === 'CRITICAL' ? 'bg-rose-100 text-rose-800' : ($v['severity'] === 'HIGH' ? 'bg-orange-100 text-orange-800' : 'bg-amber-100 text-amber-800'); ?>">
+                                    <span class="px-2 py-0.5 rounded text-[10px] uppercase <?php echo $v['severity'] === 'CRITICAL' ? 'bg-rose-100 text-rose-800' : ($v['severity'] === 'HIGH' ? 'bg-orange-100 text-orange-800' : ($v['severity'] === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800')); ?>">
                                         <?php echo $v['severity']; ?>
                                     </span>
                                 </td>

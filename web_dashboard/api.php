@@ -126,7 +126,7 @@ try {
         );
     ");
 
-    // Add status columns if missing
+    // Add status columns and indexes if missing
     try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN status TEXT DEFAULT 'OPEN'"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN mitigation_notes TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE drp_threats ADD COLUMN status TEXT DEFAULT 'OPEN'"); } catch (Exception $e) {}
@@ -134,6 +134,7 @@ try {
     try { $pdo->exec("ALTER TABLE credential_leaks ADD COLUMN risk_justification TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE credential_leaks ADD COLUMN playbook_actions TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE assets ADD COLUMN discovery_source TEXT DEFAULT 'OSINT / Passive DNS'"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_vulns_sub_title ON vulnerabilities(asset_subdomain, title)"); } catch (Exception $e) {}
 
 } catch (Exception $e) {
     echo json_encode(['error' => 'Database initialization failed: ' . $e->getMessage()]);
@@ -225,6 +226,7 @@ function getStats($pdo) {
         $critVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
         $highVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
         $medVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
+        $lowVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'LOW' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
         $resolvedVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE status = 'RESOLVED' AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
 
         $drpCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM drp_threats WHERE seed_domain = ? AND (status = 'OPEN' OR status IS NULL)", [$seed]);
@@ -247,6 +249,7 @@ function getStats($pdo) {
         $critVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'CRITICAL' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
         $highVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'HIGH' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
         $medVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'MEDIUM' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
+        $lowVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE severity = 'LOW' AND (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
         $resolvedVulns = (int)queryScalar($pdo, "SELECT COUNT(*) FROM vulnerabilities WHERE status = 'RESOLVED' AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))");
 
         $drpCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM drp_threats WHERE seed_domain IN (SELECT domain FROM seeds) AND (status = 'OPEN' OR status IS NULL)");
@@ -259,7 +262,7 @@ function getStats($pdo) {
     $totalIocs = (int)queryScalar($pdo, "SELECT COUNT(*) FROM threat_iocs");
 
     // Risk Score calculation
-    $penalty = ($critVulns * 20) + ($highVulns * 10) + ($medVulns * 3) + ($drpCount * 5) + ($credLeaksCount * 5) + ($secretsCount * 15) + ($ransomMatched * 50);
+    $penalty = ($critVulns * 20) + ($highVulns * 10) + ($medVulns * 4) + ($lowVulns * 1) + ($drpCount * 5) + ($credLeaksCount * 5) + ($secretsCount * 15) + ($ransomMatched * 50);
     $score = max(0, min(100, 100 - $penalty));
 
     echo json_encode([
@@ -272,8 +275,9 @@ function getStats($pdo) {
             'critical' => $critVulns,
             'high' => $highVulns,
             'medium' => $medVulns,
+            'low' => $lowVulns,
             'resolved' => $resolvedVulns,
-            'total' => $critVulns + $highVulns + $medVulns
+            'total' => $critVulns + $highVulns + $medVulns + $lowVulns
         ],
         'drp_threats' => $drpCount,
         'credential_leaks' => $credLeaksCount,
@@ -1072,8 +1076,9 @@ function runScan($pdo) {
             $webTitle = null;
             $statusCode = null;
             $techStack = [];
+            $httpInfo = null;
 
-            if ($isLive && $discoveredAssetsCount < 20) {
+            if ($isLive && $discoveredAssetsCount < 35) {
                 $httpInfo = probeHttp($sub);
                 $webTitle = $httpInfo['title'];
                 $statusCode = $httpInfo['code'];
@@ -1100,7 +1105,7 @@ function runScan($pdo) {
             $discoveredAssetsCount++;
 
             if ($isLive) {
-                if ($discoveredAssetsCount <= 25) {
+                if ($discoveredAssetsCount <= 30) {
                     $targetHost = $ip ?: $sub;
                     $portsToScan = [
                         80 => 'HTTP',
@@ -1119,7 +1124,119 @@ function runScan($pdo) {
                     }
                 }
 
-                if ($discoveredAssetsCount <= 5) {
+                // Passive DAST & Perimeter Hygiene Vulnerability Checks
+                if ($httpInfo && !empty($httpInfo['code']) && $httpInfo['code'] > 0) {
+                    $stmtVuln = $pdo->prepare("
+                        INSERT INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
+                        VALUES (?, ?, ?, ?, ?)
+                        ON CONFLICT(asset_subdomain, title) DO UPDATE SET
+                            severity = excluded.severity,
+                            description = excluded.description,
+                            remediation = excluded.remediation
+                    ");
+
+                    // 1. Cleartext HTTP / Missing TLS
+                    if (!$httpInfo['has_https'] || $httpInfo['scheme'] === 'http') {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Transmisión No Cifrada (HTTP en Claro) y Falta de TLS/HTTPS',
+                            'HIGH',
+                            "El subdominio $sub está transmitiendo tráfico en texto plano mediante HTTP (puerto 80) sin redirección HTTPS obligatoria ni cifrado de capa de transporte (CWE-319). Las solicitudes, credenciales y cookies son susceptibles a intercepción mediante ataques de intermediario (Man-in-the-Middle / MitM).",
+                            "Instalar un certificado TLS/SSL válido (Let's Encrypt o CA corporativa) y configurar una regla de redirección 301 permanente desde HTTP hacia HTTPS en el servidor web."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 2. Missing HSTS
+                    if (!$httpInfo['has_hsts']) {
+                        $hstsSev = $httpInfo['has_https'] ? 'MEDIUM' : 'HIGH';
+                        $stmtVuln->execute([
+                            $sub,
+                            'Ausencia de Cabecera Strict-Transport-Security (HSTS)',
+                            $hstsSev,
+                            "El servidor no implementa la directiva HTTP Strict-Transport-Security (HSTS - RFC 6797). Los clientes son vulnerables a ataques de degradación de protocolo y SSL Stripping (MITRE ATT&CK T1557.001) para forzar la navegación en texto plano y secuestrar sesiones.",
+                            "Configurar en el servidor web la cabecera: 'Strict-Transport-Security: max-age=31536000; includeSubDomains; preload'."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 3. Missing Clickjacking Protection
+                    if (!$httpInfo['has_xfo'] && !$httpInfo['has_csp']) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Riesgo de Clickjacking: Ausencia de Cabecera X-Frame-Options',
+                            'MEDIUM',
+                            "La aplicación web no define 'X-Frame-Options' ni la directiva 'frame-ancestors' en Content-Security-Policy (CWE-1021). Un atacante puede incrustar este portal dentro de un iframe transparente en una web de phishing (UI Redressing) para inducir clics involuntarios de los usuarios.",
+                            "Configurar la cabecera 'X-Frame-Options: SAMEORIGIN' o 'X-Frame-Options: DENY' en la configuración del servidor web o balanceador de carga."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 4. Missing Content-Security-Policy
+                    if (!$httpInfo['has_csp']) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Falta de Política de Seguridad de Contenido (Content-Security-Policy)',
+                            'MEDIUM',
+                            "El servidor no envía la cabecera Content-Security-Policy (CSP - CWE-79). La aplicación carece de defensa en profundidad contra Cross-Site Scripting (XSS), inyección de scripts externos y exfiltración no autorizada de tokens de sesión.",
+                            "Definir una cabecera Content-Security-Policy estricta declarando los orígenes permitidos para scripts, estilos y conexiones (ej: default-src 'self')."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 5. Missing X-Content-Type-Options
+                    if (!$httpInfo['has_xcto']) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Ausencia de Cabecera Anti-MIME-Sniffing (X-Content-Type-Options)',
+                            'LOW',
+                            "Falta la cabecera 'X-Content-Type-Options: nosniff' (CWE-430). Navegadores antiguos o no conformes pueden intentar adivinar el tipo MIME del archivo, permitiendo la ejecución de payloads maliciosos camuflados.",
+                            "Añadir la directiva 'X-Content-Type-Options: nosniff' en todas las respuestas HTTP del servidor web."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 6. Information Disclosure in Server Banner
+                    if (!empty($httpInfo['server_banner']) && preg_match('/[\d\.]/', $httpInfo['server_banner'])) {
+                        $banner = $httpInfo['server_banner'];
+                        $stmtVuln->execute([
+                            $sub,
+                            'Fuga de Información Perimetral en Cabecera Server (CWE-200)',
+                            'MEDIUM',
+                            "El servidor expone públicamente su software y versión exacta: '$banner'. La divulgación innecesaria de versiones facilita el reconocimiento pasivo a cibercriminales, permitiéndoles asociar vulnerabilidades conocidas (CVEs) sin realizar escaneos intrusivos.",
+                            "Anonimizar u ocultar la cabecera Server. En Apache: 'ServerTokens Prod' y 'ServerSignature Off'. En Nginx: 'server_tokens off;'. En IIS: eliminar mediante URL Rewrite o configuración web.config."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 7. Obsolete Software / End-of-Life Frameworks
+                    if (!empty($httpInfo['x_powered_by']) || !empty($httpInfo['x_aspnet_version'])) {
+                        $techSummary = trim(($httpInfo['x_powered_by'] ?? '') . ' ' . (!empty($httpInfo['x_aspnet_version']) ? 'ASP.NET ' . $httpInfo['x_aspnet_version'] : ''));
+                        $isEol = (
+                            stripos($techSummary, 'PHP/5') !== false ||
+                            stripos($techSummary, 'PHP/7.0') !== false ||
+                            stripos($techSummary, 'PHP/7.1') !== false ||
+                            stripos($techSummary, 'PHP/7.2') !== false ||
+                            stripos($techSummary, 'PHP/7.3') !== false ||
+                            stripos($techSummary, 'PHP/7.4') !== false ||
+                            stripos($techSummary, '2.0.50727') !== false ||
+                            stripos($techSummary, 'ASP.NET 2') !== false ||
+                            stripos($techSummary, 'ASP.NET 3') !== false
+                        );
+                        $eolSev = $isEol ? 'HIGH' : 'MEDIUM';
+
+                        $stmtVuln->execute([
+                            $sub,
+                            $isEol ? 'Software / Framework Obsoleto y Descontinuado (EOL)' : 'Divulgación de Tecnología en Cabecera X-Powered-By',
+                            $eolSev,
+                            "Se detectó la ejecución y exposición del framework: '$techSummary'. " . ($isEol ? "Esta versión ha alcanzado el Fin de Vida Útil (End of Life) y contiene múltiples vulnerabilidades de seguridad críticas sin soporte oficial del fabricante." : "Exponer el framework de desarrollo facilita la focalización de ataques web dirigidos a dicha tecnología."),
+                            "Actualizar el stack tecnológico a versiones con soporte activo. Desactivar 'X-Powered-By' en php.ini ('expose_php = Off') o en web.config (<httpRuntime enableVersionHeader=\"false\" />)."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+                }
+
+                if ($discoveredAssetsCount <= 15) {
                     $sensitiveEndpoints = [
                         '/.env' => 'Variables de Entorno (.env)',
                         '/.git/config' => 'Repositorio Git Expuesto (.git/config)',
@@ -1127,7 +1244,8 @@ function runScan($pdo) {
                     ];
 
                     foreach ($sensitiveEndpoints as $ep => $secretDesc) {
-                        $probeUrl = "https://" . $sub . $ep;
+                        $scheme = ($httpInfo && $httpInfo['has_https']) ? 'https' : 'http';
+                        $probeUrl = $scheme . "://" . $sub . $ep;
                         $ch = curl_init($probeUrl);
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                         curl_setopt($ch, CURLOPT_TIMEOUT, 2);
@@ -1275,46 +1393,127 @@ function runScan($pdo) {
 }
 
 function probeHttp($host) {
-    $result = ['title' => null, 'code' => null, 'tech' => []];
-    $url = "https://" . $host;
+    $result = [
+        'title' => null,
+        'code' => null,
+        'tech' => [],
+        'headers' => [],
+        'scheme' => null,
+        'has_https' => false,
+        'has_hsts' => false,
+        'has_csp' => false,
+        'has_xfo' => false,
+        'has_xcto' => false,
+        'server_banner' => null,
+        'x_powered_by' => null,
+        'x_aspnet_version' => null
+    ];
 
+    $parseHeadersAndBody = function($response, $headerSize) use (&$result) {
+        $rawHeaders = substr($response, 0, $headerSize);
+        $html = substr($response, $headerSize);
+
+        $lines = explode("\r\n", $rawHeaders);
+        foreach ($lines as $line) {
+            if (strpos($line, ':') !== false) {
+                list($key, $val) = explode(':', $line, 2);
+                $k = strtolower(trim($key));
+                $v = trim($val);
+                $result['headers'][$k] = $v;
+
+                if ($k === 'server') {
+                    $result['server_banner'] = $v;
+                } elseif ($k === 'x-powered-by') {
+                    $result['x_powered_by'] = $v;
+                } elseif ($k === 'x-aspnet-version') {
+                    $result['x_aspnet_version'] = $v;
+                } elseif ($k === 'strict-transport-security') {
+                    $result['has_hsts'] = true;
+                } elseif ($k === 'content-security-policy') {
+                    $result['has_csp'] = true;
+                } elseif ($k === 'x-frame-options') {
+                    $result['has_xfo'] = true;
+                } elseif ($k === 'x-content-type-options') {
+                    $result['has_xcto'] = true;
+                }
+            }
+        }
+
+        if ($html) {
+            if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $matches)) {
+                $result['title'] = substr(trim(strip_tags($matches[1])), 0, 150);
+            }
+            $lower = strtolower($html);
+            if (strpos($lower, 'wp-content') !== false) $result['tech'][] = 'WordPress';
+            if (strpos($lower, 'react') !== false || strpos($lower, '__next') !== false) $result['tech'][] = 'React / Next.js';
+            if (strpos($lower, 'laravel') !== false) $result['tech'][] = 'Laravel';
+            if (strpos($lower, 'elementor') !== false) $result['tech'][] = 'Elementor';
+            if (strpos($lower, 'acunetix') !== false || strpos($lower, 'vulnweb') !== false) $result['tech'][] = 'Acunetix Testbed';
+        }
+    };
+
+    // 1. Try HTTPS
+    $url = "https://" . $host;
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
     curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/1.0");
 
-    $html = curl_exec($ch);
+    $response = curl_exec($ch);
+    $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $effUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
     curl_close($ch);
 
-    if (!$httpCode || $httpCode == 0) {
+    if ($httpCode && $httpCode > 0) {
+        $result['code'] = $httpCode;
+        $result['scheme'] = 'https';
+        $result['has_https'] = true;
+        if ($response) {
+            $parseHeadersAndBody($response, $headerSize);
+        }
+    } else {
+        // 2. Fallback to HTTP
         $url = "http://" . $host;
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 3);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
         curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/1.0");
-        $html = curl_exec($ch);
+
+        $response = curl_exec($ch);
+        $headerSize = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $effUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
         curl_close($ch);
-    }
 
-    $result['code'] = $httpCode;
-
-    if ($html) {
-        if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $matches)) {
-            $result['title'] = substr(trim(strip_tags($matches[1])), 0, 150);
+        if ($httpCode && $httpCode > 0) {
+            $result['code'] = $httpCode;
+            $result['scheme'] = 'http';
+            $result['has_https'] = (str_starts_with($effUrl, 'https://'));
+            if ($response) {
+                $parseHeadersAndBody($response, $headerSize);
+            }
         }
-        $lower = strtolower($html);
-        if (strpos($lower, 'wp-content') !== false) $result['tech'][] = 'WordPress';
-        if (strpos($lower, 'react') !== false || strpos($lower, '__next') !== false) $result['tech'][] = 'React / Next.js';
-        if (strpos($lower, 'laravel') !== false) $result['tech'][] = 'Laravel';
-        if (strpos($lower, 'elementor') !== false) $result['tech'][] = 'Elementor';
     }
 
+    if ($result['server_banner']) {
+        $result['tech'][] = $result['server_banner'];
+    }
+    if ($result['x_powered_by']) {
+        $result['tech'][] = $result['x_powered_by'];
+    }
+    if ($result['x_aspnet_version']) {
+        $result['tech'][] = 'ASP.NET ' . $result['x_aspnet_version'];
+    }
+
+    $result['tech'] = array_values(array_unique($result['tech']));
     return $result;
 }
