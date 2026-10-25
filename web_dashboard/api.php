@@ -277,9 +277,13 @@ function getStats($pdo) {
     $penalty = ($critVulns * 25) + ($highVulns * 12) + ($secretsCount * 20) + ($ransomMatched * 50) + ($drpCount * 5) + $medPenalty + $lowPenalty + $credPenalty;
     $score = max(0, min(100, 100 - $penalty));
 
+    $totalVulnsCount = $critVulns + $highVulns + $medVulns + $lowVulns;
+    $isUnscanned = ($liveAssets > 0 && $openPorts === 0 && $totalVulnsCount === 0);
+
     echo json_encode([
-        'exposure_score' => $score,
-        'posture' => ($score > 75 ? 'Excelente' : ($score > 50 ? 'Riesgo Moderado' : 'Alerta Crítica')),
+        'exposure_score' => $isUnscanned ? null : $score,
+        'is_unscanned' => $isUnscanned,
+        'posture' => $isUnscanned ? 'Pendiente de Escaneo' : ($score > 75 ? 'Excelente' : ($score > 50 ? 'Riesgo Moderado' : 'Alerta Crítica')),
         'total_assets' => $totalAssets,
         'live_assets' => $liveAssets,
         'open_ports' => $openPorts,

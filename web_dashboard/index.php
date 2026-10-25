@@ -1047,26 +1047,34 @@
                 const res = await fetch(`${API_URL}?action=get_stats${getSeedQueryParam()}`);
                 const data = await res.json();
 
-                const score = data.exposure_score ?? 100;
-                document.getElementById('score-val').innerText = score;
-                
-                const circle = document.getElementById('score-circle');
-                const offset = 301 - (301 * score / 100);
-                circle.style.strokeDashoffset = offset;
-
                 const postureBadge = document.getElementById('posture-badge');
-                if (score >= 80) {
-                    circle.style.stroke = '#10b981';
-                    postureBadge.className = 'inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800/50 mb-1';
-                    postureBadge.innerText = 'Excelente (Baja Exposición)';
-                } else if (score >= 50) {
-                    circle.style.stroke = '#f59e0b';
-                    postureBadge.className = 'inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-950 text-amber-400 border border-amber-800/50 mb-1';
-                    postureBadge.innerText = 'Riesgo Moderado';
+                const circle = document.getElementById('score-circle');
+
+                if (data.is_unscanned || data.exposure_score === null) {
+                    document.getElementById('score-val').innerText = '--';
+                    circle.style.stroke = '#6366f1';
+                    circle.style.strokeDashoffset = 150;
+                    postureBadge.className = 'inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-950 text-indigo-400 border border-indigo-800/50 mb-1';
+                    postureBadge.innerText = 'Pendiente de Escaneo';
                 } else {
-                    circle.style.stroke = '#f43f5e';
-                    postureBadge.className = 'inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-rose-950 text-rose-400 border border-rose-800/50 mb-1';
-                    postureBadge.innerText = 'Alerta Crítica';
+                    const score = data.exposure_score;
+                    document.getElementById('score-val').innerText = score;
+                    const offset = 301 - (301 * score / 100);
+                    circle.style.strokeDashoffset = offset;
+
+                    if (score >= 80) {
+                        circle.style.stroke = '#10b981';
+                        postureBadge.className = 'inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800/50 mb-1';
+                        postureBadge.innerText = 'Excelente (Baja Exposición)';
+                    } else if (score >= 50) {
+                        circle.style.stroke = '#f59e0b';
+                        postureBadge.className = 'inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-950 text-amber-400 border border-amber-800/50 mb-1';
+                        postureBadge.innerText = 'Riesgo Moderado';
+                    } else {
+                        circle.style.stroke = '#f43f5e';
+                        postureBadge.className = 'inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-rose-950 text-rose-400 border border-rose-800/50 mb-1';
+                        postureBadge.innerText = 'Alerta Crítica';
+                    }
                 }
 
                 document.getElementById('stat-assets').innerText = data.total_assets || 0;
@@ -2289,10 +2297,11 @@
                 const data = await res.json();
 
                 if (data.success) {
-                    showToast(`¡Completado! Se descubrieron e incorporaron ${data.seeds_added} subdominios como semillas.`);
+                    showToast(`¡Completado! Se descubrieron e incorporaron ${data.seeds_added} subdominios. Iniciando escaneo perimetral...`);
                     activeSeed = data.root_domain;
                     await loadSeeds();
                     await refreshAllData();
+                    await triggerScan();
                 } else {
                     showToast(data.error || 'Fallo durante el auto-descubrimiento', true);
                 }
@@ -2347,9 +2356,10 @@
                 if (data.success) {
                     domainInput.value = '';
                     activeSeed = domain;
-                    showToast(`Semilla ${domain} agregada exitosamente`);
+                    showToast(`Semilla ${domain} agregada exitosamente. Iniciando escaneo...`);
                     await loadSeeds();
                     await refreshAllData();
+                    await triggerScan();
                 } else {
                     showToast(data.error || 'Error al agregar', true);
                 }
