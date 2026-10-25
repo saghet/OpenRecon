@@ -881,12 +881,13 @@
                         <h5 class="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
                             <i class="fa-solid fa-code text-indigo-400"></i> Directivas de Configuración y Hardening (Copiar y Pegar)
                         </h5>
-                        <div class="flex items-center gap-1.5">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <button onclick="setVpStack('fortiweb')" id="vp-tab-fortiweb" class="px-2.5 py-1 rounded text-xs font-semibold bg-red-950/80 text-red-300 hover:text-white border border-red-700/60 flex items-center gap-1"><i class="fa-solid fa-shield-halved text-red-500"></i> Fortinet FortiWeb</button>
                             <button onclick="setVpStack('nginx')" id="vp-tab-nginx" class="px-2.5 py-1 rounded text-xs font-semibold bg-indigo-900 text-white border border-indigo-600">Nginx</button>
                             <button onclick="setVpStack('apache')" id="vp-tab-apache" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">Apache</button>
                             <button onclick="setVpStack('tomcat')" id="vp-tab-tomcat" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">Tomcat / Java</button>
                             <button onclick="setVpStack('iis')" id="vp-tab-iis" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">IIS / Windows</button>
-                            <button onclick="setVpStack('cloudflare')" id="vp-tab-cloudflare" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">Cloudflare / WAF</button>
+                            <button onclick="setVpStack('cloudflare')" id="vp-tab-cloudflare" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">Cloudflare</button>
                         </div>
                     </div>
 
@@ -1546,14 +1547,22 @@
 
         function setVpStack(stack) {
             currentVpStack = stack;
-            const stacks = ['nginx', 'apache', 'tomcat', 'iis', 'cloudflare'];
+            const stacks = ['fortiweb', 'nginx', 'apache', 'tomcat', 'iis', 'cloudflare'];
             stacks.forEach(s => {
                 const btn = document.getElementById(`vp-tab-${s}`);
                 if (btn) {
                     if (s === stack) {
-                        btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-indigo-900 text-white border border-indigo-600 shadow-sm';
+                        if (s === 'fortiweb') {
+                            btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-red-950 text-white border border-red-600 shadow-sm flex items-center gap-1';
+                        } else {
+                            btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-indigo-900 text-white border border-indigo-600 shadow-sm';
+                        }
                     } else {
-                        btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border';
+                        if (s === 'fortiweb') {
+                            btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-red-400 hover:text-white border border-cyber-border flex items-center gap-1';
+                        } else {
+                            btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border';
+                        }
                     }
                 }
             });
@@ -1608,7 +1617,9 @@
                 }
             } else if (title.includes('cookie') || title.includes('samesite') || title.includes('httponly')) {
                 curlCmd = `curl -I -s "http://${host}/" | grep -i "set-cookie"\n# Debe contener: Secure; HttpOnly; SameSite=Lax (o Strict)`;
-                if (currentVpStack === 'nginx') {
+                if (currentVpStack === 'fortiweb') {
+                    snippet = `# Fortinet FortiWeb CLI (Persistencia de Sesión y Cookie Security):\n# 1. Configuración de la cookie nativa de persistencia (cookiesession1):\nconfig server-policy policy\n    edit "NOMBRE_POLICY_VIRTUAL_SERVER"\n        config persistence\n            set persistence-type cookie\n            set cookie-name "cookiesession1"\n            set cookie-secure enable\n            set cookie-httponly enable\n            set cookie-samesite lax\n        end\n    next\nend\n\n# 2. Inyección de SameSite en cookies de la aplicación backend:\nconfig web-protection advanced-protection cookie-security\n    edit "Cookie_Security_Profile"\n        config cookie-rule\n            edit 1\n                set cookie-name "*"\n                set samesite-attribute lax\n                set secure-attribute enable\n                set httponly-attribute enable\n            next\n        end\n    next\nend\n# En GUI: Server Objects > Service > Server Policy > Persistence > SameSite: Lax\n#         Web Protection > Advanced Protection > Cookie Security`;
+                } else if (currentVpStack === 'nginx') {
                     snippet = `# Inyectar atributos Secure, HttpOnly y SameSite en Nginx proxy_pass:\nlocation / {\n    proxy_pass http://backend_upstream;\n    proxy_cookie_path / "/; Secure; HttpOnly; SameSite=Lax";\n}`;
                 } else if (currentVpStack === 'apache') {
                     snippet = `# En Apache (mod_headers habilitado):\nHeader edit Set-Cookie ^(.*)$ "$1; Secure; HttpOnly; SameSite=Lax"\n\n# O para PHP en php.ini:\nsession.cookie_secure = 1\nsession.cookie_httponly = 1\nsession.cookie_samesite = "Lax"`;
@@ -1737,7 +1748,9 @@
             } else {
                 // Generic security headers (HSTS, CSP, etc.)
                 curlCmd = `curl -I -s "https://${host}/" | grep -E -i "(strict-transport|x-frame|x-content|content-security)"`;
-                if (currentVpStack === 'nginx') {
+                if (currentVpStack === 'fortiweb') {
+                    snippet = `# Fortinet FortiWeb CLI (Hardening de Cabeceras Perimetrales y Ocultación):\n# 1. Inyección de Cabeceras de Seguridad:\nconfig web-protection advanced-protection http-header-security\n    edit "FortiWeb_Headers_Profile"\n        set hsts enable\n        set max-age 31536000\n        set include-sub-domains enable\n        set preload enable\n        set x-frame-options enable\n        set frame-options sameorigin\n        set x-content-type-options enable\n        set referrer-policy enable\n        set referrer-policy-option strict-origin-when-cross-origin\n        set content-security-policy enable\n        set csp-directive "default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none';"\n    next\nend\n\n# 2. Ocultar firmas de servidor e IIS / ASP.NET (Information Disclosure):\nconfig web-protection info-disclosure hide-info\n    edit "Hide_Server_Banner"\n        set hide-server-header enable\n        set hide-powered-by enable\n    next\nend\n# En GUI: Web Protection > Advanced Protection > HTTP Header Security\n#         Web Protection > Information Disclosure > Hide Information`;
+                } else if (currentVpStack === 'nginx') {
                     snippet = `# Hardening de cabeceras de seguridad perimetral en Nginx\nadd_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;\nadd_header X-Frame-Options "SAMEORIGIN" always;\nadd_header X-Content-Type-Options "nosniff" always;\nadd_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none';" always;\nadd_header Referrer-Policy "strict-origin-when-cross-origin" always;`;
                 } else if (currentVpStack === 'apache') {
                     snippet = `# Hardening de cabeceras en Apache (mod_headers):\nHeader always set Strict-Transport-Security "max-age=31536000; includeSubDomains"\nHeader always set X-Frame-Options "SAMEORIGIN"\nHeader always set X-Content-Type-Options "nosniff"\nHeader always set Content-Security-Policy "default-src 'self';"\nHeader always set Referrer-Policy "strict-origin-when-cross-origin"`;

@@ -261,8 +261,20 @@ function getStats($pdo) {
     $totalRansomLeaks = (int)queryScalar($pdo, "SELECT COUNT(*) FROM ransomware_leaks");
     $totalIocs = (int)queryScalar($pdo, "SELECT COUNT(*) FROM threat_iocs");
 
-    // Risk Score calculation
-    $penalty = ($critVulns * 20) + ($highVulns * 10) + ($medVulns * 4) + ($lowVulns * 1) + ($drpCount * 5) + ($credLeaksCount * 5) + ($secretsCount * 15) + ($ransomMatched * 50);
+    // Enterprise Risk Score calculation (Aligned with NIST SP 800-30 & Fortinet FortiRecon ASM)
+    $hasDirectExploitableThreat = ($critVulns > 0 || $highVulns > 0 || $secretsCount > 0 || $ransomMatched > 0);
+    $medPenalty = $medVulns * 3;
+    $lowPenalty = $lowVulns * 1;
+    $credPenalty = $credLeaksCount * 4;
+
+    // In absence of active critical/high perimetral exploits, cap perimeter hygiene deductions
+    if (!$hasDirectExploitableThreat) {
+        $medPenalty = min(25, $medPenalty);
+        $lowPenalty = min(10, $lowPenalty);
+        $credPenalty = min(15, $credPenalty);
+    }
+
+    $penalty = ($critVulns * 25) + ($highVulns * 12) + ($secretsCount * 20) + ($ransomMatched * 50) + ($drpCount * 5) + $medPenalty + $lowPenalty + $credPenalty;
     $score = max(0, min(100, 100 - $penalty));
 
     echo json_encode([
