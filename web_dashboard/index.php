@@ -314,12 +314,40 @@
 
         <!-- TAB CONTENT: Vulnerabilities & Exposures -->
         <section id="tab-content-vulns" class="space-y-4 hidden">
-            <div>
-                <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-bug text-rose-400"></i>
-                    Hallazgos de Exposición y Ciclo de Remediación
-                </h3>
-                <p class="text-xs text-slate-400">Gestiona y mitiga los hallazgos perimetrales. Al marcar un hallazgo como "Mitigado", se recupera la puntuación de exposición.</p>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-bug text-rose-400"></i>
+                        Hallazgos de Exposición y Ciclo de Remediación
+                    </h3>
+                    <p class="text-xs text-slate-400">Gestiona y mitiga los hallazgos perimetrales. Al marcar un hallazgo como "Mitigado", se recupera la puntuación de exposición.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="exportVulnsCsv()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-cyber-border text-xs font-semibold flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-file-csv text-emerald-400"></i>
+                        <span>Exportar CSV</span>
+                    </button>
+                    <button onclick="runVulnerabilityScan()" class="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-900/40 flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-shield-virus"></i>
+                        <span>Re-escanear Perímetro</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filter and Search Toolbar -->
+            <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-cyber-card border border-cyber-border rounded-xl p-3">
+                <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="vuln-severity-filters">
+                    <button onclick="filterVulnsBySeverity('ALL')" id="vuln-filter-ALL" class="px-3 py-1 rounded-lg text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 transition">Todas (<span id="count-vuln-all">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('HIGH')" id="vuln-filter-HIGH" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Altas (<span id="count-vuln-high">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('MEDIUM')" id="vuln-filter-MEDIUM" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Medias (<span id="count-vuln-med">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('LOW')" id="vuln-filter-LOW" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Bajas (<span id="count-vuln-low">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('RESOLVED')" id="vuln-filter-RESOLVED" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Mitigadas (<span id="count-vuln-res">0</span>)</button>
+                </div>
+
+                <div class="relative w-full sm:w-64">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                    <input type="text" id="vuln-search-input" oninput="applyVulnFilters()" placeholder="Buscar hallazgo o activo..." class="w-full pl-8 pr-3 py-1.5 rounded-lg bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500">
+                </div>
             </div>
 
             <div id="vulns-container" class="space-y-4"></div>
@@ -1097,73 +1125,219 @@
             }
         }
 
-        // Load Vulnerabilities & Exposures
+        // Global Vulnerabilities State
+        let rawVulnsList = [];
+        let currentVulnFilter = 'ALL';
+
+        function updateVulnCounts() {
+            const allCount = rawVulnsList.length;
+            const highCount = rawVulnsList.filter(v => v.severity === 'HIGH' && v.status !== 'RESOLVED').length;
+            const medCount = rawVulnsList.filter(v => v.severity === 'MEDIUM' && v.status !== 'RESOLVED').length;
+            const lowCount = rawVulnsList.filter(v => v.severity === 'LOW' && v.status !== 'RESOLVED').length;
+            const resCount = rawVulnsList.filter(v => v.status === 'RESOLVED').length;
+
+            const setElem = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+            setElem('count-vuln-all', allCount);
+            setElem('count-vuln-high', highCount);
+            setElem('count-vuln-med', medCount);
+            setElem('count-vuln-low', lowCount);
+            setElem('count-vuln-res', resCount);
+        }
+
+        function filterVulnsBySeverity(sev) {
+            currentVulnFilter = sev;
+            const buttons = ['ALL', 'HIGH', 'MEDIUM', 'LOW', 'RESOLVED'];
+            buttons.forEach(b => {
+                const el = document.getElementById(`vuln-filter-${b}`);
+                if (el) {
+                    if (b === sev) {
+                        el.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 transition';
+                    } else {
+                        el.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition';
+                    }
+                }
+            });
+            applyVulnFilters();
+        }
+
+        function applyVulnFilters() {
+            const searchInput = document.getElementById('vuln-search-input');
+            const q = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+            let filtered = rawVulnsList.filter(v => {
+                // Severity / Status filter
+                if (currentVulnFilter === 'RESOLVED') {
+                    if (v.status !== 'RESOLVED') return false;
+                } else if (currentVulnFilter !== 'ALL') {
+                    if (v.severity !== currentVulnFilter || v.status === 'RESOLVED') return false;
+                }
+
+                // Search query
+                if (q) {
+                    const matchText = (v.title + ' ' + v.description + ' ' + v.asset_subdomain + ' ' + (v.remediation || '')).toLowerCase();
+                    if (!matchText.includes(q)) return false;
+                }
+                return true;
+            });
+
+            renderVulnsList(filtered);
+        }
+
+        function getVulnStandardTags(v) {
+            const title = (v.title || '').toLowerCase();
+            const tags = [];
+            if (title.includes('cifrada') || title.includes('tls') || title.includes('http en claro')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-319</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A02:2021 Criptografía</span>');
+            } else if (title.includes('hsts') || title.includes('strict-transport')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">RFC 6797</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-orange-400 border border-slate-700">MITRE T1557.001</span>');
+            } else if (title.includes('clickjacking') || title.includes('x-frame-options')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-1021</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A04:2021 UI Redressing</span>');
+            } else if (title.includes('content-security-policy') || title.includes('csp')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-79</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A03:2021 XSS/Inyección</span>');
+            } else if (title.includes('anti-mime') || title.includes('content-type')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-430</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-blue-400 border border-slate-700">OWASP A05:2021 Hardening</span>');
+            } else if (title.includes('cabecera server') || title.includes('fuga de información')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-200</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A05:2021 Banner Disclosure</span>');
+            } else if (title.includes('obsoleto') || title.includes('descontinuado') || title.includes('x-powered-by')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-937 / EOL</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A06:2021 Componentes Vulnerables</span>');
+            } else if (title.includes('archivo crítico') || title.includes('.env') || title.includes('.git')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-552</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A01:2021 Control de Acceso</span>');
+            } else if (title.includes('cross-domain') || title.includes('crossdomain')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-942</span>');
+            }
+            return tags.join(' ');
+        }
+
+        function renderVulnsList(vulns) {
+            const container = document.getElementById('vulns-container');
+            if (!container) return;
+
+            if (vulns.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-cyber-card border border-cyber-border rounded-2xl p-8 text-center text-slate-400">
+                        <i class="fa-solid fa-shield-heart text-3xl text-emerald-400 mb-2 block"></i>
+                        <p class="font-bold text-white text-base">Sin hallazgos para este filtro</p>
+                        <p class="text-xs text-slate-500 mt-1">No se encontraron vulnerabilidades que coincidan con el criterio seleccionado.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = vulns.map(v => {
+                let badgeColor = 'bg-rose-950 text-rose-400 border-rose-800';
+                if (v.severity === 'HIGH') badgeColor = 'bg-orange-950 text-orange-400 border-orange-800';
+                if (v.severity === 'MEDIUM') badgeColor = 'bg-amber-950 text-amber-400 border-amber-800';
+                if (v.severity === 'LOW') badgeColor = 'bg-blue-950 text-blue-400 border-blue-800';
+                if (v.severity === 'INFO') badgeColor = 'bg-slate-800 text-slate-300 border-slate-600';
+
+                const currentStatus = v.status || 'OPEN';
+                const isResolved = currentStatus === 'RESOLVED';
+                const isInProgress = currentStatus === 'IN_PROGRESS';
+                const standardTags = getVulnStandardTags(v);
+
+                return `
+                    <div class="bg-cyber-card border ${isResolved ? 'border-emerald-800/50 bg-emerald-950/10' : 'border-cyber-border'} rounded-2xl p-5 hover:border-slate-700 transition space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${badgeColor}">${v.severity}</span>
+                                <h4 class="font-bold ${isResolved ? 'text-slate-400 line-through' : 'text-white'} text-sm">${v.title}</h4>
+                            </div>
+
+                            <div class="flex items-center gap-2">
+                                <span class="text-[11px] text-slate-400 font-medium">Estado:</span>
+                                <select onchange="handleStatusChange(${v.id}, this.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold border ${isResolved ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : (isInProgress ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-slate-900 text-rose-300 border-rose-800')} focus:outline-none">
+                                    <option value="OPEN" ${currentStatus === 'OPEN' ? 'selected' : ''}>🔴 Abierto</option>
+                                    <option value="IN_PROGRESS" ${currentStatus === 'IN_PROGRESS' ? 'selected' : ''}>🟡 En Remediación</option>
+                                    <option value="RESOLVED" ${currentStatus === 'RESOLVED' ? 'selected' : ''}>🟢 Mitigado / Resuelto</option>
+                                    <option value="FALSE_POSITIVE" ${currentStatus === 'FALSE_POSITIVE' ? 'selected' : ''}>⚪ Falso Positivo</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        ${standardTags ? `<div class="flex flex-wrap items-center gap-1.5">${standardTags}</div>` : ''}
+
+                        <p class="text-xs text-slate-300 leading-relaxed">${v.description}</p>
+                        
+                        <div class="p-3 bg-slate-900/80 rounded-xl border border-cyber-border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <div class="flex items-center gap-1.5 text-emerald-400 font-bold mb-0.5">
+                                    <i class="fa-solid fa-wrench"></i> Remediación Sugerida:
+                                </div>
+                                <p class="text-slate-400 text-[11px]">${v.remediation}</p>
+                            </div>
+                            <span class="font-mono text-xs text-cyan-400 bg-slate-950 px-2 py-1 rounded border border-cyber-border whitespace-nowrap">
+                                <i class="fa-solid fa-globe mr-1 text-slate-500"></i>${v.asset_subdomain}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
         async function loadVulns() {
             try {
                 const res = await fetch(`${API_URL}?action=get_vulnerabilities${getSeedQueryParam()}`);
-                const vulns = await res.json();
-                const container = document.getElementById('vulns-container');
-
-                if (vulns.length === 0) {
-                    container.innerHTML = `
-                        <div class="bg-cyber-card border border-cyber-border rounded-2xl p-8 text-center text-slate-400">
-                            <i class="fa-solid fa-shield-heart text-3xl text-emerald-400 mb-2 block"></i>
-                            <p class="font-bold text-white text-base">Sin vulnerabilidades críticas expuestas</p>
-                            <p class="text-xs text-slate-500 mt-1">Los puertos de bases de datos y administración remota están protegidos correctamente.</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                container.innerHTML = vulns.map(v => {
-                    let badgeColor = 'bg-rose-950 text-rose-400 border-rose-800';
-                    if (v.severity === 'HIGH') badgeColor = 'bg-orange-950 text-orange-400 border-orange-800';
-                    if (v.severity === 'MEDIUM') badgeColor = 'bg-amber-950 text-amber-400 border-amber-800';
-                    if (v.severity === 'LOW') badgeColor = 'bg-blue-950 text-blue-400 border-blue-800';
-                    if (v.severity === 'INFO') badgeColor = 'bg-slate-800 text-slate-300 border-slate-600';
-
-                    const currentStatus = v.status || 'OPEN';
-                    const isResolved = currentStatus === 'RESOLVED';
-                    const isInProgress = currentStatus === 'IN_PROGRESS';
-
-                    return `
-                        <div class="bg-cyber-card border ${isResolved ? 'border-emerald-800/50 bg-emerald-950/10' : 'border-cyber-border'} rounded-2xl p-5 hover:border-slate-700 transition">
-                            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
-                                <div class="flex items-center gap-2">
-                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${badgeColor}">${v.severity}</span>
-                                    <h4 class="font-bold ${isResolved ? 'text-slate-400 line-through' : 'text-white'} text-sm">${v.title}</h4>
-                                </div>
-
-                                <div class="flex items-center gap-2">
-                                    <span class="text-[11px] text-slate-400 font-medium">Estado:</span>
-                                    <select onchange="handleStatusChange(${v.id}, this.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold border ${isResolved ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : (isInProgress ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-slate-900 text-rose-300 border-rose-800')} focus:outline-none">
-                                        <option value="OPEN" ${currentStatus === 'OPEN' ? 'selected' : ''}>🔴 Abierto</option>
-                                        <option value="IN_PROGRESS" ${currentStatus === 'IN_PROGRESS' ? 'selected' : ''}>🟡 En Remediación</option>
-                                        <option value="RESOLVED" ${currentStatus === 'RESOLVED' ? 'selected' : ''}>🟢 Mitigado / Resuelto</option>
-                                        <option value="FALSE_POSITIVE" ${currentStatus === 'FALSE_POSITIVE' ? 'selected' : ''}>⚪ Falso Positivo</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <p class="text-xs text-slate-300 leading-relaxed mb-3">${v.description}</p>
-                            
-                            <div class="p-3 bg-slate-900/80 rounded-xl border border-cyber-border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                                <div>
-                                    <div class="flex items-center gap-1.5 text-emerald-400 font-bold mb-0.5">
-                                        <i class="fa-solid fa-wrench"></i> Remediación Sugerida:
-                                    </div>
-                                    <p class="text-slate-400 text-[11px]">${v.remediation}</p>
-                                </div>
-                                <span class="font-mono text-xs text-cyan-400 bg-slate-950 px-2 py-1 rounded border border-cyber-border whitespace-nowrap">
-                                    ${v.asset_subdomain}
-                                </span>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-
+                rawVulnsList = await res.json();
+                updateVulnCounts();
+                applyVulnFilters();
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        function exportVulnsCsv() {
+            if (!rawVulnsList || rawVulnsList.length === 0) {
+                showToast('No hay hallazgos disponibles para exportar', true);
+                return;
+            }
+            const headers = ['ID', 'Activo Subdominio', 'Severidad', 'Titulo', 'Estado', 'Descripcion', 'Remediacion', 'Fecha'];
+            const rows = rawVulnsList.map(v => [
+                v.id,
+                `"${(v.asset_subdomain || '').replace(/"/g, '""')}"`,
+                `"${v.severity || ''}"`,
+                `"${(v.title || '').replace(/"/g, '""')}"`,
+                `"${v.status || 'OPEN'}"`,
+                `"${(v.description || '').replace(/"/g, '""')}"`,
+                `"${(v.remediation || '').replace(/"/g, '""')}"`,
+                `"${v.created_at || ''}"`
+            ]);
+            const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement('a');
+            link.setAttribute('href', encodedUri);
+            link.setAttribute('download', `openrecon_vulnerabilidades_${activeSeed || 'consolidado'}_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast('Reporte CSV descargado con éxito');
+        }
+
+        async function runVulnerabilityScan() {
+            showToast('Iniciando sondeo de vulnerabilidades DAST en vivo...');
+            const scanBtn = document.getElementById('btn-scan');
+            if (scanBtn) scanBtn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_URL}?action=run_scan${getSeedQueryParam()}`);
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`Escaneo finalizado: ${data.summary.vulns_detected} vulnerabilidades catalogadas`);
+                    await refreshAllData();
+                } else {
+                    showToast('Error en el escaneo: ' + (data.error || 'Fallo desconocido'), true);
+                }
+            } catch (err) {
+                showToast('Fallo al ejecutar el escaneo perimetral', true);
+            } finally {
+                if (scanBtn) scanBtn.disabled = false;
             }
         }
 
