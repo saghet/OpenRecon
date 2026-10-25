@@ -1319,6 +1319,27 @@
             } else if (title.includes('archivo crítico') || title.includes('.env') || title.includes('.git')) {
                 tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-552</span>');
                 tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A01:2021 Control de Acceso</span>');
+            } else if (title.includes('spf')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">RFC 7208 / CWE-290</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">Email Spoofing Defense</span>');
+            } else if (title.includes('dmarc')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">RFC 7489 / CWE-290</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">Anti-Phishing / Brand Protection</span>');
+            } else if (title.includes('dnssec')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-blue-400 border border-slate-700">RFC 4033 / CWE-345</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">DNS Integrity</span>');
+            } else if (title.includes('huérfana') || title.includes('dangling') || title.includes('secuestro de dominio')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-284 / Zone Takeover</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-orange-400 border border-slate-700">OWASP A01:2021 Broken Access Control</span>');
+            } else if (title.includes('cors')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-942</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A01:2021 Cross-Origin</span>');
+            } else if (title.includes('indexación') || title.includes('directory listing')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-548</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A05:2021 Information Exposure</span>');
+            } else if (title.includes('backup') || title.includes('respaldo') || title.includes('dump') || title.includes('phpinfo')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">CWE-538 / CWE-200</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A05:2021 Sensitive Data</span>');
             } else if (title.includes('cross-domain') || title.includes('crossdomain')) {
                 tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-942</span>');
             }
@@ -1436,6 +1457,13 @@
             else if (titleLower.includes('swagger') || titleLower.includes('openapi')) cweText = 'CWE-200 / CWE-651 (API Docs)';
             else if (titleLower.includes('diagnóstico') || titleLower.includes('estado del servidor')) cweText = 'CWE-200 / CWE-918 (Diagnostic)';
             else if (titleLower.includes('portal de gestión')) cweText = 'CWE-284 (Admin Exposure)';
+            else if (titleLower.includes('spf')) cweText = 'RFC 7208 / CWE-290 (SPF Spoofing)';
+            else if (titleLower.includes('dmarc')) cweText = 'RFC 7489 / CWE-290 (DMARC Policy)';
+            else if (titleLower.includes('dnssec')) cweText = 'RFC 4033 / CWE-345 (DNSSEC)';
+            else if (titleLower.includes('huérfana') || titleLower.includes('dangling')) cweText = 'CWE-284 (Dangling NS / Zone Takeover)';
+            else if (titleLower.includes('cors')) cweText = 'CWE-942 (CORS Misconfiguration)';
+            else if (titleLower.includes('indexación') || titleLower.includes('directory listing')) cweText = 'CWE-548 (Directory Listing)';
+            else if (titleLower.includes('backup') || titleLower.includes('dump') || titleLower.includes('.env') || titleLower.includes('.git')) cweText = 'CWE-538 / CWE-552 (Data Exposure)';
             else if (titleLower.includes('cabecera') || titleLower.includes('hsts')) cweText = 'CWE-1021 / CWE-693 (OWASP Headers)';
             document.getElementById('vp-cwe').innerText = cweText;
 
@@ -1534,6 +1562,57 @@
                     snippet = `<!-- En web.config de IIS -->\n<system.webServer>\n  <security>\n    <requestFiltering>\n      <denyUrlSequences>\n        <add sequence="/status_check.jsp" />\n        <add sequence="/admin" />\n      </denyUrlSequences>\n    </requestFiltering>\n  </security>\n</system.webServer>`;
                 } else if (currentVpStack === 'cloudflare') {
                     snippet = `# Regla WAF en Cloudflare:\n(http.request.uri.path contains "/status_check.jsp" or http.request.uri.path contains "/admin/") -> Action: Block`;
+                }
+            } else if (title.includes('spf') || title.includes('dmarc')) {
+                curlCmd = `nslookup -type=TXT ${host}\nnslookup -type=TXT _dmarc.${host}`;
+                if (currentVpStack === 'nginx' || currentVpStack === 'apache' || currentVpStack === 'tomcat') {
+                    snippet = `# Configurar registros de seguridad de correo en la zona DNS corporativa:\n\n# 1. Registro SPF en la raíz (@):\n${host}. IN TXT "v=spf1 -all"\n\n# 2. Registro DMARC en _dmarc.${host}:\n_dmarc.${host}. IN TXT "v=DMARC1; p=reject; sp=reject; pct=100; rua=mailto:dmarc-reports@${host}; aspf=s;"`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `# PowerShell (Administrador) para crear registros SPF y DMARC en Windows DNS Server:\nAdd-DnsServerResourceRecordTxt -ZoneName "${host}" -Name "@" -DescriptiveText "v=spf1 -all"\nAdd-DnsServerResourceRecordTxt -ZoneName "${host}" -Name "_dmarc" -DescriptiveText "v=DMARC1; p=reject; sp=reject; pct=100; rua=mailto:dmarc-reports@${host};"`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare Dashboard > DNS > Records:\n1. Añadir Registro Tipo: TXT | Name: @ | Content: "v=spf1 -all" | TTL: Auto\n2. Añadir Registro Tipo: TXT | Name: _dmarc | Content: "v=DMARC1; p=reject; sp=reject; pct=100; rua=mailto:dmarc@${host}" | TTL: Auto`;
+                }
+            } else if (title.includes('huérfana') || title.includes('dangling') || title.includes('dnssec')) {
+                curlCmd = `nslookup -type=NS ${host}\nnslookup -type=DNSKEY ${host}`;
+                snippet = `# Diagnóstico y Hardening de Infraestructura DNS Perimetral:\n# 1. Si el dominio está en desuso: Retirar la delegación NS en el registrador (Verisign/GoDaddy/AWS) para prevenir Zone Takeover.\n# 2. Si el dominio está activo: Crear la zona alojada en el proveedor y publicar registros A de protección.\n# 3. Para DNSSEC: Activar DNSSEC en el panel del registrador y publicar registros DS firmados.`;
+            } else if (title.includes('cors')) {
+                curlCmd = `curl -I -H "Origin: https://evil-attacker.com" "http://${host}/" | grep -i "access-control-"`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# En Nginx (bloquear CORS comodín y restringir a orígenes autorizados):\nif ($http_origin ~* "^https?://(www\\.)?${host.replace('.', '\\.')}$") {\n    add_header Access-Control-Allow-Origin "$http_origin" always;\n    add_header Access-Control-Allow-Credentials "true" always;\n}`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En Apache .htaccess / VirtualHost:\nHeader always set Access-Control-Allow-Origin "https://${host}"\nHeader always set Access-Control-Allow-Credentials "true"`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `// En Spring Boot / Controller Java:\n@CrossOrigin(origins = "https://${host}", allowCredentials = "true")\n// O en web.xml configurar CorsFilter con allowedOrigins estricto`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS -->\n<system.webServer>\n  <httpProtocol>\n    <customHeaders>\n      <add name="Access-Control-Allow-Origin" value="https://${host}" />\n    </customHeaders>\n  </httpProtocol>\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare > Rules > Transform Rules > Modify Response Header:\nEliminar cabecera 'Access-Control-Allow-Origin' con valor comodín '*' y fijar el dominio corporativo.`;
+                }
+            } else if (title.includes('indexación') || title.includes('directory listing')) {
+                curlCmd = `curl -I -s "http://${host}/" | grep "HTTP/"`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# Deshabilitar exploración de directorios en Nginx:\nautoindex off;`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# Deshabilitar exploración de directorios en Apache (.htaccess / httpd.conf):\nOptions -Indexes`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `<!-- En conf/web.xml de Tomcat dentro del default servlet -->\n<init-param>\n    <param-name>listings</param-name>\n    <param-value>false</param-value>\n</init-param>`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS -->\n<system.webServer>\n  <directoryBrowse enabled="false" />\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# Regla WAF en Cloudflare: Activar protección contra exploración y listado de directorios.`;
+                }
+            } else if (title.includes('archivo crítico') || title.includes('backup') || title.includes('respaldo') || title.includes('dump') || title.includes('.git') || title.includes('.env')) {
+                curlCmd = `curl -I -s "http://${host}/.env" | grep "HTTP/"\n# Debe retornar 403 Forbidden o 404 Not Found`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# Bloquear acceso a archivos sensibles y respaldos en Nginx:\nlocation ~* (\\.git|\\.env|\\.sql|\\.zip|\\.bak|\\.sqlite|composer\\.json|web\\.config) {\n    deny all;\n    return 404;\n}`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En .htaccess de Apache:\n<FilesMatch "(^#.*#|\\.(bak|config|dist|fla|inc|ini|log|psd|sh|sql|sw[op]|env|git)|~)$">\n    Require all denied\n</FilesMatch>`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `<!-- En web.xml restringir acceso a patrones de archivos -->\n<security-constraint>\n    <web-resource-collection>\n        <web-resource-name>Sensitive Files</web-resource-name>\n        <url-pattern>*.sql</url-pattern>\n        <url-pattern>*.zip</url-pattern>\n        <url-pattern>*.env</url-pattern>\n    </web-resource-collection>\n    <auth-constraint />\n</security-constraint>`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS -->\n<system.webServer>\n  <security>\n    <requestFiltering>\n      <fileExtensions>\n        <add fileExtension=".env" allowed="false" />\n        <add fileExtension=".sql" allowed="false" />\n        <add fileExtension=".zip" allowed="false" />\n      </fileExtensions>\n    </requestFiltering>\n  </security>\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# Regla WAF en Cloudflare:\n(http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".sql") -> Action: Block`;
                 }
             } else {
                 // Generic security headers (HSTS, CSP, etc.)

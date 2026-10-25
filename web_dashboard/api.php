@@ -1031,6 +1031,9 @@ function runScan($pdo) {
     $leaksFoundCount = 0;
 
     foreach ($seeds as $domain) {
+        // Universal Domain-Level DNS, Email Spoofing (SPF/DMARC) & Dormant Zone Audit
+        auditDomainDnsSecurity($domain, $pdo, $vulnsDetectedCount, $discoveredAssetsCount);
+
         $rootDomain = preg_replace('/^www\./i', '', $domain);
         $subdomains = passiveEnumerateSubdomains($rootDomain);
 
@@ -1092,11 +1095,11 @@ function runScan($pdo) {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(subdomain) DO UPDATE SET
                     seed_domain = excluded.seed_domain,
-                    ip_address = excluded.ip_address,
-                    cloud_provider = excluded.cloud_provider,
-                    web_title = excluded.web_title,
-                    status_code = excluded.status_code,
-                    tech_stack = excluded.tech_stack,
+                    ip_address = COALESCE(excluded.ip_address, assets.ip_address),
+                    cloud_provider = COALESCE(excluded.cloud_provider, assets.cloud_provider),
+                    web_title = COALESCE(excluded.web_title, assets.web_title),
+                    status_code = COALESCE(excluded.status_code, assets.status_code),
+                    tech_stack = CASE WHEN excluded.tech_stack != '' THEN excluded.tech_stack ELSE assets.tech_stack END,
                     is_live = excluded.is_live,
                     discovery_source = excluded.discovery_source,
                     last_scanned = CURRENT_TIMESTAMP
@@ -1307,6 +1310,39 @@ function runScan($pdo) {
                             }
                         }
                     }
+
+                    // 11. CORS Misconfiguration (CWE-942)
+                    if (!empty($httpInfo['has_cors_origin_reflection']) || (!empty($httpInfo['has_cors_wildcard']) && !empty($httpInfo['cors_allow_credentials']))) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Configuración Insegura de CORS con Reflexión de Origen (CWE-942)',
+                            'HIGH',
+                            "El servidor web refleja orígenes externos no confiables ('Origin: https://evil-attacker.com') en la cabecera 'Access-Control-Allow-Origin'" . (!empty($httpInfo['cors_allow_credentials']) ? " junto con 'Access-Control-Allow-Credentials: true'" : "") . " (CWE-942). Esto permite a sitios web maliciosos realizar peticiones cross-origin autenticadas para exfiltrar datos privados y tokens de sesión de usuarios víctimas.",
+                            "Restringir la política CORS en el servidor web definiendo una lista blanca estricta de dominios autorizados y nunca reflejar cabeceras Origin arbitrarias."
+                        ]);
+                        $vulnsDetectedCount++;
+                    } elseif (!empty($httpInfo['has_cors_wildcard'])) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Política CORS Excesivamente Permisiva (Comodín * - CWE-942)',
+                            'MEDIUM',
+                            "La cabecera 'Access-Control-Allow-Origin: *' permite que cualquier sitio web en internet realice peticiones a este servicio y consuma sus respuestas.",
+                            "Reemplazar el comodín '*' por los orígenes exactos permitidos para esta aplicación."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 12. Directory Listing / Index of (CWE-548)
+                    if (!empty($httpInfo['has_directory_listing'])) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Indexación de Directorios Habilitada (Directory Listing - CWE-548)',
+                            'MEDIUM',
+                            "El servidor web permite la exploración y listado público del contenido de directorios sin un archivo de índice (Index of /). Atacantes pueden descargar archivos fuente, backups y scripts no referenciados (CWE-548).",
+                            "Deshabilitar el listado de directorios en el servidor web (en Apache: 'Options -Indexes', en Nginx: 'autoindex off', en IIS: Desactivar 'Directory Browsing')."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
                 }
 
                 if ($discoveredAssetsCount <= 20) {
@@ -1318,8 +1354,12 @@ function runScan($pdo) {
                         '/status_check.jsp' => ['Diagnóstico Servidor', 'Endpoint de Diagnóstico y Estado del Servidor Expuesto (CWE-200 / CWE-918)', 'MEDIUM', 'HostStatus'],
                         '/admin/login.jsp' => ['Portal Admin', 'Portal de Gestión y Administración Expuesto Públicamente (CWE-284)', 'MEDIUM', 'login'],
                         '/.env' => ['Variables Entorno', 'Archivo Crítico Expuesto Públicamente: Variables de Entorno (.env)', 'CRITICAL', 'DB_'],
-                        '/.git/config' => ['Git Expuesto', 'Archivo Crítico Expuesto Públicamente: Repositorio Git Expuesto (.git/config)', 'CRITICAL', '[core]'],
+                        '/.git/HEAD' => ['Git Expuesto', 'Archivo Crítico Expuesto Públicamente: Repositorio Git Expuesto (.git/HEAD)', 'CRITICAL', 'ref: refs/'],
+                        '/.git/config' => ['Git Config', 'Archivo Crítico Expuesto Públicamente: Repositorio Git Expuesto (.git/config)', 'CRITICAL', '[core]'],
                         '/wp-config.php.bak' => ['Backup WordPress', 'Copia de Respaldo Expuesta: wp-config.php.bak', 'CRITICAL', 'DB_PASSWORD'],
+                        '/backup.zip' => ['Respaldo ZIP', 'Copia de Seguridad Expuesta Públicamente (backup.zip - CWE-538)', 'HIGH', 'PK'],
+                        '/dump.sql' => ['Dump SQL', 'Volcado de Base de Datos Expuesto (dump.sql - CWE-538)', 'CRITICAL', 'CREATE TABLE'],
+                        '/phpinfo.php' => ['PHPInfo', 'Página de Diagnóstico phpinfo() Expuesta Públicamente (CWE-200)', 'HIGH', 'phpinfo'],
                         '/crossdomain.xml' => ['Crossdomain', 'Política Cross-Domain Insegura (crossdomain.xml con Comodín)', 'MEDIUM', 'domain="*"'],
                         '/robots.txt' => ['Robots.txt', 'Archivo robots.txt Divulga Rutas Internas de Administración', 'LOW', 'Disallow:']
                     ];
@@ -1479,6 +1519,174 @@ function runScan($pdo) {
     ]);
 }
 
+function auditDomainDnsSecurity($domain, $pdo, &$vulnsCount, &$assetsCount) {
+    $domain = strtolower(trim($domain));
+    $rootDomain = preg_replace('/^www\./i', '', $domain);
+
+    // 1. Check NS
+    $nsRecords = @dns_get_record($rootDomain, DNS_NS);
+    $nsList = [];
+    $cloudProvider = 'Zona DNS / Delegación Externa';
+    if (!empty($nsRecords)) {
+        foreach ($nsRecords as $n) {
+            if (!empty($n['target'])) {
+                $tgt = strtolower($n['target']);
+                $nsList[] = $tgt;
+                if (strpos($tgt, 'awsdns') !== false) {
+                    $cloudProvider = 'AWS Route 53 (DNS)';
+                } elseif (strpos($tgt, 'cloudflare') !== false) {
+                    $cloudProvider = 'Cloudflare (DNS)';
+                } elseif (strpos($tgt, 'azure-dns') !== false) {
+                    $cloudProvider = 'Microsoft Azure DNS';
+                } elseif (strpos($tgt, 'googledomains') !== false || strpos($tgt, 'google') !== false) {
+                    $cloudProvider = 'Google Cloud DNS';
+                }
+            }
+        }
+    }
+
+    // 2. Check A / AAAA
+    $aRecords = @dns_get_record($rootDomain, DNS_A);
+    $aaaaRecords = @dns_get_record($rootDomain, DNS_AAAA);
+    $hasA = !empty($aRecords);
+    $hasAaaa = !empty($aaaaRecords);
+
+    // If domain has no active web server / A record, register it as Dormant / DNS Zone asset
+    if (!$hasA && !$hasAaaa) {
+        $stmtAsset = $pdo->prepare("
+            INSERT INTO assets (seed_domain, subdomain, ip_address, cloud_provider, web_title, status_code, tech_stack, is_live, discovery_source, last_scanned)
+            VALUES (?, ?, NULL, ?, ?, 0, ?, 0, ?, datetime('now'))
+            ON CONFLICT(subdomain) DO UPDATE SET
+                seed_domain = excluded.seed_domain,
+                cloud_provider = excluded.cloud_provider,
+                web_title = excluded.web_title,
+                status_code = excluded.status_code,
+                tech_stack = excluded.tech_stack,
+                is_live = excluded.is_live,
+                discovery_source = excluded.discovery_source,
+                last_scanned = datetime('now')
+        ");
+        $stmtAsset->execute([
+            $domain,
+            $domain,
+            $cloudProvider,
+            'Zona DNS Delegada (Sin Host Web Activo)',
+            'DNS, ' . (!empty($nsList) ? 'Route 53 / Nameservers' : 'Inactivo'),
+            'Auditoría Perimetral DNS'
+        ]);
+        $assetsCount++;
+    }
+
+    $stmtVuln = $pdo->prepare("
+        INSERT INTO vulnerabilities (asset_subdomain, title, severity, description, remediation)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(asset_subdomain, title) DO UPDATE SET
+            severity = excluded.severity,
+            description = excluded.description,
+            remediation = excluded.remediation
+    ");
+
+    // 3. SPF Check
+    $txtRecords = @dns_get_record($rootDomain, DNS_TXT);
+    $spfRecord = null;
+    if (!empty($txtRecords)) {
+        foreach ($txtRecords as $t) {
+            $val = $t['txt'] ?? ($t['entries'][0] ?? '');
+            if (stripos($val, 'v=spf1') === 0) {
+                $spfRecord = $val;
+                break;
+            }
+        }
+    }
+
+    if (!$spfRecord) {
+        $stmtVuln->execute([
+            $domain,
+            'Ausencia de Registro SPF en Zona DNS (RFC 7208 / CWE-290)',
+            'HIGH',
+            "El dominio corporativo '$domain' no tiene configurado ningún registro SPF (Sender Policy Framework) en su zona DNS. Cualquier atacante o servidor de correo malicioso en internet puede suplantar este dominio (Email Spoofing) y enviar campañas de phishing a nombre de la organización sin que los servidores receptores rechacen los mensajes (CWE-290).",
+            "Publicar inmediatamente un registro DNS TXT en la raíz del dominio: 'v=spf1 -all' (si el dominio no debe enviar correos) o autorizar explícitamente las IPs/servidores autorizados finalizando con la directiva estricta '-all'."
+        ]);
+        $vulnsCount++;
+    } elseif (preg_match('/[\?\+]all/i', $spfRecord)) {
+        $stmtVuln->execute([
+            $domain,
+            'Política SPF Permisiva o Ineficaz (+all o ?all - CWE-290)',
+            'MEDIUM',
+            "El registro SPF del dominio '$domain' finaliza con la directiva permisiva '?all' (Neutral) o '+all' (Pass). Esto anula la eficacia de la protección anti-spoofing, permitiendo la entrega de correos no autorizados a las bandejas de entrada.",
+            "Modificar la directiva de cierre del registro SPF por '-all' (Hard Fail) para exigir el rechazo de remitentes no autorizados."
+        ]);
+        $vulnsCount++;
+    }
+
+    // 4. DMARC Check
+    $dmarcRecords = @dns_get_record("_dmarc.$rootDomain", DNS_TXT);
+    $dmarcRecord = null;
+    if (!empty($dmarcRecords)) {
+        foreach ($dmarcRecords as $t) {
+            $val = $t['txt'] ?? ($t['entries'][0] ?? '');
+            if (stripos($val, 'v=DMARC1') === 0) {
+                $dmarcRecord = $val;
+                break;
+            }
+        }
+    }
+
+    if (!$dmarcRecord) {
+        $stmtVuln->execute([
+            $domain,
+            'Ausencia de Política DMARC contra Suplantación de Identidad (RFC 7489 / CWE-290)',
+            'HIGH',
+            "El dominio '$domain' carece de registro DMARC en '_dmarc.$domain'. La ausencia de DMARC impide la autenticación criptográfica y la correlación con SPF/DKIM, dejando a la organización totalmente expuesta a ataques de suplantación de identidad (Brand Impersonation / CEO Fraud / BEC) sin mecanismos de reporte forense.",
+            "Crear un registro DNS TXT en '_dmarc.$domain' con política de rechazo: 'v=DMARC1; p=reject; sp=reject; pct=100; rua=mailto:dmarc-reports@$domain; aspf=s;'."
+        ]);
+        $vulnsCount++;
+    } elseif (preg_match('/p=none/i', $dmarcRecord)) {
+        $stmtVuln->execute([
+            $domain,
+            'Política DMARC en Modo Permisivo Inerte (p=none - CWE-290)',
+            'MEDIUM',
+            "El registro DMARC de '$domain' se encuentra configurado con la directiva 'p=none' (monitoreo pasivo). Aunque genera reportes, no previene la entrega de correos fraudulentos en los buzones de los destinatarios.",
+            "Migrar la directiva DMARC progresivamente hacia 'p=quarantine' y finalmente 'p=reject'."
+        ]);
+        $vulnsCount++;
+    }
+
+    // 5. Dormant Zone / Dangling NS Takeover Risk
+    if (!empty($nsList) && !$hasA && !$hasAaaa) {
+        $stmtVuln->execute([
+            $domain,
+            'Riesgo de Zona DNS Huérfana y Secuestro de Dominio (Dangling NS - CWE-284)',
+            'HIGH',
+            "El dominio '$domain' posee delegación activa en servidores de nombres (" . implode(', ', array_slice($nsList, 0, 3)) . ") pero no cuenta con registros de host (A/AAAA) configurados. Si la zona en el proveedor (" . $cloudProvider . ") fue dada de baja o eliminada sin actualizar el registrador, un atacante puede reclamar la zona y tomar control total del dominio (Subdomain/Zone Takeover).",
+            "Verificar la titularidad y vigencia de la zona alojada en el proveedor DNS. Si el dominio está en desuso, retirar la delegación NS en el registrador de dominios (RDAP/Whois)."
+        ]);
+        $vulnsCount++;
+    }
+
+    // 6. DNSSEC Check
+    $dnsAll = @dns_get_record($rootDomain, DNS_ALL);
+    $hasDnssec = false;
+    if (!empty($dnsAll)) {
+        foreach ($dnsAll as $rec) {
+            if (in_array($rec['type'], ['DNSKEY', 'RRSIG', 'DS'])) {
+                $hasDnssec = true;
+                break;
+            }
+        }
+    }
+    if (!$hasDnssec) {
+        $stmtVuln->execute([
+            $domain,
+            'Ausencia de Protección Criptográfica DNSSEC (RFC 4033 / CWE-345)',
+            'LOW',
+            "La zona DNS de '$domain' no tiene habilitadas las extensiones de seguridad para el Sistema de Nombres de Dominio (DNSSEC). Las respuestas DNS no están firmadas digitalmente, lo que posibilita ataques de envenenamiento de caché (DNS Cache Poisoning / Kaminsky attack) para redirigir a los usuarios hacia servidores maliciosos.",
+            "Habilitar DNSSEC en el registrador de dominio y publicar los registros DS criptográficos correspondientes."
+        ]);
+        $vulnsCount++;
+    }
+}
+
 function checkSslCertificate($host) {
     $result = [
         'has_ssl' => false,
@@ -1530,6 +1738,10 @@ function probeHttp($host) {
         'has_csp' => false,
         'has_xfo' => false,
         'has_xcto' => false,
+        'has_cors_wildcard' => false,
+        'has_cors_origin_reflection' => false,
+        'cors_allow_credentials' => false,
+        'has_directory_listing' => false,
         'server_banner' => null,
         'x_powered_by' => null,
         'x_aspnet_version' => null
@@ -1566,6 +1778,14 @@ function probeHttp($host) {
                     $result['has_xfo'] = true;
                 } elseif ($k === 'x-content-type-options') {
                     $result['has_xcto'] = true;
+                } elseif ($k === 'access-control-allow-origin') {
+                    if ($v === '*') {
+                        $result['has_cors_wildcard'] = true;
+                    } elseif (stripos($v, 'evil-attacker.com') !== false || stripos($v, 'null') !== false) {
+                        $result['has_cors_origin_reflection'] = true;
+                    }
+                } elseif ($k === 'access-control-allow-credentials' && strtolower($v) === 'true') {
+                    $result['cors_allow_credentials'] = true;
                 }
             }
         }
@@ -1585,6 +1805,10 @@ function probeHttp($host) {
             if (preg_match('/<input[^>]+type=["\']password["\']/i', $html)) {
                 $result['has_login_form'] = true;
             }
+
+            if (preg_match('/<title[^>]*>(Index of|Directory Listing for)/i', $html) || stripos($html, '<h1>Index of /') !== false) {
+                $result['has_directory_listing'] = true;
+            }
         }
     };
 
@@ -1598,6 +1822,7 @@ function probeHttp($host) {
     curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
     curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ["Origin: https://evil-attacker.com"]);
     curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/1.0");
 
     $response = curl_exec($ch);
@@ -1622,6 +1847,7 @@ function probeHttp($host) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 3);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ["Origin: https://evil-attacker.com"]);
         curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/1.0");
 
         $response = curl_exec($ch);
