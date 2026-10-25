@@ -1343,6 +1343,42 @@ function runScan($pdo) {
                         ]);
                         $vulnsDetectedCount++;
                     }
+
+                    // 13. Referrer-Policy Header (CWE-116)
+                    if (empty($httpInfo['has_referrer_policy'])) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Ausencia de Cabecera Referrer-Policy para Protección de Privacidad (CWE-116)',
+                            'LOW',
+                            "El servidor web no envía la cabecera 'Referrer-Policy' (CWE-116). Los navegadores pueden filtrar la URL completa con parámetros sensibles, identificadores de sesión o tokens hacia dominios externos de terceros al seguir enlaces salientes.",
+                            "Configurar la cabecera en el servidor web o CDN: 'Referrer-Policy: strict-origin-when-cross-origin' o 'no-referrer-when-downgrade'."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 14. Permissions-Policy / Feature-Policy Header (CWE-693)
+                    if (empty($httpInfo['has_permissions_policy'])) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Falta de Política de Permisos del Navegador (Permissions-Policy - CWE-693)',
+                            'LOW',
+                            "El servidor no especifica la directiva 'Permissions-Policy' (CWE-693). Los navegadores no aplican restricciones a APIs de hardware o funciones invasivas (cámara, micrófono, geolocalización, giroscopio), permitiendo que scripts de terceros o iframes soliciten permisos no deseados.",
+                            "Configurar la cabecera: 'Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()'."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
+
+                    // 15. Insecure Cache on Authentication Forms (CWE-524)
+                    if (!empty($httpInfo['has_login_form']) && empty($httpInfo['has_cache_control_no_store'])) {
+                        $stmtVuln->execute([
+                            $sub,
+                            'Almacenamiento en Caché Inseguro en Formularios de Autenticación (CWE-524)',
+                            'MEDIUM',
+                            "El formulario de autenticación no restringe el almacenamiento en memoria y disco ('Cache-Control: no-store' - CWE-524). Servidores proxy, pasarelas intermedias y terminales compartidos pueden conservar copias de las credenciales y páginas privadas consultadas por los usuarios.",
+                            "Añadir los encabezados 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0' y 'Pragma: no-cache' en todas las respuestas de login y áreas autenticadas."
+                        ]);
+                        $vulnsDetectedCount++;
+                    }
                 }
 
                 if ($discoveredAssetsCount <= 20) {
@@ -1667,11 +1703,15 @@ function auditDomainDnsSecurity($domain, $pdo, &$vulnsCount, &$assetsCount) {
     // 6. DNSSEC Check
     $dnsAll = @dns_get_record($rootDomain, DNS_ALL);
     $hasDnssec = false;
+    $hasCaa = false;
     if (!empty($dnsAll)) {
         foreach ($dnsAll as $rec) {
-            if (in_array($rec['type'], ['DNSKEY', 'RRSIG', 'DS'])) {
+            $t = $rec['type'] ?? '';
+            if (in_array($t, ['DNSKEY', 'RRSIG', 'DS'])) {
                 $hasDnssec = true;
-                break;
+            }
+            if ($t === 'CAA') {
+                $hasCaa = true;
             }
         }
     }
@@ -1682,6 +1722,66 @@ function auditDomainDnsSecurity($domain, $pdo, &$vulnsCount, &$assetsCount) {
             'LOW',
             "La zona DNS de '$domain' no tiene habilitadas las extensiones de seguridad para el Sistema de Nombres de Dominio (DNSSEC). Las respuestas DNS no están firmadas digitalmente, lo que posibilita ataques de envenenamiento de caché (DNS Cache Poisoning / Kaminsky attack) para redirigir a los usuarios hacia servidores maliciosos.",
             "Habilitar DNSSEC en el registrador de dominio y publicar los registros DS criptográficos correspondientes."
+        ]);
+        $vulnsCount++;
+    }
+
+    // 7. CAA Record Check (RFC 6844 / CWE-295)
+    if (!$hasCaa) {
+        $stmtVuln->execute([
+            $domain,
+            'Ausencia de Registro de Autorización de Emisión CAA (RFC 6844 / CWE-295)',
+            'MEDIUM',
+            "El dominio '$domain' no define un registro DNS de tipo CAA (Certification Authority Authorization - RFC 6844 / CWE-295). Sin este registro, cualquier Autoridad de Certificación pública global puede emitir certificados TLS/SSL válidos para este dominio, facilitando ataques de suplantación Man-in-the-Middle si una entidad certificadora foránea es vulnerada o coaccionada.",
+            "Publicar un registro DNS CAA en la raíz del dominio autorizando explícitamente a las entidades certificadoras corporativas (ejemplo: '0 issue \"letsencrypt.org\"' o '0 issue \"digicert.com\"')."
+        ]);
+        $vulnsCount++;
+    }
+
+    // 8. MTA-STS Email Encryption Check (RFC 8461 / CWE-319)
+    $mtaRecords = @dns_get_record("_mta-sts.$rootDomain", DNS_TXT);
+    $hasMtaSts = false;
+    if (!empty($mtaRecords)) {
+        foreach ($mtaRecords as $t) {
+            $val = $t['txt'] ?? ($t['entries'][0] ?? '');
+            if (stripos($val, 'v=STSv1') === 0) {
+                $hasMtaSts = true;
+                break;
+            }
+        }
+    }
+    if (!$hasMtaSts) {
+        $stmtVuln->execute([
+            $domain,
+            'Ausencia de Directiva MTA-STS para Cifrado Estricto de Correo (RFC 8461 / CWE-319)',
+            'LOW',
+            "El dominio '$domain' no publica una directiva MTA-STS (Mail Transfer Agent Strict Transport Security - RFC 8461). Las conexiones SMTP entre servidores de correo pueden ser degradadas a texto plano sin cifrar mediante ataques de intermediario (STARTTLS Stripping), permitiendo la intercepción pasiva del tráfico de correo.",
+            "Crear el registro DNS TXT en '_mta-sts.$domain' y publicar el archivo de política 'mta-sts.txt' servido por HTTPS seguro."
+        ]);
+        $vulnsCount++;
+    }
+
+    // 9. security.txt Check (RFC 9116 / CWE-1059)
+    $chSec = curl_init("http://$domain/.well-known/security.txt");
+    curl_setopt_array($chSec, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 2.5,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 OpenRecon/1.0'
+    ]);
+    $secBody = curl_exec($chSec);
+    $secCode = curl_getinfo($chSec, CURLINFO_HTTP_CODE);
+    curl_close($chSec);
+
+    $hasSecTxt = ($secCode === 200 && $secBody && (stripos($secBody, 'Contact:') !== false || stripos($secBody, 'Expires:') !== false));
+    if (!$hasSecTxt) {
+        $stmtVuln->execute([
+            $domain,
+            'Ausencia de Política de Divulgación Responsable de Vulnerabilidades (security.txt - RFC 9116)',
+            'LOW',
+            "El dominio '$domain' no cuenta con el archivo estandarizado '/.well-known/security.txt' (RFC 9116 / CWE-1059). Investigadores de ciberseguridad éticos carecen de un canal de comunicación directo y seguro para reportar fallas perimetrales antes de que sean explotadas por cibercriminales.",
+            "Publicar el archivo '/.well-known/security.txt' definiendo las directivas de contacto 'Contact: mailto:security@$domain' y fecha de vigencia 'Expires: ...'."
         ]);
         $vulnsCount++;
     }
@@ -1738,6 +1838,9 @@ function probeHttp($host) {
         'has_csp' => false,
         'has_xfo' => false,
         'has_xcto' => false,
+        'has_referrer_policy' => false,
+        'has_permissions_policy' => false,
+        'has_cache_control_no_store' => false,
         'has_cors_wildcard' => false,
         'has_cors_origin_reflection' => false,
         'cors_allow_credentials' => false,
@@ -1778,6 +1881,14 @@ function probeHttp($host) {
                     $result['has_xfo'] = true;
                 } elseif ($k === 'x-content-type-options') {
                     $result['has_xcto'] = true;
+                } elseif ($k === 'referrer-policy') {
+                    $result['has_referrer_policy'] = true;
+                } elseif ($k === 'permissions-policy' || $k === 'feature-policy') {
+                    $result['has_permissions_policy'] = true;
+                } elseif ($k === 'cache-control') {
+                    if (stripos($v, 'no-store') !== false || stripos($v, 'no-cache') !== false) {
+                        $result['has_cache_control_no_store'] = true;
+                    }
                 } elseif ($k === 'access-control-allow-origin') {
                     if ($v === '*') {
                         $result['has_cors_wildcard'] = true;

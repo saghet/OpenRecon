@@ -866,6 +866,15 @@
                     </div>
                 </div>
 
+                <!-- Executive Non-Technical Explanation -->
+                <div class="bg-amber-950/20 p-4 rounded-xl border border-amber-800/40 space-y-2">
+                    <h5 class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-lightbulb text-amber-400"></i> Explicación Ejecutiva No Técnica (Impacto en Negocio)
+                    </h5>
+                    <div id="vp-exec-explanation" class="text-slate-300 leading-relaxed font-sans text-xs space-y-1.5">
+                    </div>
+                </div>
+
                 <!-- Hardening Snippets Multi-Stack -->
                 <div class="space-y-2">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1342,6 +1351,24 @@
                 tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A05:2021 Sensitive Data</span>');
             } else if (title.includes('cross-domain') || title.includes('crossdomain')) {
                 tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-942</span>');
+            } else if (title.includes('caa') || title.includes('autorización de emisión')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">RFC 6844 / CWE-295</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">Cert Authority Authorization</span>');
+            } else if (title.includes('mta-sts')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-blue-400 border border-slate-700">RFC 8461 / CWE-319</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">SMTP Strict TLS</span>');
+            } else if (title.includes('security.txt')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-emerald-400 border border-slate-700">RFC 9116 / CWE-1059</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">Responsible Disclosure</span>');
+            } else if (title.includes('referrer-policy')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-116</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">OWASP A05:2021 Privacy</span>');
+            } else if (title.includes('permissions-policy')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-blue-400 border border-slate-700">CWE-693</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">Browser Permissions</span>');
+            } else if (title.includes('caché inseguro') || title.includes('cache-control')) {
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-amber-400 border border-slate-700">CWE-524</span>');
+                tags.push('<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-rose-400 border border-slate-700">OWASP A05:2021 Sensitive Cache</span>');
             }
             return tags.join(' ');
         }
@@ -1462,10 +1489,52 @@
             else if (titleLower.includes('dnssec')) cweText = 'RFC 4033 / CWE-345 (DNSSEC)';
             else if (titleLower.includes('huérfana') || titleLower.includes('dangling')) cweText = 'CWE-284 (Dangling NS / Zone Takeover)';
             else if (titleLower.includes('cors')) cweText = 'CWE-942 (CORS Misconfiguration)';
+            else if (titleLower.includes('caa') || titleLower.includes('autorización de emisión')) cweText = 'RFC 6844 / CWE-295 (CAA)';
+            else if (titleLower.includes('mta-sts')) cweText = 'RFC 8461 / CWE-319 (MTA-STS)';
+            else if (titleLower.includes('security.txt')) cweText = 'RFC 9116 / CWE-1059 (security.txt)';
+            else if (titleLower.includes('referrer-policy')) cweText = 'CWE-116 (Referrer-Policy)';
+            else if (titleLower.includes('permissions-policy')) cweText = 'CWE-693 (Permissions-Policy)';
+            else if (titleLower.includes('caché inseguro') || titleLower.includes('cache-control')) cweText = 'CWE-524 (Insecure Cache)';
             else if (titleLower.includes('indexación') || titleLower.includes('directory listing')) cweText = 'CWE-548 (Directory Listing)';
             else if (titleLower.includes('backup') || titleLower.includes('dump') || titleLower.includes('.env') || titleLower.includes('.git')) cweText = 'CWE-538 / CWE-552 (Data Exposure)';
             else if (titleLower.includes('cabecera') || titleLower.includes('hsts')) cweText = 'CWE-1021 / CWE-693 (OWASP Headers)';
             document.getElementById('vp-cwe').innerText = cweText;
+
+            // Generate Executive Non-Technical Explanation
+            let execExplanation = '';
+            if (titleLower.includes('certificado') || titleLower.includes('expirado')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Es como un pasaporte de seguridad vencido. Los navegadores muestran una pantalla roja de advertencia que asusta a los clientes.<br><strong>Impacto de Negocio:</strong> Pérdida inmediata de clientes por desconfianza y riesgo de intercepción de datos confidenciales.';
+            } else if (titleLower.includes('spf')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Es como enviar cartas oficiales sin un membrete verificado. Cualquiera puede enviar correos a nombre de la empresa sin ser rechazado.<br><strong>Impacto de Negocio:</strong> Campañas masivas de fraude y suplantación a clientes y proveedores a nombre del dominio corporativo.';
+            } else if (titleLower.includes('dmarc')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Es la instrucción a los carteros del mundo: <em>"Si alguien envía un correo que no esté en mi lista oficial, destrúyalo de inmediato"</em>.<br><strong>Impacto de Negocio:</strong> Estafas de transferencia bancaria, fraude del CEO (BEC) y secuestro de la reputación corporativa.';
+            } else if (titleLower.includes('caa') || titleLower.includes('autorización de emisión')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Es una lista exclusiva de cerrajeros autorizados. Sin este registro, cualquier empresa certificadora del mundo puede emitir un candado para tu dominio.<br><strong>Impacto de Negocio:</strong> Creación de sitios web clonados con candado de seguridad aparentemente "legítimo".';
+            } else if (titleLower.includes('huérfana') || titleLower.includes('dangling')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Un local comercial registrado pero abandonado y con la puerta abierta en el proveedor de nube.<br><strong>Impacto de Negocio:</strong> Un atacante puede reclamar el dominio en AWS Route 53 y tomar control de todo el tráfico de la empresa.';
+            } else if (titleLower.includes('swagger') || titleLower.includes('openapi')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Dejar el manual técnico con los planos de todas las cajas fuertes pegado en la puerta de entrada.<br><strong>Impacto de Negocio:</strong> Los atacantes conocen todas las APIs internas, endpoints administrativos y credenciales de prueba de los desarrolladores.';
+            } else if (titleLower.includes('formulario de autenticación') || titleLower.includes('en claro')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Escribir el usuario y la clave en una hoja abierta en vez de guardarla en un sobre lacrado.<br><strong>Impacto de Negocio:</strong> Robo de claves en cafeterías o redes compartidas mediante programas espía de red (Sniffing).';
+            } else if (titleLower.includes('cookie') || titleLower.includes('samesite')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Llaves de acceso temporales del usuario emitidas sin precinto de seguridad.<br><strong>Impacto de Negocio:</strong> Secuestro de cuentas de usuarios activos mientras navegan en otras páginas web.';
+            } else if (titleLower.includes('referrer-policy')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> El navegador le cuenta a páginas externas de qué dirección privada y confidencial venía navegando el cliente.<br><strong>Impacto de Negocio:</strong> Fuga involuntaria de identificadores de sesión o datos personales en enlaces salientes.';
+            } else if (titleLower.includes('permissions-policy')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> No prohibir expresamente el encendido de cámara, micrófono o GPS a scripts publicitarios o externos.<br><strong>Impacto de Negocio:</strong> Espionaje no autorizado de dispositivos de los usuarios que visitan el portal.';
+            } else if (titleLower.includes('caché inseguro') || titleLower.includes('cache-control')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Computadores compartidos o proxys guardan copias de las páginas donde se escribieron usuarios y contraseñas.<br><strong>Impacto de Negocio:</strong> La siguiente persona que use el computador puede pulsar "Atrás" y ver datos confidenciales del usuario previo.';
+            } else if (titleLower.includes('security.txt')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> El buzón de sugerencias éticas de seguridad de la empresa.<br><strong>Impacto de Negocio:</strong> Si un investigador descubre una vulnerabilidad, no sabe a quién avisar y la falla puede filtrarse en redes sociales o ser vendida en foros oscuros.';
+            } else if (titleLower.includes('cors')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Permitir que páginas web de terceros consulten libremente la información interna de tu aplicación.<br><strong>Impacto de Negocio:</strong> Sitios web maliciosos pueden extraer información de cuentas autenticadas de los clientes.';
+            } else if (titleLower.includes('indexación') || titleLower.includes('directory listing')) {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Dejar carpetas de archivos del servidor abiertas para que cualquiera pueda navegar y descargar su contenido.<br><strong>Impacto de Negocio:</strong> Descarga de códigos fuente, copias de seguridad o documentos de configuración confidenciales.';
+            } else {
+                execExplanation = '<strong>¿Qué es en la vida real?</strong> Falta de directivas de blindaje perimetral estándar recomendadas por marcos internacionales (OWASP / CIS Benchmarks).<br><strong>Impacto de Negocio:</strong> Exposición a ataques automatizados de bots y herramientas de escaneo malicioso.';
+            }
+            const execEl = document.getElementById('vp-exec-explanation');
+            if (execEl) execEl.innerHTML = execExplanation;
 
             setVpStack(currentVpStack || 'nginx');
             document.getElementById('vuln-playbook-modal').classList.remove('hidden');
@@ -1614,6 +1683,57 @@
                 } else if (currentVpStack === 'cloudflare') {
                     snippet = `# Regla WAF en Cloudflare:\n(http.request.uri.path contains ".env" or http.request.uri.path contains ".git" or http.request.uri.path contains ".sql") -> Action: Block`;
                 }
+            } else if (title.includes('caa') || title.includes('autorización de emisión')) {
+                curlCmd = `nslookup -type=ANY ${host} | grep -i "caa"`;
+                if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare Dashboard > DNS > Records:\n1. Añadir Registro Tipo: CAA | Name: @ | Tag: Only allow specific CAs to issue certs (issue) | Value: "letsencrypt.org"\n2. Añadir Registro Tipo: CAA | Name: @ | Tag: Send violation reports to (iodef) | Value: "mailto:security@${host}"`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `# PowerShell para servidor DNS Windows:\nAdd-DnsServerResourceRecord -ZoneName "${host}" -Name "@" -Type 257 -RecordData "0 issue letsencrypt.org"`;
+                } else {
+                    snippet = `# Configuración de registro CAA en zona DNS (BIND / Route 53 / DNS Server):\n${host}. IN CAA 0 issue "letsencrypt.org"\n${host}. IN CAA 0 issuewild "letsencrypt.org"\n${host}. IN CAA 0 iodef "mailto:security@${host}"`;
+                }
+            } else if (title.includes('referrer-policy')) {
+                curlCmd = `curl -I -s "https://${host}/" | grep -i "referrer-policy"`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# En Nginx (http o server block):\nadd_header Referrer-Policy "strict-origin-when-cross-origin" always;`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En Apache (.htaccess o VirtualHost):\nHeader always set Referrer-Policy "strict-origin-when-cross-origin"`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `<!-- En conf/web.xml de Tomcat dentro de HttpHeaderSecurityFilter -->\n<filter>\n    <filter-name>httpHeaderSecurity</filter-name>\n    <filter-class>org.apache.catalina.filters.HttpHeaderSecurityFilter</filter-class>\n    <init-param><param-name>referrerPolicy</param-name><param-value>strict-origin-when-cross-origin</param-value></init-param>\n</filter>`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS -->\n<system.webServer>\n  <httpProtocol>\n    <customHeaders>\n      <add name="Referrer-Policy" value="strict-origin-when-cross-origin" />\n    </customHeaders>\n  </httpProtocol>\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare > Rules > Transform Rules > Add Response Header:\nReferrer-Policy = strict-origin-when-cross-origin`;
+                }
+            } else if (title.includes('permissions-policy')) {
+                curlCmd = `curl -I -s "https://${host}/" | grep -i "permissions-policy"`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# En Nginx:\nadd_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En Apache:\nHeader always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `<!-- En conf/web.xml o filtro de cabeceras -->\nHeader set Permissions-Policy "camera=(), microphone=(), geolocation=()"`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS -->\n<system.webServer>\n  <httpProtocol>\n    <customHeaders>\n      <add name="Permissions-Policy" value="camera=(), microphone=(), geolocation=()" />\n    </customHeaders>\n  </httpProtocol>\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare > Transform Rules > Add Response Header:\nPermissions-Policy = camera=(), microphone=(), geolocation=()`;
+                }
+            } else if (title.includes('caché inseguro') || title.includes('cache-control')) {
+                curlCmd = `curl -I -s "http://${host}/login.jsp" | grep -i "cache-control"`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# En Nginx para rutas de login y datos sensibles:\nlocation ~* (login|auth|session|account) {\n    add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;\n    add_header Pragma "no-cache" always;\n}`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En Apache:\n<FilesMatch "(login|auth|session|account)">\n    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"\n    Header set Pragma "no-cache"\n</FilesMatch>`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `// En Controller Java o Servlet:\nresponse.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0");\nresponse.setHeader("Pragma", "no-cache");`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS para la página de login -->\n<location path="login.jsp">\n  <system.webServer>\n    <httpProtocol>\n      <customHeaders>\n        <add name="Cache-Control" value="no-store, no-cache, must-revalidate" />\n      </customHeaders>\n    </httpProtocol>\n  </system.webServer>\n</location>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare > Caching > Cache Rules:\nURI Path contains "/login" -> Cache Eligibility: Bypass cache`;
+                }
+            } else if (title.includes('security.txt')) {
+                curlCmd = `curl -IL -s "http://${host}/.well-known/security.txt"`;
+                snippet = `# Crear el archivo /.well-known/security.txt con el estándar RFC 9116:\nContact: mailto:security@${host}\nExpires: 2027-12-31T23:59:59.000Z\nPreferred-Languages: es, en\nPolicy: https://${host}/security-policy\nCanonical: https://${host}/.well-known/security.txt`;
             } else {
                 // Generic security headers (HSTS, CSP, etc.)
                 curlCmd = `curl -I -s "https://${host}/" | grep -E -i "(strict-transport|x-frame|x-content|content-security)"`;
