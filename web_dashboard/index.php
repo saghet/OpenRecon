@@ -518,18 +518,28 @@
                 <p class="text-xs text-slate-400 mb-4">Ingresa el dominio principal de tu organización para iniciar el reconocimiento continuo.</p>
 
                 <form onsubmit="handleAddSeed(event)" class="flex flex-col sm:flex-row gap-3">
-                    <input type="text" id="new-seed-domain" required placeholder="ejemplo: tuempresa.com" class="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-cyber-border text-sm text-white focus:outline-none focus:border-cyan-500">
+                    <input type="text" id="new-seed-domain" placeholder="ejemplo: tuempresa.com" class="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-cyber-border text-sm text-white focus:outline-none focus:border-cyan-500">
                     <button type="submit" class="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-sm transition flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-satellite-dish"></i>
+                        <i class="fa-solid fa-plus-circle"></i>
                         Registrar Semilla
+                    </button>
+                    <button type="button" onclick="handleAutoDiscoverAndAddSeeds()" id="btn-auto-discover-seeds" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg" title="Descubre automáticamente todos los subdominios pasivos de la entidad y los agrega en lote a las semillas">
+                        <i class="fa-solid fa-wand-magic-sparkles text-amber-300"></i>
+                        <span>Auto-descubrir y Añadir Subdominios a Semillas</span>
                     </button>
                 </form>
             </div>
 
             <div class="bg-cyber-card border border-cyber-border rounded-2xl overflow-hidden">
-                <div class="p-4 border-b border-cyber-border font-bold text-sm text-white flex items-center justify-between">
-                    <span>Dominios Actualmente Monitoreados</span>
-                    <span id="seeds-count" class="text-xs font-mono text-cyan-400">0 semillas</span>
+                <div class="p-4 border-b border-cyber-border font-bold text-sm text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <span>Dominios Actualmente Monitoreados</span>
+                        <span id="seeds-count" class="text-xs font-mono text-cyan-400 bg-cyan-950/70 border border-cyan-800/60 px-2.5 py-0.5 rounded-full">0 semillas</span>
+                    </div>
+                    <button onclick="handleDeleteAllSeeds()" class="px-3.5 py-1.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800 text-xs font-semibold flex items-center gap-1.5 transition shadow" title="Eliminar todas las semillas y limpiar el inventario perimetral">
+                        <i class="fa-solid fa-trash-can text-rose-400"></i>
+                        <span>Eliminar Todas las Semillas</span>
+                    </button>
                 </div>
                 <div id="seeds-list" class="divide-y divide-cyber-border/60"></div>
             </div>
@@ -1537,7 +1547,7 @@
                 }
 
                 list.innerHTML = seeds.map(s => `
-                    <div class="p-4 flex items-center justify-between hover:bg-slate-800/30 transition">
+                    <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-800/30 transition">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-lg bg-cyan-950/60 border border-cyan-800/50 flex items-center justify-center text-cyan-400">
                                 <i class="fa-solid fa-globe"></i>
@@ -1547,14 +1557,96 @@
                                 <span class="text-[10px] text-slate-500">Registrado el ${s.created_at}</span>
                             </div>
                         </div>
-                        <button onclick="handleDeleteSeed(${s.id})" class="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition" title="Eliminar semilla">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button onclick="handleDiscoverForSeed('${s.domain}')" class="px-3 py-1.5 rounded-lg bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-800 text-xs font-semibold flex items-center gap-1.5 transition" title="Auto-descubrir subdominios e incorporarlos directamente como semillas">
+                                <i class="fa-solid fa-wand-magic-sparkles text-amber-400"></i>
+                                <span>Auto-descubrir Subdominios</span>
+                            </button>
+                            <button onclick="handleDeleteSeed(${s.id})" class="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 rounded-lg transition" title="Eliminar semilla">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
                     </div>
                 `).join('');
 
             } catch (err) {
                 console.error(err);
+            }
+        }
+
+        // Auto-discover and add subdomains directly as seeds
+        async function handleAutoDiscoverAndAddSeeds() {
+            const domainInput = document.getElementById('new-seed-domain');
+            const domain = domainInput.value.trim() || activeSeed;
+            if (!domain || domain === 'ALL') {
+                showToast('Ingresa un dominio en la caja de texto para auto-descubrir sus subdominios', true);
+                domainInput.focus();
+                return;
+            }
+            await runDiscoverAndAddSeeds(domain);
+        }
+
+        async function handleDiscoverForSeed(domain) {
+            await runDiscoverAndAddSeeds(domain);
+        }
+
+        async function runDiscoverAndAddSeeds(domain) {
+            const btn = document.getElementById('btn-auto-discover-seeds');
+            const originalHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('opacity-75');
+                btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-amber-300"></i><span>Buscando e ingiriendo subdominios...</span>`;
+            }
+
+            showToast(`Descubriendo subdominios para ${domain} mediante inteligencia pasiva...`);
+
+            try {
+                const formData = new FormData();
+                formData.append('domain', domain);
+                const res = await fetch(`${API_URL}?action=discover_and_add_seeds`, { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast(`¡Completado! Se descubrieron e incorporaron ${data.seeds_added} subdominios como semillas.`);
+                    activeSeed = data.root_domain;
+                    await loadSeeds();
+                    await refreshAllData();
+                } else {
+                    showToast(data.error || 'Fallo durante el auto-descubrimiento', true);
+                }
+            } catch (err) {
+                showToast('Error al conectar con el motor de descubrimiento', true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-75');
+                    btn.innerHTML = originalHtml;
+                }
+            }
+        }
+
+        // Delete all seeds (mass purge)
+        async function handleDeleteAllSeeds() {
+            if (!confirm('¿ATENCIÓN: Deseas eliminar TODAS las semillas y purgar por completo todos los activos, puertos y vulnerabilidades del inventario?')) {
+                return;
+            }
+
+            showToast('Eliminando masivamente todas las semillas y reseteando inventario...');
+
+            try {
+                const res = await fetch(`${API_URL}?action=delete_all_seeds`, { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Todas las semillas y activos perimetrales han sido eliminados.');
+                    activeSeed = 'ALL';
+                    await loadSeeds();
+                    await refreshAllData();
+                } else {
+                    showToast(data.error || 'Error al eliminar semillas', true);
+                }
+            } catch (err) {
+                showToast('Error de conexión al purgar semillas', true);
             }
         }
 

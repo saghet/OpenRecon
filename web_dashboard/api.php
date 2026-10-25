@@ -195,6 +195,12 @@ switch ($action) {
     case 'delete_seed':
         deleteSeed($pdo);
         break;
+    case 'delete_all_seeds':
+        deleteAllSeeds($pdo);
+        break;
+    case 'discover_and_add_seeds':
+        discoverAndAddSeeds($pdo);
+        break;
     case 'run_scan':
         runScan($pdo);
         break;
@@ -602,6 +608,175 @@ function deleteSeed($pdo) {
     }
 }
 
+// Mass delete all seeds and reset inventory
+function deleteAllSeeds($pdo) {
+    try {
+        $pdo->exec("DELETE FROM vulnerabilities");
+        $pdo->exec("DELETE FROM open_ports");
+        $pdo->exec("DELETE FROM assets");
+        $pdo->exec("DELETE FROM drp_threats");
+        $pdo->exec("DELETE FROM credential_leaks");
+        $pdo->exec("DELETE FROM exposed_secrets");
+        $pdo->exec("DELETE FROM seeds");
+        echo json_encode(['success' => true, 'message' => 'Todas las semillas y el inventario perimetral han sido eliminados masivamente']);
+    } catch (Exception $e) {
+        echo json_encode(['error' => $e->getMessage()]);
+    }
+}
+
+// Passive Subdomain Enumeration Engine (multi-source OSINT without intrusive scanning)
+function passiveEnumerateSubdomains($rootDomain) {
+    $subdomains = [];
+    $subdomains[$rootDomain] = ['source' => 'Dominio Raíz', 'known_ip' => null];
+
+    // 1. Source: Passive Dataset (HackerTarget HostSearch)
+    $ch = curl_init("https://api.hackertarget.com/hostsearch/?q=" . urlencode($rootDomain));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
+    $htRes = curl_exec($ch);
+    curl_close($ch);
+
+    if ($htRes && strpos($htRes, 'error') === false) {
+        foreach (explode("\n", trim($htRes)) as $line) {
+            $parts = explode(',', trim($line));
+            $host = strtolower(trim($parts[0] ?? ''));
+            if (!empty($host) && strpos($host, $rootDomain) !== false) {
+                $subdomains[$host] = [
+                    'source' => 'OSINT Pasivo',
+                    'known_ip' => trim($parts[1] ?? '')
+                ];
+            }
+        }
+    }
+
+    // 2. Source: RapidDNS Passive Database
+    $ch = curl_init("https://rapiddns.io/subdomain/" . urlencode($rootDomain) . "?page=1");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
+    $rapidRes = curl_exec($ch);
+    curl_close($ch);
+
+    if ($rapidRes) {
+        preg_match_all('/<td>([a-zA-Z0-9_\-\.]+\.' . preg_quote($rootDomain, '/') . ')<\/td>/i', $rapidRes, $rMatches);
+        foreach ($rMatches[1] ?? [] as $rHost) {
+            $rHost = strtolower(trim($rHost));
+            if (!isset($subdomains[$rHost])) {
+                $subdomains[$rHost] = [
+                    'source' => 'OSINT Pasivo',
+                    'known_ip' => null
+                ];
+            }
+        }
+    }
+
+    // 3. Source: crt.sh (Certificate Transparency Logs)
+    $ch = curl_init("https://crt.sh/?q=%25." . urlencode($rootDomain) . "&output=json");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
+    $crtJson = curl_exec($ch);
+    curl_close($ch);
+
+    if ($crtJson) {
+        $certData = json_decode($crtJson, true);
+        if (is_array($certData)) {
+            $count = 0;
+            foreach ($certData as $cert) {
+                if ($count > 30) break;
+                $nameVal = $cert['name_value'] ?? '';
+                $lines = explode("\n", $nameVal);
+                foreach ($lines as $line) {
+                    $clean = strtolower(trim($line));
+                    if (str_starts_with($clean, '*.')) $clean = substr($clean, 2);
+                    if (!empty($clean) && strpos($clean, $rootDomain) !== false && !strpos($clean, '@')) {
+                        if (!isset($subdomains[$clean])) {
+                            $subdomains[$clean] = [
+                                'source' => 'Certificados SSL/TLS',
+                                'known_ip' => null
+                            ];
+                            $count++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Source: Common Subdomains Dictionary
+    $commonSubs = ['www', 'mail', 'vpn', 'api', 'dev', 'staging', 'portal', 'admin', 'git', 'app', 'remote', 'secure', 'apps', 'enlinea'];
+    foreach ($commonSubs as $prefix) {
+        $candidate = $prefix . '.' . $rootDomain;
+        if (!isset($subdomains[$candidate])) {
+            $subdomains[$candidate] = [
+                'source' => 'DNS Diccionario',
+                'known_ip' => null
+            ];
+        }
+    }
+
+    return $subdomains;
+}
+
+// Discover all subdomains via passive OSINT and ingest them DIRECTLY into seeds and assets
+function discoverAndAddSeeds($pdo) {
+    set_time_limit(180);
+    $domain = trim($_POST['domain'] ?? $_GET['domain'] ?? '');
+    if (empty($domain)) {
+        echo json_encode(['error' => 'Dominio no especificado']);
+        return;
+    }
+    $domain = preg_replace('#^https?://#', '', strtolower($domain));
+    $rootDomain = preg_replace('/^www\./i', '', explode('/', $domain)[0]);
+
+    // Ensure root domain is in seeds
+    $stmtSeed = $pdo->prepare("INSERT OR IGNORE INTO seeds (domain) VALUES (?)");
+    $stmtSeed->execute([$rootDomain]);
+
+    $discovered = passiveEnumerateSubdomains($rootDomain);
+    $addedSeeds = [];
+
+    // Insert all discovered subdomains directly as seeds
+    foreach (array_keys($discovered) as $sub) {
+        if (!empty($sub) && strpos($sub, $rootDomain) !== false) {
+            $stmtSeed->execute([$sub]);
+            $addedSeeds[] = $sub;
+
+            // Also register in assets so it appears immediately in inventory
+            $ip = $discovered[$sub]['known_ip'] ?? null;
+            if (!$ip) {
+                $dnsA = @dns_get_record($sub, DNS_A);
+                $ip = (!empty($dnsA) && isset($dnsA[0]['ip'])) ? $dnsA[0]['ip'] : null;
+            }
+            $isLive = !empty($ip) ? 1 : 0;
+            $cloud = ($ip && str_starts_with($ip, '179.42.')) ? 'Datacenter Propio / AS271825' : 'Directo / Cloud';
+
+            $stmtAsset = $pdo->prepare("
+                INSERT INTO assets (seed_domain, subdomain, ip_address, cloud_provider, is_live, discovery_source, last_scanned)
+                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(subdomain) DO UPDATE SET
+                    ip_address = excluded.ip_address,
+                    is_live = excluded.is_live,
+                    discovery_source = excluded.discovery_source,
+                    last_scanned = CURRENT_TIMESTAMP
+            ");
+            $stmtAsset->execute([$rootDomain, $sub, $ip, $cloud, $isLive, 'OSINT Pasivo Automatizado']);
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'root_domain' => $rootDomain,
+        'total_discovered' => count($discovered),
+        'seeds_added' => count($addedSeeds),
+        'sample' => array_slice($addedSeeds, 0, 10)
+    ]);
+}
+
 function queryScalar($pdo, $sql, $params = []) {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -853,99 +1028,7 @@ function runScan($pdo) {
 
     foreach ($seeds as $domain) {
         $rootDomain = preg_replace('/^www\./i', '', $domain);
-        $subdomains = [];
-        $subdomains[$domain] = ['source' => 'Semilla Inicial', 'known_ip' => null];
-        $subdomains[$rootDomain] = ['source' => 'Dominio Raíz', 'known_ip' => null];
-
-        // 1. Source: DNSDumpster / HackerTarget HostSearch
-        $ch = curl_init("https://api.hackertarget.com/hostsearch/?q=" . urlencode($rootDomain));
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
-        $htRes = curl_exec($ch);
-        curl_close($ch);
-
-        if ($htRes && strpos($htRes, 'error') === false) {
-            foreach (explode("\n", trim($htRes)) as $line) {
-                $parts = explode(',', trim($line));
-                $host = strtolower(trim($parts[0] ?? ''));
-                if (!empty($host) && strpos($host, $rootDomain) !== false) {
-                    $subdomains[$host] = [
-                        'source' => 'DNSDumpster / HackerTarget',
-                        'known_ip' => trim($parts[1] ?? '')
-                    ];
-                }
-            }
-        }
-
-        // 2. Source: RapidDNS Passive Database
-        $ch = curl_init("https://rapiddns.io/subdomain/" . urlencode($rootDomain) . "?page=1");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
-        $rapidRes = curl_exec($ch);
-        curl_close($ch);
-
-        if ($rapidRes) {
-            preg_match_all('/<td>([a-zA-Z0-9_\-\.]+\.' . preg_quote($rootDomain, '/') . ')<\/td>/i', $rapidRes, $rMatches);
-            foreach ($rMatches[1] ?? [] as $rHost) {
-                $rHost = strtolower(trim($rHost));
-                if (!isset($subdomains[$rHost])) {
-                    $subdomains[$rHost] = [
-                        'source' => 'RapidDNS',
-                        'known_ip' => null
-                    ];
-                }
-            }
-        }
-
-        // 3. Source: crt.sh (Certificate Transparency Logs)
-        $ch = curl_init("https://crt.sh/?q=%25." . urlencode($rootDomain) . "&output=json");
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
-        $crtJson = curl_exec($ch);
-        curl_close($ch);
-
-        if ($crtJson) {
-            $certData = json_decode($crtJson, true);
-            if (is_array($certData)) {
-                $count = 0;
-                foreach ($certData as $cert) {
-                    if ($count > 30) break;
-                    $nameVal = $cert['name_value'] ?? '';
-                    $lines = explode("\n", $nameVal);
-                    foreach ($lines as $line) {
-                        $clean = strtolower(trim($line));
-                        if (str_starts_with($clean, '*.')) $clean = substr($clean, 2);
-                        if (!empty($clean) && strpos($clean, $rootDomain) !== false && !strpos($clean, '@')) {
-                            if (!isset($subdomains[$clean])) {
-                                $subdomains[$clean] = [
-                                    'source' => 'crt.sh (Cert Logs)',
-                                    'known_ip' => null
-                                ];
-                                $count++;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 4. Source: Common Subdomains Dictionary
-        $commonSubs = ['www', 'mail', 'vpn', 'api', 'dev', 'staging', 'portal', 'admin', 'git', 'app', 'remote', 'secure', 'apps', 'enlinea'];
-        foreach ($commonSubs as $prefix) {
-            $candidate = $prefix . '.' . $rootDomain;
-            if (!isset($subdomains[$candidate])) {
-                $subdomains[$candidate] = [
-                    'source' => 'DNS Dictionary',
-                    'known_ip' => null
-                ];
-            }
-        }
+        $subdomains = passiveEnumerateSubdomains($rootDomain);
 
         // Cap at 60 highest priority subdomains per scan for responsiveness
         $candidates = array_slice($subdomains, 0, 60, true);
