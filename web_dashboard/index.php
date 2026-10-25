@@ -2943,6 +2943,11 @@
             });
         }
 
+        function setStrixPocUrl(newUrl) {
+            document.getElementById('strix-poc-url').value = newUrl;
+            runStrixPocTest();
+        }
+
         async function runStrixPocTest() {
             const urlInput = document.getElementById('strix-poc-url');
             const methodSelect = document.getElementById('strix-poc-method');
@@ -2967,52 +2972,91 @@
                 const res = await fetch(`${API_URL}?action=strix_poc_test&url=${encodeURIComponent(targetUrl)}&method=${encodeURIComponent(method)}`);
                 const data = await res.json();
 
-                if (!data.success) {
+                if (!data.success && !data.is_error) {
                     showToast(data.error || 'Error al ejecutar PoC', true);
                     return;
                 }
 
                 document.getElementById('strix-poc-results').classList.remove('hidden');
 
-                // Badge
                 const badgeEl = document.getElementById('strix-poc-badge');
-                let badgeClass = 'text-rose-400';
-                if (data.verdict === 'PROTEGIDO') badgeClass = 'text-emerald-400';
-                else if (data.verdict === 'INFO_LEAK') badgeClass = 'text-amber-400';
-                badgeEl.className = `mt-1 font-bold text-xs ${badgeClass}`;
-                badgeEl.innerText = `${data.verdict}`;
-
-                // HTTP Code
-                document.getElementById('strix-poc-http-code').innerText = data.http_code ? `${data.http_code}` : 'N/A';
-                document.getElementById('strix-poc-latency').innerText = `${data.latency_ms} ms`;
-                document.getElementById('strix-poc-content-type').innerText = data.content_type || 'N/A';
-
-                // Diagnostic Box
                 const diagBox = document.getElementById('strix-poc-diag-box');
                 const diagTitle = document.getElementById('strix-poc-diag-title');
                 const diagMsg = document.getElementById('strix-poc-diag-msg');
 
-                if (data.verdict === 'VULNERABLE') {
+                // Handle network error (Timeout, Connection Refused, DNS Fail)
+                if (data.is_error) {
+                    badgeEl.className = 'mt-1 font-bold text-xs text-rose-400';
+                    badgeEl.innerText = data.verdict;
+
+                    document.getElementById('strix-poc-http-code').innerText = '0 (Sin respuesta)';
+                    document.getElementById('strix-poc-latency').innerText = `${data.latency_ms !== undefined ? data.latency_ms : (data.duration_ms || 0)} ms`;
+                    document.getElementById('strix-poc-content-type').innerText = data.content_type || 'Error de Red';
+
+                    diagBox.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/40 text-xs';
+                    diagTitle.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-400"></i><span class="text-rose-300 font-bold">${data.diagnostic_title || 'Error de Conexión'}</span>`;
+
+                    let diagContent = `<p class="text-slate-300 leading-relaxed mb-2">${data.diagnostic}</p>`;
+                    if (data.alt_url) {
+                        diagContent += `
+                            <div class="mt-2 pt-2 border-t border-rose-900/40 flex flex-wrap items-center gap-2">
+                                <span class="text-slate-400 text-[11px]">¿Deseas probar el protocolo alternativo?</span>
+                                <button onclick="setStrixPocUrl('${data.alt_url}')" class="px-2.5 py-1 rounded bg-rose-900 hover:bg-rose-800 text-white text-[11px] font-bold transition flex items-center gap-1">
+                                    <i class="fa-solid fa-rotate mr-1"></i> Probar en ${data.alt_scheme.toUpperCase()} (${data.alt_url})
+                                </button>
+                            </div>
+                        `;
+                    }
+                    diagMsg.innerHTML = diagContent;
+
+                    document.getElementById('strix-poc-raw-req').innerText = data.raw_request || '';
+                    document.getElementById('strix-poc-raw-res').innerText = (data.raw_response_headers || '') + "\n\n" + (data.response_body_snippet || data.response_preview || '');
+                    document.getElementById('strix-poc-curl').innerText = data.poc_curl || data.reproduction_curl || '';
+                    document.getElementById('strix-poc-python').innerText = data.poc_python || data.reproduction_python || '';
+
+                    showToast(`Conexión fallida: ${data.verdict}`, true);
+                    return;
+                }
+
+                // Normal response
+                let badgeClass = 'text-rose-400';
+                const vText = data.verdict || '';
+                if (vText.includes('PROTEGIDO') || vText.includes('BLOQUEADO')) badgeClass = 'text-emerald-400';
+                else if (vText.includes('REDIRECCIÓN') || vText.includes('INFO_LEAK')) badgeClass = 'text-amber-400';
+                else if (vText.includes('NO ENCONTRADO') || vText.includes('NEUTRO')) badgeClass = 'text-slate-400';
+
+                badgeEl.className = `mt-1 font-bold text-xs ${badgeClass}`;
+                badgeEl.innerText = `${data.verdict}`;
+
+                // HTTP Code & Latency
+                const codeVal = data.http_code !== undefined ? data.http_code : data.status_code;
+                document.getElementById('strix-poc-http-code').innerText = codeVal !== undefined ? `${codeVal}` : 'N/A';
+                const latVal = data.latency_ms !== undefined ? data.latency_ms : data.duration_ms;
+                document.getElementById('strix-poc-latency').innerText = `${latVal !== undefined ? latVal : 0} ms`;
+                document.getElementById('strix-poc-content-type').innerText = data.content_type || 'N/A';
+
+                // Diagnostic Box
+                if (vText.includes('EXPUESTO') || vText.includes('VULNERABLE')) {
                     diagBox.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/20 text-xs';
-                    diagTitle.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i><span class="text-rose-300 font-bold">Hallazgo Confirmado: Vulnerable / Expuesto</span>';
-                } else if (data.verdict === 'PROTEGIDO') {
+                    diagTitle.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-400"></i><span class="text-rose-300 font-bold">${data.diagnostic_title || 'Hallazgo Confirmado: Vulnerable / Expuesto'}</span>`;
+                } else if (vText.includes('PROTEGIDO') || vText.includes('BLOQUEADO')) {
                     diagBox.className = 'p-4 rounded-xl border border-emerald-800 bg-emerald-950/20 text-xs';
-                    diagTitle.innerHTML = '<i class="fa-solid fa-shield-check text-emerald-400"></i><span class="text-emerald-300 font-bold">Endpoint Protegido / Sin Exposición Crítica</span>';
+                    diagTitle.innerHTML = `<i class="fa-solid fa-shield-check text-emerald-400"></i><span class="text-emerald-300 font-bold">${data.diagnostic_title || 'Endpoint Protegido'}</span>`;
                 } else {
                     diagBox.className = 'p-4 rounded-xl border border-amber-800 bg-amber-950/20 text-xs';
-                    diagTitle.innerHTML = '<i class="fa-solid fa-circle-info text-amber-400"></i><span class="text-amber-300 font-bold">Fuga Informativa / Exposición Parcial</span>';
+                    diagTitle.innerHTML = `<i class="fa-solid fa-circle-info text-amber-400"></i><span class="text-amber-300 font-bold">${data.diagnostic_title || 'Fuga Informativa / Redirección'}</span>`;
                 }
                 diagMsg.innerText = data.diagnostic || 'Respuesta inspeccionada con éxito.';
 
                 // Raw Request & Response
                 document.getElementById('strix-poc-raw-req').innerText = data.raw_request || '(Sin cabeceras crudas)';
-                document.getElementById('strix-poc-raw-res').innerText = (data.raw_response_headers || '') + "\n\n" + (data.response_body_snippet || '');
+                document.getElementById('strix-poc-raw-res').innerText = (data.raw_response_headers || '') + "\n\n" + (data.response_body_snippet || data.response_preview || '');
 
                 // Reproduction
-                document.getElementById('strix-poc-curl').innerText = data.poc_curl || '';
-                document.getElementById('strix-poc-python').innerText = data.poc_python || '';
+                document.getElementById('strix-poc-curl').innerText = data.poc_curl || data.reproduction_curl || '';
+                document.getElementById('strix-poc-python').innerText = data.poc_python || data.reproduction_python || '';
 
-                showToast(`PoC completado en ${data.latency_ms}ms: ${data.verdict}`);
+                showToast(`PoC completado en ${latVal}ms: ${data.verdict}`);
             } catch (err) {
                 showToast('Fallo al conectar con el motor PoC de Strix', true);
             } finally {
@@ -3127,7 +3171,7 @@
                 const res = await fetch(`${API_URL}?action=strix_tls_inspect&host=${encodeURIComponent(host)}&port=${port}`);
                 const data = await res.json();
 
-                if (!data.success) {
+                if (!data.success && !data.is_error) {
                     showToast(data.error || 'Error al inspeccionar TLS', true);
                     return;
                 }
@@ -3137,6 +3181,25 @@
                 const banner = document.getElementById('strix-tls-banner');
                 const icon = document.getElementById('strix-tls-icon');
                 const daysBadge = document.getElementById('strix-tls-days-badge');
+
+                if (data.is_error) {
+                    banner.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+                    icon.className = 'w-10 h-10 rounded-xl bg-rose-900/60 text-rose-400 border border-rose-700 flex items-center justify-center text-lg';
+                    icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+                    daysBadge.className = 'px-3 py-1.5 rounded-xl font-mono text-xs font-bold border bg-rose-950 text-rose-300 border-rose-800';
+                    daysBadge.innerText = 'PUERTO CERRADO / INACCESIBLE';
+
+                    document.getElementById('strix-tls-status-title').innerText = data.status || 'Conexión Fallida';
+                    document.getElementById('strix-tls-status-desc').innerText = data.recommendation || data.error;
+                    document.getElementById('strix-tls-cn').innerText = host;
+                    document.getElementById('strix-tls-issuer').innerText = 'Sin negociación TLS';
+                    document.getElementById('strix-tls-algo').innerText = 'N/A';
+                    document.getElementById('strix-tls-from').innerText = 'N/A';
+                    document.getElementById('strix-tls-to').innerText = 'N/A';
+                    document.getElementById('strix-tls-sans').innerHTML = '<span class="text-slate-500 font-mono text-xs">Sin información de certificados</span>';
+                    showToast(`TLS inalcanzable en puerto ${port}`, true);
+                    return;
+                }
 
                 if (data.is_expired) {
                     banner.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
@@ -3208,7 +3271,7 @@
                 const res = await fetch(`${API_URL}?action=strix_cors_test&url=${encodeURIComponent(targetUrl)}&origin=${encodeURIComponent(origin)}`);
                 const data = await res.json();
 
-                if (!data.success) {
+                if (!data.success && !data.is_error) {
                     showToast(data.error || 'Error en auditoría CORS', true);
                     return;
                 }
@@ -3217,6 +3280,23 @@
 
                 const banner = document.getElementById('strix-cors-banner');
                 const icon = document.getElementById('strix-cors-icon');
+
+                if (data.is_error) {
+                    banner.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';
+                    icon.className = 'w-10 h-10 rounded-xl bg-rose-900/60 text-rose-400 border border-rose-700 flex items-center justify-center text-lg';
+                    icon.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i>';
+                    document.getElementById('strix-cors-verdict').innerText = 'Veredicto: INACCESIBLE (Timeout / Error de Red)';
+                    document.getElementById('strix-cors-explanation').innerText = data.explanation || 'El objetivo no respondió en el puerto especificado.';
+                    document.getElementById('strix-cors-credentials').innerHTML = '<span class="text-slate-400 font-mono">No evaluable</span>';
+                    document.getElementById('strix-cors-headers-grid').innerHTML = `
+                        <div class="col-span-full p-4 rounded-xl border border-rose-900/60 bg-rose-950/30 text-rose-300 text-xs">
+                            <i class="fa-solid fa-circle-exclamation mr-1.5"></i>
+                            No se pudieron inspeccionar las cabeceras defensivas porque el servidor no respondió a la petición HTTP.
+                        </div>
+                    `;
+                    showToast(`Error de conexión en prueba CORS: ${data.verdict}`, true);
+                    return;
+                }
 
                 if (data.verdict === 'VULNERABLE') {
                     banner.className = 'p-4 rounded-xl border border-rose-800 bg-rose-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3';

@@ -2110,34 +2110,108 @@ function strixPocTest($pdo) {
     $rawRespHeaders = substr($resp, 0, $headerSize);
     $respBody = substr($resp, $headerSize);
     $effUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+    $contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?: 'text/html';
+    $contentLen = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+    $typeStr = $contentType . ($contentLen > 0 ? " (" . round($contentLen/1024, 1) . " KB)" : "");
     $err = curl_error($ch);
     curl_close($ch);
 
     if ($code === 0 && !empty($err)) {
+        $isTimeout = (stripos($err, 'timed out') !== false || stripos($err, 'timeout') !== false);
+        $isRefused = (stripos($err, 'refused') !== false);
+        $isDnsFail = (stripos($err, 'could not resolve') !== false || stripos($err, 'resolve host') !== false);
+
+        $parsedHost = parse_url($url, PHP_URL_HOST) ?: $url;
+        $parsedScheme = parse_url($url, PHP_URL_SCHEME) ?: 'https';
+        $altScheme = ($parsedScheme === 'https') ? 'http' : 'https';
+        $parsedPath = parse_url($url, PHP_URL_PATH) ?: '/';
+        $altUrl = "{$altScheme}://{$parsedHost}{$parsedPath}";
+
+        $verdict = 'INACCESIBLE';
+        $diagTitle = 'Host Inalcanzable / Error de Red';
+        $diagMsg = "No fue posible conectar con {$url}. Detalle: {$err}.";
+
+        if ($isTimeout) {
+            $verdict = 'TIMEOUT (Tiempo Agotado)';
+            $diagTitle = 'Tiempo de Espera Agotado (Connection Timed Out)';
+            $diagMsg = "El host '{$parsedHost}' no respondió en el puerto " . ($parsedScheme === 'https' ? '443 (HTTPS)' : '80 (HTTP)') . " tras {$duration} ms. El puerto se encuentra cerrado o filtrado por un firewall/Security Group perimetral, o el servicio web reside exclusivamente en un subdominio específico.";
+        } elseif ($isRefused) {
+            $verdict = 'CONEXIÓN RECHAZADA (TCP RST)';
+            $diagTitle = 'Conexión Rechazada (TCP RST / Port Closed)';
+            $diagMsg = "El servidor remoto en '{$parsedHost}' rechazó activamente la conexión. No hay ningún servicio web escuchando en el puerto " . ($parsedScheme === 'https' ? '443' : '80') . ".";
+        } elseif ($isDnsFail) {
+            $verdict = 'FALLO DNS (NXDOMAIN)';
+            $diagTitle = 'Fallo de Resolución DNS (NXDOMAIN)';
+            $diagMsg = "El dominio '{$parsedHost}' no pudo ser resuelto a una dirección IP pública.";
+        }
+
+        $curlCmd = "curl -v -k --connect-timeout 6 -X {$method} \"{$url}\"";
+        $pyScript = "import requests\n\ntry:\n    res = requests.request('{$method}', '{$url}', timeout=6, verify=False)\n    print('Status:', res.status_code)\nexcept requests.exceptions.RequestException as e:\n    print(f'Error de conexión detectado: {e}')";
+
         echo json_encode([
-            'success' => false,
+            'success' => true,
+            'is_error' => true,
             'url' => $url,
-            'error' => "Fallo de conexión: $err",
-            'duration_ms' => $duration
+            'effective_url' => $url,
+            'method' => $method,
+            'http_code' => 0,
+            'status_code' => 0,
+            'latency_ms' => $duration,
+            'duration_ms' => $duration,
+            'content_type' => 'Error de Red (' . ($isTimeout ? 'Timeout' : ($isRefused ? 'Rechazado' : 'Inaccesible')) . ')',
+            'verdict' => $verdict,
+            'verdict_class' => 'text-rose-400',
+            'diagnostic_title' => $diagTitle,
+            'diagnostic' => $diagMsg,
+            'alt_url' => $altUrl,
+            'alt_scheme' => $altScheme,
+            'raw_request' => $rawReq ?: "{$method} {$parsedPath} HTTP/1.1\r\nHost: {$parsedHost}\r\nUser-Agent: Strix-PoC-Validator/1.0 (OpenRecon-Pentest-Suite)\r\nAccept: */*",
+            'raw_response_headers' => "[!] ERROR DE RED cURL: {$err}\n[!] Código de Error: " . ($isTimeout ? 'CURLE_OPERATION_TIMEDOUT (28)' : 'CURLE_COULDNT_CONNECT (7)'),
+            'response_body_snippet' => "Diagnóstico Strix:\n1. Si el objetivo es '{$parsedHost}', verifica si responde bajo '{$altScheme}://'.\n2. En laboratorios públicos de pentesting (como vulnweb.com), los servicios de prueba se alojan en subdominios (ej. testasp.vulnweb.com).",
+            'response_preview' => "Diagnóstico Strix: El host remoto no envió respuesta.",
+            'poc_curl' => $curlCmd,
+            'reproduction_curl' => $curlCmd,
+            'poc_python' => $pyScript,
+            'reproduction_python' => $pyScript
         ]);
         return;
     }
 
-    // Determine verdict
+    // Determine verdict & diagnostic
     $verdict = 'NEUTRO';
     $verdictClass = 'text-slate-400';
+    $diagTitle = 'Respuesta del Servidor';
+    $diagMsg = 'El servidor respondió a la petición HTTP.';
+
     if ($code === 200) {
         $verdict = 'EXPUESTO / VULNERABLE (HTTP 200 OK)';
         $verdictClass = 'text-rose-400';
+        $diagTitle = 'Endpoint Accesible / Posible Exposición';
+        $diagMsg = "El recurso respondió con código 200 OK. La información solicitada es accesible sin restricciones perimetrales.";
     } elseif ($code === 403) {
         $verdict = 'BLOQUEADO POR POLÍTICA / WAF (HTTP 403 Forbidden)';
         $verdictClass = 'text-emerald-400';
+        $diagTitle = 'Acceso Bloqueado / Protegido';
+        $diagMsg = "El servidor o WAF perimetral bloqueó la petición con código 403 Forbidden. El acceso está restringido.";
+    } elseif ($code === 401) {
+        $verdict = 'AUTENTICACIÓN REQUERIDA (HTTP 401 Unauthorized)';
+        $verdictClass = 'text-cyan-400';
+        $diagTitle = 'Autenticación Requerida';
+        $diagMsg = "El endpoint exige credenciales de acceso.";
     } elseif ($code >= 300 && $code < 400) {
         $verdict = "REDIRECCIÓN (HTTP $code)";
         $verdictClass = 'text-amber-400';
+        $location = '';
+        foreach (explode("\r\n", $rawRespHeaders) as $h) {
+            if (stripos($h, 'Location:') === 0) $location = trim(substr($h, 9));
+        }
+        $diagTitle = 'Redirección Perimetral';
+        $diagMsg = "El servidor redirige la petición a: " . ($location ?: 'otra ubicación');
     } elseif ($code === 404) {
         $verdict = 'RECURSO NO ENCONTRADO (HTTP 404 Not Found)';
         $verdictClass = 'text-slate-400';
+        $diagTitle = 'No Encontrado';
+        $diagMsg = "El recurso no existe en la ruta consultada.";
     } else {
         $verdict = "RESPUESTA SERVIDOR (HTTP $code)";
         $verdictClass = 'text-cyan-400';
@@ -2151,20 +2225,31 @@ function strixPocTest($pdo) {
         $curlCmd .= " -d '" . addslashes($postBody) . "'";
     }
 
+    $pyScript = "import requests\n\nurl = '{$url}'\nheaders = " . json_encode($customHeaders) . "\nresponse = requests.request('{$method}', url, headers=headers, verify=False)\nprint('Status:', response.status_code)\nprint(response.text[:500])";
+
     echo json_encode([
         'success' => true,
+        'is_error' => false,
         'url' => $url,
         'effective_url' => $effUrl,
         'method' => $method,
+        'http_code' => $code,
         'status_code' => $code,
+        'latency_ms' => $duration,
         'duration_ms' => $duration,
+        'content_type' => $typeStr,
         'verdict' => $verdict,
         'verdict_class' => $verdictClass,
-        'raw_request' => $rawReq ?: "{$method} " . parse_url($url, PHP_URL_PATH) . " HTTP/1.1\r\nHost: " . parse_url($url, PHP_URL_HOST) . "\r\nUser-Agent: Strix-PoC/1.0\r\n\r\n",
+        'diagnostic_title' => $diagTitle,
+        'diagnostic' => $diagMsg,
+        'raw_request' => $rawReq ?: "{$method} " . (parse_url($url, PHP_URL_PATH) ?: '/') . " HTTP/1.1\r\nHost: " . parse_url($url, PHP_URL_HOST) . "\r\nUser-Agent: Strix-PoC/1.0\r\n\r\n",
         'raw_response_headers' => trim($rawRespHeaders),
+        'response_body_snippet' => substr($respBody, 0, 4000),
         'response_preview' => substr($respBody, 0, 4000),
+        'poc_curl' => $curlCmd,
         'reproduction_curl' => $curlCmd,
-        'reproduction_python' => "import requests\n\nurl = '{$url}'\nheaders = " . json_encode($customHeaders) . "\nresponse = requests.{$method}('{$url}', headers=headers, verify=False)\nprint('Status:', response.status_code)\nprint(response.text[:500])"
+        'poc_python' => $pyScript,
+        'reproduction_python' => $pyScript
     ]);
 }
 
@@ -2182,6 +2267,10 @@ function strixRouteFuzz($pdo) {
     $host = explode('/', $host)[0];
 
     $scheme = 'https';
+    if ((isset($_POST['url']) && stripos($_POST['url'], 'http://') === 0) || (isset($_GET['url']) && stripos($_GET['url'], 'http://') === 0)) {
+        $scheme = 'http';
+    }
+
     $canaryUrl = "{$scheme}://{$host}/__strix_canary_404_chk_" . substr(md5($host), 0, 6);
     $chC = curl_init($canaryUrl);
     curl_setopt($chC, CURLOPT_RETURNTRANSFER, true);
@@ -2189,7 +2278,30 @@ function strixRouteFuzz($pdo) {
     curl_setopt($chC, CURLOPT_SSL_VERIFYPEER, false);
     $canaryBody = curl_exec($chC);
     $canaryCode = curl_getinfo($chC, CURLINFO_HTTP_CODE);
+    $canaryErr = curl_error($chC);
     curl_close($chC);
+
+    // If HTTPS timed out or failed to connect, try fallback to HTTP
+    if ($canaryCode === 0 && $scheme === 'https') {
+        $scheme = 'http';
+        $canaryUrl = "{$scheme}://{$host}/__strix_canary_404_chk_" . substr(md5($host), 0, 6);
+        $chC = curl_init($canaryUrl);
+        curl_setopt($chC, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($chC, CURLOPT_TIMEOUT, 3);
+        $canaryBody = curl_exec($chC);
+        $canaryCode = curl_getinfo($chC, CURLINFO_HTTP_CODE);
+        $canaryErr = curl_error($chC);
+        curl_close($chC);
+    }
+
+    if ($canaryCode === 0) {
+        echo json_encode([
+            'success' => false,
+            'host' => $host,
+            'error' => "Host inalcanzable ({$host}): El servidor no respondió ni en HTTPS (443) ni en HTTP (80). Detalle: {$canaryErr}. Verifique si el servicio se aloja en un subdominio específico."
+        ]);
+        return;
+    }
 
     $isSpa = ($canaryCode === 200 && strlen($canaryBody) > 100);
     $canaryLen = strlen($canaryBody);
@@ -2283,9 +2395,20 @@ function strixTlsInspect($pdo) {
 
     if (!$client) {
         echo json_encode([
-            'success' => false,
+            'success' => true,
+            'is_error' => true,
             'host' => $host,
             'port' => $port,
+            'status' => 'INACCESIBLE / PUERTO CERRADO',
+            'is_expired' => false,
+            'days_remaining' => 0,
+            'common_name' => $host,
+            'issuer' => 'Sin negociación TLS',
+            'signature_algorithm' => 'N/A',
+            'valid_from' => 'N/A',
+            'valid_to' => 'N/A',
+            'subject_alt_names' => [],
+            'recommendation' => "No se pudo establecer negociación SSL/TLS con {$host} en el puerto {$port} ({$errstr}). El puerto se encuentra cerrado o filtrado por firewall perimetral.",
             'error' => "No se pudo establecer negociación TLS en puerto $port: $errstr"
         ]);
         return;
@@ -2347,7 +2470,34 @@ function strixCorsTest($pdo) {
     $resp = curl_exec($ch);
     $size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
     $headers = substr($resp, 0, $size);
+    $err = curl_error($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+
+    if ($code === 0 && !empty($err)) {
+        echo json_encode([
+            'success' => true,
+            'is_error' => true,
+            'url' => $url,
+            'test_origin' => $testOrigin,
+            'verdict' => 'INACCESIBLE',
+            'explanation' => "Fallo de conexión al auditar CORS en {$url}: {$err}. El servicio no respondió en el puerto indicado.",
+            'acao' => 'No evaluable (Error de Red)',
+            'acac' => 'No evaluable',
+            'allow_credentials' => false,
+            'allowed_methods' => 'N/A',
+            'is_reflection' => false,
+            'is_wildcard' => false,
+            'defensive_headers' => [
+                'strict-transport-security' => null,
+                'x-frame-options' => null,
+                'content-security-policy' => null,
+                'x-content-type-options' => null
+            ],
+            'reproduction_curl' => "curl -I -s -k -H \"Origin: {$testOrigin}\" \"{$url}\""
+        ]);
+        return;
+    }
 
     $acao = null;
     $acac = null;
