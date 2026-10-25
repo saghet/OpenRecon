@@ -831,6 +831,97 @@
         </div>
     </div>
 
+    <!-- Vulnerability Hardening & Playbook Modal -->
+    <div id="vuln-playbook-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cyber-card border border-indigo-500/50 rounded-2xl max-w-4xl w-full p-6 shadow-2xl relative max-h-[92vh] flex flex-col">
+            <div class="flex items-center justify-between pb-4 border-b border-cyber-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-950 border border-indigo-700 flex items-center justify-center text-indigo-400">
+                        <i class="fa-solid fa-shield-halved text-lg"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span id="vp-severity" class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider bg-rose-950 text-rose-400 border-rose-800">HIGH</span>
+                            <span id="vp-cwe" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-400 border border-slate-700">CWE-298</span>
+                            <span id="vp-asset" class="px-2 py-0.5 rounded text-[10px] font-mono text-slate-300 bg-slate-900 border border-slate-700">demo.testfire.net</span>
+                        </div>
+                        <h3 id="vp-title" class="text-base font-bold text-white mt-1">Título de la Vulnerabilidad</h3>
+                    </div>
+                </div>
+                <button onclick="closeVulnPlaybookModal()" class="text-slate-400 hover:text-white p-2">
+                    <i class="fa-solid fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="overflow-y-auto my-4 space-y-4 pr-1 text-xs">
+                <!-- Description & Diagnostic -->
+                <div class="bg-slate-950 p-4 rounded-xl border border-cyber-border space-y-2">
+                    <h5 class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-circle-info text-cyan-400"></i> Descripción y Diagnóstico Forense
+                    </h5>
+                    <p id="vp-desc" class="text-slate-300 leading-relaxed font-sans"></p>
+                    <div class="mt-2 pt-2 border-t border-slate-800 text-slate-400">
+                        <strong class="text-emerald-400">Remediación Estándar:</strong>
+                        <span id="vp-remediation"></span>
+                    </div>
+                </div>
+
+                <!-- Hardening Snippets Multi-Stack -->
+                <div class="space-y-2">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <h5 class="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-code text-indigo-400"></i> Directivas de Configuración y Hardening (Copiar y Pegar)
+                        </h5>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="setVpStack('nginx')" id="vp-tab-nginx" class="px-2.5 py-1 rounded text-xs font-semibold bg-indigo-900 text-white border border-indigo-600">Nginx</button>
+                            <button onclick="setVpStack('apache')" id="vp-tab-apache" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">Apache</button>
+                            <button onclick="setVpStack('tomcat')" id="vp-tab-tomcat" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">Tomcat / Java</button>
+                            <button onclick="setVpStack('iis')" id="vp-tab-iis" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">IIS / Windows</button>
+                            <button onclick="setVpStack('cloudflare')" id="vp-tab-cloudflare" class="px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border">Cloudflare / WAF</button>
+                        </div>
+                    </div>
+
+                    <div class="relative">
+                        <pre id="vp-snippet-code" class="w-full p-4 rounded-xl bg-slate-950 border border-cyber-border font-mono text-[11px] text-cyan-300 overflow-x-auto whitespace-pre leading-relaxed"></pre>
+                        <button onclick="copyVpSnippet()" class="absolute top-3 right-3 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-copy"></i>
+                            <span>Copiar Snippet</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Verification Curl Command -->
+                <div class="space-y-2">
+                    <h5 class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-terminal text-emerald-400"></i> Comando de Verificación Post-Remediación
+                    </h5>
+                    <div class="relative">
+                        <pre id="vp-curl-code" class="w-full p-3.5 rounded-xl bg-slate-950 border border-emerald-900/50 font-mono text-[11px] text-emerald-300 overflow-x-auto whitespace-pre leading-relaxed"></pre>
+                        <button onclick="copyVpCurl()" class="absolute top-2.5 right-2.5 px-3 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-semibold text-xs flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-copy"></i>
+                            <span>Copiar Comando</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-2 pt-3 border-t border-cyber-border flex flex-col sm:flex-row justify-between items-center gap-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400 font-medium">Actualizar Estado:</span>
+                    <select id="vp-status-select" onchange="onVpStatusChange(this.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 text-cyan-300 border border-cyan-800 focus:outline-none">
+                        <option value="OPEN">🔴 Abierto</option>
+                        <option value="IN_PROGRESS">🟡 En Remediación</option>
+                        <option value="RESOLVED">🟢 Mitigado / Resuelto</option>
+                        <option value="FALSE_POSITIVE">⚪ Falso Positivo</option>
+                    </select>
+                </div>
+                <button onclick="closeVulnPlaybookModal()" class="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold">
+                    Cerrar Playbook
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="border-t border-cyber-border py-6 text-center text-xs text-slate-500 no-print">
         <p>OpenRecon &copy; 2026 - Plataforma Libre de Ciberseguridad Defensiva y Exposición Perimetral.</p>
@@ -1295,9 +1386,193 @@
                                 <i class="fa-solid fa-globe mr-1 text-slate-500"></i>${v.asset_subdomain}
                             </span>
                         </div>
+
+                        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+                            <button onclick="openVulnPlaybookModal(${v.id})" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 transition shadow-sm">
+                                <i class="fa-solid fa-code"></i> Playbook & Guía de Hardening
+                            </button>
+                            <span class="text-[11px] text-slate-500 font-mono">
+                                Detectado: ${(v.created_at || '').slice(0, 16)}
+                            </span>
+                        </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        // ==========================================
+        // VULNERABILITY PLAYBOOK & HARDENING MODAL
+        // ==========================================
+        let currentVpVuln = null;
+        let currentVpStack = 'nginx';
+
+        function openVulnPlaybookModal(vulnId) {
+            const v = (rawVulnsList || []).find(item => item.id == vulnId);
+            if (!v) {
+                showToast('No se encontró el hallazgo solicitado', true);
+                return;
+            }
+            currentVpVuln = v;
+
+            // Fill basic info
+            const sevEl = document.getElementById('vp-severity');
+            sevEl.innerText = v.severity || 'INFO';
+            sevEl.className = 'px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ' + 
+                (v.severity === 'HIGH' ? 'bg-orange-950 text-orange-400 border-orange-800' : 
+                (v.severity === 'MEDIUM' ? 'bg-amber-950 text-amber-400 border-amber-800' : 'bg-blue-950 text-blue-400 border-blue-800'));
+
+            document.getElementById('vp-title').innerText = v.title || 'Hallazgo de Seguridad';
+            document.getElementById('vp-asset').innerText = v.asset_subdomain || 'host';
+            document.getElementById('vp-desc').innerText = v.description || 'Sin descripción';
+            document.getElementById('vp-remediation').innerText = v.remediation || 'Aplicar buenas prácticas OWASP.';
+            document.getElementById('vp-status-select').value = v.status || 'OPEN';
+
+            // Extract CWE tag
+            const titleLower = (v.title || '').toLowerCase();
+            let cweText = 'CWE-200';
+            if (titleLower.includes('certificado') || titleLower.includes('expirado')) cweText = 'CWE-298 (Certificado Expirado)';
+            else if (titleLower.includes('cookie') || titleLower.includes('samesite')) cweText = 'CWE-614 / CWE-1275 (Cookies)';
+            else if (titleLower.includes('formulario de autenticación')) cweText = 'CWE-523 / CWE-319 (Cleartext Auth)';
+            else if (titleLower.includes('swagger') || titleLower.includes('openapi')) cweText = 'CWE-200 / CWE-651 (API Docs)';
+            else if (titleLower.includes('diagnóstico') || titleLower.includes('estado del servidor')) cweText = 'CWE-200 / CWE-918 (Diagnostic)';
+            else if (titleLower.includes('portal de gestión')) cweText = 'CWE-284 (Admin Exposure)';
+            else if (titleLower.includes('cabecera') || titleLower.includes('hsts')) cweText = 'CWE-1021 / CWE-693 (OWASP Headers)';
+            document.getElementById('vp-cwe').innerText = cweText;
+
+            setVpStack(currentVpStack || 'nginx');
+            document.getElementById('vuln-playbook-modal').classList.remove('hidden');
+        }
+
+        function closeVulnPlaybookModal() {
+            document.getElementById('vuln-playbook-modal').classList.add('hidden');
+        }
+
+        function setVpStack(stack) {
+            currentVpStack = stack;
+            const stacks = ['nginx', 'apache', 'tomcat', 'iis', 'cloudflare'];
+            stacks.forEach(s => {
+                const btn = document.getElementById(`vp-tab-${s}`);
+                if (btn) {
+                    if (s === stack) {
+                        btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-indigo-900 text-white border border-indigo-600 shadow-sm';
+                    } else {
+                        btn.className = 'px-2.5 py-1 rounded text-xs font-semibold bg-slate-900 text-slate-400 hover:text-white border border-cyber-border';
+                    }
+                }
+            });
+            updateVpPlaybookContent();
+        }
+
+        function updateVpPlaybookContent() {
+            if (!currentVpVuln) return;
+            const title = (currentVpVuln.title || '').toLowerCase();
+            const host = currentVpVuln.asset_subdomain || 'demo.testfire.net';
+            let snippet = '';
+            let curlCmd = '';
+
+            if (title.includes('certificado') || title.includes('expirado')) {
+                curlCmd = `curl -Iv --connect-timeout 5 https://${host}/`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# Renovar e instalar certificado SSL/TLS con Let's Encrypt / Certbot\nsudo certbot --nginx -d ${host}\n\n# O actualizar manualmente en /etc/nginx/conf.d/${host}.conf:\nserver {\n    listen 443 ssl http2;\n    server_name ${host};\n\n    ssl_certificate /etc/ssl/certs/${host}_fullchain.pem;\n    ssl_certificate_key /etc/ssl/private/${host}_privkey.pem;\n    ssl_protocols TLSv1.2 TLSv1.3;\n    ssl_ciphers HIGH:!aNULL:!MD5;\n}`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En /etc/apache2/sites-available/${host}-ssl.conf:\n<VirtualHost *:443>\n    ServerName ${host}\n    SSLEngine on\n    SSLCertificateFile /etc/ssl/certs/${host}.crt\n    SSLCertificateKeyFile /etc/ssl/private/${host}.key\n    SSLCertificateChainFile /etc/ssl/certs/${host}_ca.crt\n    SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1\n</VirtualHost>`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `<!-- En conf/server.xml de Apache Tomcat -->\n<Connector port="8443" protocol="org.apache.coyote.http11.Http11NioProtocol"\n           maxThreads="150" SSLEnabled="true">\n    <SSLHostConfig hostName="${host}">\n        <Certificate certificateKeystoreFile="conf/${host}.p12"\n                     certificateKeystorePassword="TU_CONTRASENA"\n                     type="RSA" />\n    </SSLHostConfig>\n</Connector>`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `# PowerShell (Administrador) para instalar y vincular certificado SSL en IIS:\n$cert = Import-PfxCertificate -FilePath "C:\\certs\\${host}.pfx" -CertStoreLocation Cert:\\LocalMachine\\My\nNew-WebBinding -Name "Default Web Site" -IP "*" -Port 443 -Protocol https -HostHeader "${host}" -SslFlags 1\nGet-ChildItem Cert:\\LocalMachine\\My\\$($cert.Thumbprint) | New-Item "IIS:\\SslBindings\\0.0.0.0!443!${host}"`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare Dashboard > SSL/TLS > Overview:\n1. Configurar Modo de Encriptación: "Full (Strict)"\n2. Ir a SSL/TLS > Edge Certificates y activar "Always Use HTTPS"\n3. Activar "Automatic HTTPS Rewrites" y "Minimum TLS Version: TLS 1.2"`;
+                }
+            } else if (title.includes('swagger') || title.includes('openapi')) {
+                curlCmd = `curl -I -s "http://${host}/swagger/index.html" | grep "HTTP/"\n# Debe retornar 403 Forbidden o 404 Not Found`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# Bloquear acceso publico a Swagger y documentación OpenAPI en Nginx\nlocation ~* ^/(swagger|api-docs|v2/api-docs|v3/api-docs|openapi\\.json|swagger-resources) {\n    # Permitir solo IP de gestión corporativa / VPN:\n    allow 10.0.0.0/8;\n    allow 192.168.1.0/24;\n    deny all;\n    return 403 "Acceso no autorizado al catálogo de APIs.";\n}`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En .htaccess o VirtualHost de Apache:\n<LocationMatch "^/(swagger|api-docs|v2/api-docs|v3/api-docs|openapi\\.json)">\n    Require ip 10.0.0.0/8\n    ErrorDocument 403 "Acceso restringido a documentación técnica."\n</LocationMatch>`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `# En application.properties (Spring Boot) o web.xml:\nspringdoc.swagger-ui.enabled=false\nspringdoc.api-docs.enabled=false\nmanagement.endpoints.web.exposure.exclude=swagger,openapi\n\n# O en web.xml restringir con security-constraint por rol ADMIN:`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS / ASP.NET -->\n<system.webServer>\n  <security>\n    <requestFiltering>\n      <denyUrlSequences>\n        <add sequence="/swagger" />\n        <add sequence="/openapi.json" />\n      </denyUrlSequences>\n    </requestFiltering>\n  </security>\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# Regla WAF en Cloudflare (Security > WAF > Custom Rules):\nRegla: (http.request.uri.path contains "/swagger" or http.request.uri.path contains "properties.json") and not (ip.src in {10.0.0.0/8})\nAcción: Block`;
+                }
+            } else if (title.includes('formulario de autenticación') || title.includes('en claro')) {
+                curlCmd = `curl -IL --connect-timeout 5 "http://${host}/login.jsp" | grep -E "HTTP/|Location:"`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# Forzar Redirección HTTP -> HTTPS permanente (301) en Nginx:\nserver {\n    listen 80;\n    server_name ${host};\n    return 301 https://$host$request_uri;\n}`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En .htaccess o VirtualHost *:80 de Apache:\nRewriteEngine On\nRewriteCond %{HTTPS} off\nRewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `<!-- En WEB-INF/web.xml para obligar transporte CONFIDENTIAL -->\n<security-constraint>\n    <web-resource-collection>\n        <web-resource-name>Protected Area</web-resource-name>\n        <url-pattern>/*</url-pattern>\n    </web-resource-collection>\n    <user-data-constraint>\n        <transport-guarantee>CONFIDENTIAL</transport-guarantee>\n    </user-data-constraint>\n</security-constraint>`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS (URL Rewrite) -->\n<system.webServer>\n  <rewrite>\n    <rules>\n      <rule name="Redirect to HTTPS" stopProcessing="true">\n        <match url="(.*)" />\n        <conditions><add input="{HTTPS}" pattern="off" ignoreCase="true" /></conditions>\n        <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" redirectType="Permanent" />\n      </rule>\n    </rules>\n  </rewrite>\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare Dashboard > SSL/TLS > Edge Certificates:\nActivar interruptor: "Always Use HTTPS" (Habilitado)`;
+                }
+            } else if (title.includes('cookie') || title.includes('samesite') || title.includes('httponly')) {
+                curlCmd = `curl -I -s "http://${host}/" | grep -i "set-cookie"\n# Debe contener: Secure; HttpOnly; SameSite=Lax (o Strict)`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# Inyectar atributos Secure, HttpOnly y SameSite en Nginx proxy_pass:\nlocation / {\n    proxy_pass http://backend_upstream;\n    proxy_cookie_path / "/; Secure; HttpOnly; SameSite=Lax";\n}`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En Apache (mod_headers habilitado):\nHeader edit Set-Cookie ^(.*)$ "$1; Secure; HttpOnly; SameSite=Lax"\n\n# O para PHP en php.ini:\nsession.cookie_secure = 1\nsession.cookie_httponly = 1\nsession.cookie_samesite = "Lax"`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `<!-- En conf/context.xml de Apache Tomcat -->\n<Context useHttpOnly="true">\n    <CookieProcessor sameSiteCookies="lax" secure="true" />\n</Context>`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS -->\n<system.web>\n  <httpCookies httpOnlyCookies="true" requireSSL="true" sameSite="Lax" />\n</system.web>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare > Rules > Transform Rules > Modify Response Header:\nModificar encabezado 'Set-Cookie' agregando directivas '; Secure; HttpOnly; SameSite=Lax'`;
+                }
+            } else if (title.includes('diagnóstico') || title.includes('estado del servidor') || title.includes('portal de gestión')) {
+                curlCmd = `curl -I -s "http://${host}/status_check.jsp" | grep "HTTP/"\n# Debe retornar 403 Forbidden o 404 Not Found`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# Bloquear utilidades de diagnóstico y consolas administrativas en Nginx\nlocation ~* ^/(status_check\\.jsp|util/|admin/|manager/|server-status) {\n    deny all;\n    return 404;\n}`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# En Apache:\n<LocationMatch "^/(status_check\\.jsp|util/|admin/|manager/|server-status)">\n    Require all denied\n</LocationMatch>`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `# Eliminar utilidades y servlets de prueba de Tomcat:\nsudo rm -rf /opt/tomcat/webapps/examples\nsudo rm -rf /opt/tomcat/webapps/manager\nsudo rm -rf /opt/tomcat/webapps/host-manager\n# En server.xml asegurar RemoteAddrValve en Context`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS -->\n<system.webServer>\n  <security>\n    <requestFiltering>\n      <denyUrlSequences>\n        <add sequence="/status_check.jsp" />\n        <add sequence="/admin" />\n      </denyUrlSequences>\n    </requestFiltering>\n  </security>\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# Regla WAF en Cloudflare:\n(http.request.uri.path contains "/status_check.jsp" or http.request.uri.path contains "/admin/") -> Action: Block`;
+                }
+            } else {
+                // Generic security headers (HSTS, CSP, etc.)
+                curlCmd = `curl -I -s "https://${host}/" | grep -E -i "(strict-transport|x-frame|x-content|content-security)"`;
+                if (currentVpStack === 'nginx') {
+                    snippet = `# Hardening de cabeceras de seguridad perimetral en Nginx\nadd_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;\nadd_header X-Frame-Options "SAMEORIGIN" always;\nadd_header X-Content-Type-Options "nosniff" always;\nadd_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; object-src 'none';" always;\nadd_header Referrer-Policy "strict-origin-when-cross-origin" always;`;
+                } else if (currentVpStack === 'apache') {
+                    snippet = `# Hardening de cabeceras en Apache (mod_headers):\nHeader always set Strict-Transport-Security "max-age=31536000; includeSubDomains"\nHeader always set X-Frame-Options "SAMEORIGIN"\nHeader always set X-Content-Type-Options "nosniff"\nHeader always set Content-Security-Policy "default-src 'self';"\nHeader always set Referrer-Policy "strict-origin-when-cross-origin"`;
+                } else if (currentVpStack === 'tomcat') {
+                    snippet = `<!-- En conf/web.xml de Apache Tomcat -->\n<filter>\n    <filter-name>httpHeaderSecurity</filter-name>\n    <filter-class>org.apache.catalina.filters.HttpHeaderSecurityFilter</filter-class>\n    <init-param><param-name>hstsEnabled</param-name><param-value>true</param-value></init-param>\n    <init-param><param-name>antiClickJackingOption</param-name><param-value>SAMEORIGIN</param-value></init-param>\n</filter>\n<filter-mapping>\n    <filter-name>httpHeaderSecurity</filter-name>\n    <url-pattern>/*</url-pattern>\n</filter-mapping>`;
+                } else if (currentVpStack === 'iis') {
+                    snippet = `<!-- En web.config de IIS -->\n<system.webServer>\n  <httpProtocol>\n    <customHeaders>\n      <add name="Strict-Transport-Security" value="max-age=31536000; includeSubDomains" />\n      <add name="X-Frame-Options" value="SAMEORIGIN" />\n      <add name="X-Content-Type-Options" value="nosniff" />\n    </customHeaders>\n  </httpProtocol>\n</system.webServer>`;
+                } else if (currentVpStack === 'cloudflare') {
+                    snippet = `# En Cloudflare > Rules > Transform Rules > Add Response Headers:\n1. Strict-Transport-Security = max-age=31536000; includeSubDomains\n2. X-Frame-Options = SAMEORIGIN\n3. X-Content-Type-Options = nosniff`;
+                }
+            }
+
+            document.getElementById('vp-snippet-code').innerText = snippet;
+            document.getElementById('vp-curl-code').innerText = curlCmd;
+        }
+
+        function copyVpSnippet() {
+            const code = document.getElementById('vp-snippet-code').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                showToast('Snippet de configuración copiado al portapapeles');
+            });
+        }
+
+        function copyVpCurl() {
+            const code = document.getElementById('vp-curl-code').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                showToast('Comando de verificación curl copiado');
+            });
+        }
+
+        async function onVpStatusChange(newStatus) {
+            if (!currentVpVuln) return;
+            await handleStatusChange(currentVpVuln.id, newStatus);
+            currentVpVuln.status = newStatus;
         }
 
         async function loadVulns() {
