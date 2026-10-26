@@ -1533,6 +1533,86 @@
                     </div>
                 </div>
 
+                <!-- Forensic Identity Attribution Dossier Card -->
+                <div id="loginrecon-identity-dossier" class="hidden bg-gradient-to-r from-slate-900 via-sky-950/30 to-slate-900 border-2 border-sky-500/60 rounded-2xl p-5 shadow-2xl relative overflow-hidden space-y-4">
+                    <div class="absolute -right-8 -bottom-8 opacity-10 pointer-events-none text-8xl text-sky-400">
+                        <i class="fa-solid fa-user-secret"></i>
+                    </div>
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-5">
+                        <!-- Avatar Box -->
+                        <div class="relative flex-shrink-0">
+                            <img id="dossier-avatar-img" src="" alt="Avatar" class="w-16 h-16 rounded-2xl border-2 border-sky-400 object-cover shadow-lg shadow-sky-950/80 bg-slate-900 hidden" />
+                            <div id="dossier-avatar-placeholder" class="w-16 h-16 rounded-2xl border-2 border-sky-500/50 bg-slate-900 flex items-center justify-center text-sky-400 text-2xl shadow-lg">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </div>
+                            <div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center text-[10px] text-black font-bold" title="Identidad Verificada">
+                                <i class="fa-solid fa-check"></i>
+                            </div>
+                        </div>
+
+                        <!-- Main Identity Header -->
+                        <div class="flex-1 space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-sky-950 text-sky-300 border border-sky-800">
+                                    <i class="fa-solid fa-magnifying-glass-chart mr-1"></i> Atribución de Identidad Forense
+                                </span>
+                                <span id="dossier-confidence-badge" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border bg-amber-950 text-amber-300 border-amber-700">
+                                    Calculando...
+                                </span>
+                                <span id="dossier-username-badge" class="font-mono text-xs text-sky-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                    @usuario
+                                </span>
+                            </div>
+                            <h3 id="dossier-primary-name" class="text-xl font-black text-white flex items-center gap-2">
+                                Identificando...
+                            </h3>
+                            <p id="dossier-method" class="text-xs text-slate-400 font-mono">
+                                Método de atribución: Correlación OSINT
+                            </p>
+                        </div>
+
+                        <!-- Metric Badges -->
+                        <div class="flex md:flex-col items-center md:items-end gap-3 flex-shrink-0 border-t md:border-t-0 md:border-l border-slate-800 pt-3 md:pt-0 md:pl-5">
+                            <div class="text-left md:text-right">
+                                <span class="text-[10px] uppercase text-slate-500 font-bold block">Huella Detectada</span>
+                                <span id="dossier-footprint" class="text-base font-black text-sky-400 font-mono">0%</span>
+                            </div>
+                            <div class="text-left md:text-right">
+                                <span class="text-[10px] uppercase text-slate-500 font-bold block">Cuentas Confirmadas</span>
+                                <span id="dossier-accounts-count" class="text-base font-black text-emerald-400 font-mono">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Forensic Details Drawer -->
+                    <div id="dossier-details-grid" class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs mt-4 pt-4 border-t border-cyber-border/70">
+                        <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                            <span class="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                                <i class="fa-solid fa-envelope mr-1 text-emerald-400"></i> Emails Detectados en Commits
+                            </span>
+                            <div id="dossier-emails-container" class="font-mono text-emerald-400 text-xs">
+                                No detectados
+                            </div>
+                        </div>
+                        <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                            <span class="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                                <i class="fa-solid fa-building mr-1 text-sky-400"></i> Organización / Ubicación
+                            </span>
+                            <div id="dossier-org-loc" class="text-slate-300 text-xs">
+                                No especificada
+                            </div>
+                        </div>
+                        <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                            <span class="text-[10px] font-bold uppercase text-slate-500 block mb-1">
+                                <i class="fa-solid fa-network-wired mr-1 text-purple-400"></i> Fuentes Correlacionadas
+                            </span>
+                            <div id="dossier-sources-container" class="text-slate-300 text-xs">
+                                0 fuentes
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Metrics & Export Card (Hidden until search) -->
                 <div id="loginrecon-metrics-card" class="hidden border border-cyber-border rounded-xl p-4 bg-slate-950/70 space-y-4">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyber-border/70 pb-3">
@@ -4713,17 +4793,19 @@
             const input = document.getElementById('loginrecon-input-username');
             const selectCat = document.getElementById('loginrecon-select-category');
             const btn = document.getElementById('btn-loginrecon-search');
+            
             const username = (input.value || '').trim();
-            const category = selectCat.value || 'all';
+            const category = selectCat ? selectCat.value : 'all';
 
             if (!username) {
-                showToast('Ingresa un nombre de usuario para iniciar el rastreo', true);
+                showToast('Por favor ingresa un nombre de usuario para buscar', true);
+                input.focus();
                 return;
             }
 
             btn.disabled = true;
             btn.classList.add('opacity-75');
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Rastreando (75+)...</span>';
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Rastreando Forense (75+)...</span>';
 
             try {
                 const res = await fetch(`${API_URL}?action=loginrecon_search&username=${encodeURIComponent(username)}&category=${encodeURIComponent(category)}`);
@@ -4738,6 +4820,65 @@
                 document.getElementById('loginrecon-initial-message').classList.add('hidden');
                 document.getElementById('loginrecon-metrics-card').classList.remove('hidden');
                 document.getElementById('loginrecon-results-grid').classList.remove('hidden');
+
+                // Populate Forensic Identity Dossier
+                const dossier = data.identity_dossier || {};
+                const dossierCard = document.getElementById('loginrecon-identity-dossier');
+                if (dossierCard) {
+                    dossierCard.classList.remove('hidden');
+                    document.getElementById('dossier-primary-name').innerText = dossier.primary_name || data.username;
+                    document.getElementById('dossier-username-badge').innerText = `@${data.username}`;
+                    document.getElementById('dossier-method').innerText = `Método de atribución: ${dossier.attribution_method || 'OSINT'}`;
+                    document.getElementById('dossier-footprint').innerText = `${data.footprint_rate}%`;
+                    document.getElementById('dossier-accounts-count').innerText = data.found_count;
+
+                    // Confidence badge styling
+                    const confBadge = document.getElementById('dossier-confidence-badge');
+                    confBadge.innerText = dossier.confidence || 'BAJA';
+                    if ((dossier.confidence || '').includes('ALTA')) {
+                        confBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold uppercase border bg-emerald-950 text-emerald-300 border-emerald-700';
+                    } else if ((dossier.confidence || '').includes('MEDIA')) {
+                        confBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold uppercase border bg-sky-950 text-sky-300 border-sky-700';
+                    } else {
+                        confBadge.className = 'px-2 py-0.5 rounded text-[10px] font-bold uppercase border bg-slate-800 text-slate-400 border-slate-700';
+                    }
+
+                    // Avatar
+                    const avatarImg = document.getElementById('dossier-avatar-img');
+                    const avatarPlaceholder = document.getElementById('dossier-avatar-placeholder');
+                    if (dossier.avatar_url) {
+                        avatarImg.src = dossier.avatar_url;
+                        avatarImg.classList.remove('hidden');
+                        avatarPlaceholder.classList.add('hidden');
+                    } else {
+                        avatarImg.classList.add('hidden');
+                        avatarPlaceholder.classList.remove('hidden');
+                    }
+
+                    // Emails
+                    const emailsContainer = document.getElementById('dossier-emails-container');
+                    if (dossier.detected_emails && dossier.detected_emails.length > 0) {
+                        emailsContainer.innerHTML = dossier.detected_emails.map(em => `<div class="truncate"><i class="fa-solid fa-at mr-1 text-[10px]"></i>${em}</div>`).join('');
+                    } else {
+                        emailsContainer.innerText = 'No detectados en commits públicos';
+                    }
+
+                    // Org / Loc
+                    const orgLoc = document.getElementById('dossier-org-loc');
+                    const parts = [];
+                    if (dossier.company) parts.push(`<span class="font-bold text-white">${dossier.company}</span>`);
+                    if (dossier.location) parts.push(`<span>${dossier.location}</span>`);
+                    if (dossier.bio) parts.push(`<div class="text-[11px] text-slate-400 mt-1 italic line-clamp-2">"${dossier.bio}"</div>`);
+                    orgLoc.innerHTML = parts.length > 0 ? parts.join(' • ') : 'No especificada en perfiles analizados';
+
+                    // Sources
+                    const sourcesContainer = document.getElementById('dossier-sources-container');
+                    if (dossier.confirmed_identities && dossier.confirmed_identities.length > 0) {
+                        sourcesContainer.innerHTML = dossier.confirmed_identities.map(ci => `<span class="inline-block px-1.5 py-0.5 mr-1 mb-1 rounded bg-slate-900 border border-slate-800 text-[10px] text-sky-300">${ci.source}: <strong class="text-white">${ci.name}</strong></span>`).join('');
+                    } else {
+                        sourcesContainer.innerText = `${data.found_count} plataformas asociadas a @${data.username}`;
+                    }
+                }
 
                 document.getElementById('loginrecon-stat-total').innerText = data.total_platforms;
                 document.getElementById('loginrecon-stat-found').innerText = data.found_count;
@@ -4755,8 +4896,9 @@
                 document.getElementById('count-pill-prof').innerText = allRes.filter(r => r.category === 'prof').length;
 
                 renderLoginReconCards(allRes);
-                showToast(`LoginRecon finalizado: ${data.found_count} perfiles confirmados para @${username}`);
+                showToast(`LoginRecon finalizado: ${data.found_count} perfiles confirmados para @${username} [Atribuido: ${dossier.primary_name || username}]`);
             } catch (e) {
+                console.error(e);
                 showToast('Error de conexión en LoginRecon', true);
             } finally {
                 btn.disabled = false;
@@ -4799,17 +4941,19 @@
 
             grid.innerHTML = items.map(item => {
                 const isFound = item.is_found;
-                const cardBorder = isFound ? 'border-emerald-700/80 bg-emerald-950/20' : 'border-slate-800/80 bg-slate-900/40 opacity-70';
+                const cardBorder = isFound ? 'border-emerald-700/80 bg-emerald-950/20 shadow-lg shadow-emerald-950/30' : 'border-slate-800/80 bg-slate-900/40 opacity-70';
                 const badgeClass = isFound ? 'bg-emerald-950 text-emerald-300 border-emerald-700' : 'bg-slate-800 text-slate-400 border-slate-700';
+
+                const avatarHtml = (isFound && item.avatar) ? 
+                    `<img src="${item.avatar}" alt="${item.name}" class="w-8 h-8 rounded-lg object-cover border border-slate-700" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" /><div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 hidden items-center justify-center text-white text-sm"><i class="${item.icon}"></i></div>` :
+                    `<div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-white text-sm"><i class="${item.icon}"></i></div>`;
 
                 return `
                     <div class="p-3.5 rounded-xl border ${cardBorder} flex flex-col justify-between space-y-3 transition hover:border-sky-500/60">
                         <div class="flex items-start justify-between gap-2">
                             <div class="flex items-center gap-2.5">
-                                <div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-white text-sm">
-                                    <i class="${item.icon}"></i>
-                                </div>
-                                <div class="truncate max-w-[120px]">
+                                ${avatarHtml}
+                                <div class="truncate max-w-[130px]">
                                     <h4 class="text-xs font-bold text-white truncate">${item.name}</h4>
                                     <span class="text-[10px] text-slate-400 font-mono capitalize">${item.category}</span>
                                 </div>
@@ -4818,6 +4962,20 @@
                                 ${isFound ? 'Confirmado' : 'No Encontrado'}
                             </span>
                         </div>
+
+                        ${isFound && (item.display_name || item.bio_snippet) ? `
+                            <div class="bg-slate-950/70 p-2 rounded-lg border border-slate-800/60 space-y-1 text-left">
+                                ${item.display_name ? `
+                                    <div class="text-[11px] font-bold text-sky-300 flex items-center gap-1.5 truncate">
+                                        <i class="fa-solid fa-id-card text-[10px] text-emerald-400 flex-shrink-0"></i>
+                                        <span class="truncate" title="${item.display_name}">${item.display_name}</span>
+                                    </div>
+                                ` : ''}
+                                ${item.bio_snippet ? `
+                                    <p class="text-[10px] text-slate-400 italic line-clamp-2" title="${item.bio_snippet}">${item.bio_snippet}</p>
+                                ` : ''}
+                            </div>
+                        ` : ''}
 
                         <div class="pt-2 border-t border-cyber-border/40 flex items-center justify-between text-xs">
                             ${isFound ? `

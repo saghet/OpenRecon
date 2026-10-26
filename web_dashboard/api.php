@@ -3370,6 +3370,232 @@ function getUnifiedResilienceMetrics($pdo) {
  * Inspired by UserRecon (wishihab/userrecon) - Parallel Multi-cURL Probing
  * =========================================================================
  */
+function loginReconCleanDisplayName($raw, $username, $platformName) {
+    if (empty($raw)) return null;
+    $cleaned = html_entity_decode(strip_tags($raw), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    
+    // Strip common platform branding suffixes
+    $patterns = [
+        '/\s*\|\s*GitHub\b.*/i',
+        '/\s*-\s*Instagram\b.*/i',
+        '/\s*on\s*Twitter\b.*/i',
+        '/\s*on\s*X\b.*/i',
+        '/\s*\|\s*Codecademy\b.*/i',
+        '/\s*\|\s*Scribd\b.*/i',
+        '/\s*-\s*SoundCloud\b.*/i',
+        '/\s*\|\s*LinkedIn\b.*/i',
+        '/\s*-\s*YouTube\b.*/i',
+        '/\s*on\s*Vimeo\b.*/i',
+        '/\s*\|\s*Flickr\b.*/i',
+        '/\s*on\s*Reddit\b.*/i',
+        '/\s*-\s*Mixcloud\b.*/i',
+        '/\s*\|\s*Trakt\b.*/i',
+        '/\s*\|\s*SlideShare\b.*/i',
+        '/\s*\(@[a-zA-Z0-9._-]+\)/i',
+        '/\s*user\s*profile\b.*/i',
+        '/\s*profile\b.*/i'
+    ];
+    foreach ($patterns as $p) {
+        $cleaned = preg_replace($p, '', $cleaned);
+    }
+    
+    if (!empty($platformName)) {
+        $cleaned = preg_replace('/' . preg_quote($platformName, '/') . '/i', '', $cleaned);
+    }
+    
+    $cleaned = trim($cleaned, " 	
+
+ -|:·•/");
+    
+    $lower = strtolower($cleaned);
+    $badTokens = ['profile not found', 'user not found', 'page not found', 'page no longer exists', 'error', '404', 'not found', 'mixcloud', 'audio culture', 'home', 'log in', 'sign up', 'login', 'web', 'undefined', 'null', 'client challenge', 'the magic of the internet', 'content for regulated industries', 'skyscanner', 'google workspace updates', 'just a moment', 'attention required'];
+    foreach ($badTokens as $bad) {
+        if (strpos($lower, $bad) !== false) {
+            return null;
+        }
+    }
+    
+    if (strtolower($cleaned) === strtolower($username) || mb_strlen($cleaned, 'UTF-8') < 3 || strpos($cleaned, '.') === 0 || strtolower($cleaned) === '.com') {
+        return null;
+    }
+    
+    return $cleaned;
+}
+
+function loginReconExtractHtmlMeta($html, $url, $platformName, $username) {
+    $meta = [
+        'display_name' => null,
+        'avatar' => null,
+        'bio_snippet' => null
+    ];
+    if (empty($html)) return $meta;
+    
+    $title = '';
+    if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $m)) {
+        $title = trim($m[1]);
+    }
+    
+    $ogTitle = '';
+    if (preg_match('/<meta[^>]+(?:property|name)=["\']og:title["\'][^>]+content=["\']([^"\']+)["\']/is', $html, $m)) {
+        $ogTitle = trim($m[1]);
+    } elseif (preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:title["\']/is', $html, $m)) {
+        $ogTitle = trim($m[1]);
+    }
+    
+    $ogImage = '';
+    if (preg_match('/<meta[^>]+(?:property|name)=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']/is', $html, $m)) {
+        $ogImage = trim($m[1]);
+    } elseif (preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\']og:image["\']/is', $html, $m)) {
+        $ogImage = trim($m[1]);
+    }
+    
+    $ogDesc = '';
+    if (preg_match('/<meta[^>]+(?:property|name)=["\'](?:og:description|description)["\'][^>]+content=["\']([^"\']+)["\']/is', $html, $m)) {
+        $ogDesc = trim($m[1]);
+    } elseif (preg_match('/<meta[^>]+content=["\']([^"\']+)["\'][^>]+(?:property|name)=["\'](?:og:description|description)["\']/is', $html, $m)) {
+        $ogDesc = trim($m[1]);
+    }
+    
+    $candidate = !empty($ogTitle) ? $ogTitle : $title;
+    $cleanName = loginReconCleanDisplayName($candidate, $username, $platformName);
+    if (!empty($cleanName)) {
+        $meta['display_name'] = $cleanName;
+    }
+    
+    if (!empty($ogImage) && (strpos($ogImage, 'http://') === 0 || strpos($ogImage, 'https://') === 0)) {
+        // Exclude generic placeholder trackers
+        if (strpos($ogImage, '1x1') === false && strpos($ogImage, 'spacer') === false) {
+            $meta['avatar'] = html_entity_decode($ogImage, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+    }
+    
+    if (!empty($ogDesc)) {
+        $desc = html_entity_decode(strip_tags($ogDesc), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if (mb_strlen($desc, 'UTF-8') > 160) {
+            $desc = mb_substr($desc, 0, 157, 'UTF-8') . '...';
+        }
+        $meta['bio_snippet'] = $desc;
+    }
+    
+    return $meta;
+}
+
+function loginReconProbeGitHub($username) {
+    $data = [
+        'found' => false,
+        'name' => null,
+        'avatar_url' => null,
+        'bio' => null,
+        'company' => null,
+        'location' => null,
+        'public_repos' => 0,
+        'commit_authors' => [],
+        'commit_emails' => []
+    ];
+    
+    $ch = curl_init("https://api.github.com/users/" . urlencode($username));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($code === 200 && !empty($resp)) {
+        $json = json_decode($resp, true);
+        if (is_array($json) && !empty($json['id'])) {
+            $data['found'] = true;
+            $data['name'] = !empty($json['name']) ? trim($json['name']) : null;
+            $data['avatar_url'] = !empty($json['avatar_url']) ? $json['avatar_url'] : null;
+            $data['bio'] = !empty($json['bio']) ? trim($json['bio']) : null;
+            $data['company'] = !empty($json['company']) ? trim($json['company']) : null;
+            $data['location'] = !empty($json['location']) ? trim($json['location']) : null;
+            $data['public_repos'] = (int)($json['public_repos'] ?? 0);
+        }
+    }
+    
+    // Deep forensic inspection: if explicit profile name is missing, inspect commits in public repositories
+    if ($data['found'] && (empty($data['name']) || strtolower($data['name']) === strtolower($username))) {
+        $chR = curl_init("https://api.github.com/users/" . urlencode($username) . "/repos?per_page=2&sort=updated");
+        curl_setopt($chR, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($chR, CURLOPT_TIMEOUT, 4);
+        curl_setopt($chR, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
+        curl_setopt($chR, CURLOPT_SSL_VERIFYPEER, false);
+        $reposResp = curl_exec($chR);
+        curl_close($chR);
+        
+        if (!empty($reposResp)) {
+            $repos = json_decode($reposResp, true);
+            if (is_array($repos)) {
+                foreach ($repos as $repo) {
+                    $repoName = $repo['name'] ?? '';
+                    if (empty($repoName)) continue;
+                    
+                    $chC = curl_init("https://api.github.com/repos/" . urlencode($username) . "/" . urlencode($repoName) . "/commits?per_page=3");
+                    curl_setopt($chC, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($chC, CURLOPT_TIMEOUT, 4);
+                    curl_setopt($chC, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
+                    curl_setopt($chC, CURLOPT_SSL_VERIFYPEER, false);
+                    $cResp = curl_exec($chC);
+                    curl_close($chC);
+                    
+                    if (!empty($cResp)) {
+                        $commits = json_decode($cResp, true);
+                        if (is_array($commits)) {
+                            foreach ($commits as $cm) {
+                                $cAuth = $cm['commit']['author'] ?? [];
+                                $aName = trim($cAuth['name'] ?? '');
+                                $aEmail = trim($cAuth['email'] ?? '');
+                                if (!empty($aName) && strtolower($aName) !== strtolower($username) && !in_array($aName, $data['commit_authors'])) {
+                                    $data['commit_authors'][] = $aName;
+                                }
+                                if (!empty($aEmail) && strpos($aEmail, 'users.noreply.github.com') === false && !in_array($aEmail, $data['commit_emails'])) {
+                                    $data['commit_emails'][] = $aEmail;
+                                }
+                            }
+                        }
+                    }
+                    if (!empty($data['commit_authors'])) break;
+                }
+            }
+        }
+    }
+    
+    return $data;
+}
+
+function loginReconProbeGravatar($username) {
+    $data = [
+        'found' => false,
+        'display_name' => null,
+        'avatar_url' => null,
+        'bio' => null,
+        'location' => null
+    ];
+    $ch = curl_init("https://en.gravatar.com/" . urlencode($username) . ".json");
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($code === 200 && !empty($resp)) {
+        $json = json_decode($resp, true);
+        if (isset($json['entry'][0])) {
+            $entry = $json['entry'][0];
+            $data['found'] = true;
+            $data['display_name'] = !empty($entry['displayName']) ? trim($entry['displayName']) : null;
+            $data['avatar_url'] = !empty($entry['thumbnailUrl']) ? $entry['thumbnailUrl'] : null;
+            $data['bio'] = !empty($entry['aboutMe']) ? trim($entry['aboutMe']) : null;
+            $data['location'] = !empty($entry['currentLocation']) ? trim($entry['currentLocation']) : null;
+        }
+    }
+    return $data;
+}
+
 function loginReconSearch($pdo) {
     set_time_limit(180);
     $username = trim($_POST['username'] ?? $_GET['username'] ?? '');
@@ -3446,22 +3672,21 @@ function loginReconSearch($pdo) {
         ['name' => 'blip.fm', 'url' => 'https://blip.fm/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-radio', 'error_pattern' => '404 Not Found'],
         ['name' => 'Wikipedia', 'url' => 'https://en.wikipedia.org/wiki/User:{username}', 'category' => 'blogs', 'icon' => 'fa-brands fa-wikipedia-w', 'error_pattern' => 'HTTP/2 404'],
         ['name' => 'HackerNews', 'url' => 'https://news.ycombinator.com/user?id={username}', 'category' => 'dev', 'icon' => 'fa-brands fa-y-combinator', 'error_pattern' => 'No such user'],
-        ['name' => 'CodeMentor', 'url' => 'https://www.codementor.io/@{username}', 'category' => 'dev', 'icon' => 'fa-solid fa-laptop-code', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
-        ['name' => 'ReverbNation', 'url' => 'https://www.reverbnation.com/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-guitar', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
-        ['name' => 'Designspiration', 'url' => 'https://www.designspiration.net/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-lightbulb', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
-        ['name' => 'Bandcamp', 'url' => 'https://{username}.bandcamp.com', 'category' => 'media', 'icon' => 'fa-brands fa-bandcamp', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
-        ['name' => 'ColourLovers', 'url' => 'https://www.colourlovers.com/lover/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-droplet', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
-        ['name' => 'IFTTT', 'url' => 'https://ifttt.com/p/{username}', 'category' => 'dev', 'icon' => 'fa-solid fa-network-wired', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
-        ['name' => 'Ebay', 'url' => 'https://www.ebay.com/usr/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-ebay', 'error_pattern' => 'HTTP/2 404\|404 Not Found\|eBay Profile - error'],
-        ['name' => 'Slack', 'url' => 'https://{username}.slack.com', 'category' => 'dev', 'icon' => 'fa-brands fa-slack', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
-        ['name' => 'OkCupid', 'url' => 'https://www.okcupid.com/profile/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-heart', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
-        ['name' => 'Trip', 'url' => 'https://www.trip.skyscanner.com/user/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-compass', 'error_pattern' => 'HTTP/2 404\|404 Not Found\|HTTP/2 410'],
-        ['name' => 'Ello', 'url' => 'https://ello.co/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-circle', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'CodeMentor', 'url' => 'https://www.codementor.io/@{username}', 'category' => 'dev', 'icon' => 'fa-solid fa-laptop-code', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        ['name' => 'ReverbNation', 'url' => 'https://www.reverbnation.com/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-guitar', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        ['name' => 'Designspiration', 'url' => 'https://www.designspiration.net/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-lightbulb', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        ['name' => 'Bandcamp', 'url' => 'https://{username}.bandcamp.com', 'category' => 'media', 'icon' => 'fa-brands fa-bandcamp', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        ['name' => 'ColourLovers', 'url' => 'https://www.colourlovers.com/lover/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-droplet', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        ['name' => 'IFTTT', 'url' => 'https://ifttt.com/p/{username}', 'category' => 'dev', 'icon' => 'fa-solid fa-network-wired', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        ['name' => 'Ebay', 'url' => 'https://www.ebay.com/usr/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-ebay', 'error_pattern' => 'HTTP/2 404|404 Not Found|eBay Profile - error'],
+        ['name' => 'Slack', 'url' => 'https://{username}.slack.com', 'category' => 'dev', 'icon' => 'fa-brands fa-slack', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        ['name' => 'OkCupid', 'url' => 'https://www.okcupid.com/profile/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-heart', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        ['name' => 'Trip', 'url' => 'https://www.trip.skyscanner.com/user/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-compass', 'error_pattern' => 'HTTP/2 404|404 Not Found|HTTP/2 410'],
+        ['name' => 'Ello', 'url' => 'https://ello.co/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-circle', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
         ['name' => 'Tracky', 'url' => 'https://tracky.com/user/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-list-check', 'error_pattern' => 'profile:username'],
         ['name' => 'Tripit', 'url' => 'https://www.tripit.com/people/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-ticket', 'error_pattern' => 'location: https://www.tripit.com/home'],
-        ['name' => 'Basecamp', 'url' => 'https://{username}.basecamphq.com', 'category' => 'dev', 'icon' => 'fa-solid fa-campground', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'Basecamp', 'url' => 'https://{username}.basecamphq.com', 'category' => 'dev', 'icon' => 'fa-solid fa-campground', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
     ];
-
 
     if ($categoryFilter !== 'all') {
         $platforms = array_filter($platforms, function($p) use ($categoryFilter) {
@@ -3471,6 +3696,11 @@ function loginReconSearch($pdo) {
     }
 
     $startTotal = microtime(true);
+    
+    // Launch parallel forensic API probes for GitHub and Gravatar
+    $githubForensics = loginReconProbeGitHub($username);
+    $gravatarForensics = loginReconProbeGravatar($username);
+
     $batchSize = 25;
     $results = [];
     $foundUrls = [];
@@ -3510,16 +3740,103 @@ function loginReconSearch($pdo) {
             
             $errPattern = $h['platform']['error_pattern'] ?? '';
             $isFound = false;
+            $meta = ['display_name' => null, 'avatar' => null, 'bio_snippet' => null];
             
             if ($code >= 200 && $code < 300) {
                 $isFound = true;
+                
+                // Specific platform error pattern
                 if (!empty($errPattern) && stripos($body, $errPattern) !== false) {
                     $isFound = false;
+                }
+                
+                // Anti-SPA semantic validation: Modern JS single page apps returning HTTP 200 for not found
+                if ($isFound) {
+                    $spaFalsePatterns = [
+                        'Profile Not Found',
+                        'User Not Found',
+                        'UserNotFound',
+                        'Page Not Found',
+                        'Page no longer exists',
+                        'could not be found',
+                        'does not exist',
+                        'No user found',
+                        'This account doesn',
+                        'account does not exist',
+                        'doesn’t exist',
+                        'doesn\'t exist',
+                        'doesn&#39;t exist',
+                        'Nobody with this name',
+                        'The specified profile could not be found',
+                        'This user doesn\'t have an active account',
+                        'User has deleted their account',
+                        'The user with the username',
+                        '404 Not Found',
+                        '404 error',
+                        'Client Challenge',
+                        'Just a moment...',
+                        'Attention Required',
+                        'Security Check',
+                        'Access Denied',
+                        'Bot Verification',
+                        'Google Workspace Updates',
+                        'Checking your browser',
+                        'Cloudflare Ray ID'
+                    ];
+                    
+                    if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $body, $tm)) {
+                        $titleText = html_entity_decode(strip_tags($tm[1]), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                        foreach ($spaFalsePatterns as $sfp) {
+                            if (stripos($titleText, $sfp) !== false) {
+                                $isFound = false;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if ($isFound) {
+                        $bodySnippet = substr($body, 0, 3500);
+                        foreach (['Profile Not Found', 'User Not Found', 'could not be found', 'Page no longer exists', 'The specified profile could not be found', 'Client Challenge', 'Attention Required! | Cloudflare', 'Checking your browser'] as $sfp) {
+                            if (stripos($bodySnippet, $sfp) !== false) {
+                                $isFound = false;
+                                break;
+                            }
+                        }
+                    }
                 }
             }
             
             if ($isFound) {
                 $foundUrls[] = $h['url'];
+                $meta = loginReconExtractHtmlMeta($body, $h['url'], $h['platform']['name'], $username);
+                
+                // Enrich GitHub profile specifically with forensic probe
+                if (strtolower($h['platform']['name']) === 'github' && $githubForensics['found']) {
+                    if (!empty($githubForensics['name'])) {
+                        $meta['display_name'] = $githubForensics['name'];
+                    } elseif (!empty($githubForensics['commit_authors'])) {
+                        $meta['display_name'] = $githubForensics['commit_authors'][0];
+                    }
+                    if (!empty($githubForensics['avatar_url'])) {
+                        $meta['avatar'] = $githubForensics['avatar_url'];
+                    }
+                    if (!empty($githubForensics['bio'])) {
+                        $meta['bio_snippet'] = $githubForensics['bio'];
+                    }
+                }
+                
+                // Enrich Gravatar profile specifically
+                if (strtolower($h['platform']['name']) === 'gravatar' && $gravatarForensics['found']) {
+                    if (!empty($gravatarForensics['display_name'])) {
+                        $meta['display_name'] = $gravatarForensics['display_name'];
+                    }
+                    if (!empty($gravatarForensics['avatar_url'])) {
+                        $meta['avatar'] = $gravatarForensics['avatar_url'];
+                    }
+                    if (!empty($gravatarForensics['bio'])) {
+                        $meta['bio_snippet'] = $gravatarForensics['bio'];
+                    }
+                }
             }
             
             $results[] = [
@@ -3530,7 +3847,10 @@ function loginReconSearch($pdo) {
                 'status_code' => $code,
                 'is_found' => $isFound,
                 'status' => $isFound ? 'FOUND' : 'NOT_FOUND',
-                'verdict' => $isFound ? 'Perfil Encontrado' : 'No Encontrado / Disponible'
+                'verdict' => $isFound ? 'Perfil Encontrado' : 'No Encontrado / Disponible',
+                'display_name' => $meta['display_name'],
+                'avatar' => $meta['avatar'],
+                'bio_snippet' => $meta['bio_snippet']
             ];
         }
         curl_multi_close($mh);
@@ -3548,15 +3868,131 @@ function loginReconSearch($pdo) {
     $foundCount = count($foundUrls);
     $footprintRate = count($results) > 0 ? round(($foundCount / count($results)) * 100, 1) : 0;
     
-    // Format text output exactly like userrecon.sh $username.txt
-    $txtContent = "# UserRecon / LoginRecon OSINT Report\n";
-    $txtContent .= "# Target Username: {$username}\n";
-    $txtContent .= "# Platforms Checked: " . count($results) . "\n";
-    $txtContent .= "# Verified Profiles: {$foundCount}\n";
-    $txtContent .= "# Digital Footprint: {$footprintRate}%\n";
-    $txtContent .= "# Scan Date: " . date('Y-m-d H:i:s T') . "\n\n";
-    foreach ($foundUrls as $u) {
-        $txtContent .= "{$u}\n";
+    // Compile Forensic Attribution Dossier
+    $primaryName = null;
+    $primaryAvatar = null;
+    $primaryBio = null;
+    $primaryLocation = null;
+    $primaryCompany = null;
+    $attributionMethod = 'Pseudónimo / No Declarado';
+    $confidence = 'BAJA (Solo Nombre de Usuario)';
+    $detectedEmails = [];
+    $confirmedIdentities = [];
+    
+    if ($githubForensics['found']) {
+        if (!empty($githubForensics['name']) && strtolower($githubForensics['name']) !== strtolower($username)) {
+            $primaryName = $githubForensics['name'];
+            $confidence = 'ALTA (Perfil Verificado GitHub)';
+            $attributionMethod = 'Nombre explícito en perfil público de GitHub';
+            $confirmedIdentities[] = ['source' => 'GitHub Profile', 'name' => $primaryName];
+        } elseif (!empty($githubForensics['commit_authors'])) {
+            $primaryName = $githubForensics['commit_authors'][0];
+            $confidence = 'MEDIA-ALTA (Firma Forense de Commits)';
+            $attributionMethod = 'Firma de autor extraída de commits en repositorios públicos';
+            foreach ($githubForensics['commit_authors'] as $ca) {
+                $confirmedIdentities[] = ['source' => 'Git Commit Signature', 'name' => $ca];
+            }
+        }
+        if (!empty($githubForensics['avatar_url'])) {
+            $primaryAvatar = $githubForensics['avatar_url'];
+        }
+        if (!empty($githubForensics['bio'])) $primaryBio = $githubForensics['bio'];
+        if (!empty($githubForensics['location'])) $primaryLocation = $githubForensics['location'];
+        if (!empty($githubForensics['company'])) $primaryCompany = $githubForensics['company'];
+        if (!empty($githubForensics['commit_emails'])) {
+            $detectedEmails = array_merge($detectedEmails, $githubForensics['commit_emails']);
+        }
+    }
+    
+    if ($gravatarForensics['found']) {
+        if (empty($primaryName) && !empty($gravatarForensics['display_name']) && strtolower($gravatarForensics['display_name']) !== strtolower($username)) {
+            $primaryName = $gravatarForensics['display_name'];
+            $confidence = 'ALTA (Perfil Gravatar)';
+            $attributionMethod = 'Nombre declarado en perfil Gravatar';
+            $confirmedIdentities[] = ['source' => 'Gravatar', 'name' => $primaryName];
+        }
+        if (empty($primaryAvatar) && !empty($gravatarForensics['avatar_url'])) {
+            $primaryAvatar = $gravatarForensics['avatar_url'];
+        }
+        if (empty($primaryBio) && !empty($gravatarForensics['bio'])) $primaryBio = $gravatarForensics['bio'];
+        if (empty($primaryLocation) && !empty($gravatarForensics['location'])) $primaryLocation = $gravatarForensics['location'];
+    }
+    
+    // Check OpenGraph names from confirmed platforms
+    foreach ($results as $res) {
+        if ($res['is_found'] && !empty($res['display_name'])) {
+            $confirmedIdentities[] = ['source' => $res['name'], 'name' => $res['display_name']];
+            if (empty($primaryName)) {
+                $primaryName = $res['display_name'];
+                $confidence = 'MEDIA (Metadatos OpenGraph)';
+                $attributionMethod = 'Extraído de metadatos OpenGraph de ' . $res['name'];
+            }
+        }
+        if (empty($primaryAvatar) && $res['is_found'] && !empty($res['avatar'])) {
+            $primaryAvatar = $res['avatar'];
+        }
+        if (empty($primaryBio) && $res['is_found'] && !empty($res['bio_snippet'])) {
+            $primaryBio = $res['bio_snippet'];
+        }
+    }
+    
+    if (empty($primaryName)) {
+        $primaryName = $username;
+    }
+    
+    $identityDossier = [
+        'username' => $username,
+        'primary_name' => $primaryName,
+        'avatar_url' => $primaryAvatar,
+        'bio' => $primaryBio,
+        'location' => $primaryLocation,
+        'company' => $primaryCompany,
+        'confidence' => $confidence,
+        'attribution_method' => $attributionMethod,
+        'detected_emails' => array_values(array_unique($detectedEmails)),
+        'confirmed_identities' => $confirmedIdentities,
+        'verified_profiles_count' => $foundCount,
+        'footprint_rate' => $footprintRate,
+        'forensic_notes' => 'Investigación forense digital correlacionando firmas de commits Git, metadatos OpenGraph y APIs OSINT de identidad.'
+    ];
+
+    // Format text output with forensic identity attribution header
+    $txtContent = "# UserRecon / LoginRecon OSINT Forensic Dossier Report
+";
+    $txtContent .= "# Target Username: {$username}
+";
+    $txtContent .= "# Identified Full Name: {$identityDossier['primary_name']}
+";
+    $txtContent .= "# Attribution Confidence: {$identityDossier['confidence']}
+";
+    $txtContent .= "# Attribution Method: {$identityDossier['attribution_method']}
+";
+    if (!empty($identityDossier['location'])) $txtContent .= "# Location: {$identityDossier['location']}
+";
+    if (!empty($identityDossier['company'])) $txtContent .= "# Organization: {$identityDossier['company']}
+";
+    if (!empty($identityDossier['detected_emails'])) $txtContent .= "# Leaked Git Emails: " . implode(', ', $identityDossier['detected_emails']) . "
+";
+    $txtContent .= "# Platforms Checked: " . count($results) . "
+";
+    $txtContent .= "# Verified Profiles: {$foundCount}
+";
+    $txtContent .= "# Digital Footprint: {$footprintRate}%
+";
+    $txtContent .= "# Scan Date: " . date('Y-m-d H:i:s T') . "
+
+";
+    $txtContent .= "=== VERIFIED DIGITAL FOOTPRINT PROFILES ===
+";
+    foreach ($results as $r) {
+        if ($r['is_found']) {
+            $metaStr = "";
+            if (!empty($r['display_name']) && $r['display_name'] !== $username) {
+                $metaStr = " [Name: {$r['display_name']}]";
+            }
+            $txtContent .= "[+] {$r['name']}: {$r['url']}{$metaStr}
+";
+        }
     }
 
     echo json_encode([
@@ -3567,10 +4003,12 @@ function loginReconSearch($pdo) {
         'found_count' => $foundCount,
         'not_found_count' => count($results) - $foundCount,
         'footprint_rate' => $footprintRate,
+        'identity_dossier' => $identityDossier,
         'results' => $results,
         'txt_content' => $txtContent
     ]);
 }
+
 
 function loginReconGetLeakedUsers($pdo) {
     $users = [];
