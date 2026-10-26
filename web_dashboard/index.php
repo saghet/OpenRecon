@@ -225,6 +225,10 @@
                 <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
                 Navaja Suiza (Strix & AutoPentestX)
             </button>
+            <button onclick="switchTab('loginrecon')" id="tab-btn-loginrecon" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Reconocimiento OSINT de identidades, usuarios y huella digital multiplataforma (UserRecon)">
+                <i class="fa-solid fa-id-badge text-sky-400"></i>
+                LoginRecon
+            </button>
         </div>
 
         <!-- TAB CONTENT: EASM (Assets) -->
@@ -1463,6 +1467,130 @@
             </div> <!-- CLOSE #container-suite-autopentestx -->
         </section>
 
+        <!-- TAB CONTENT: LOGINRECON (OSINT DIGITAL FOOTPRINT & IDENTITY RECON) -->
+        <section id="tab-content-loginrecon" class="space-y-6 hidden">
+            <!-- Header Card -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6 relative overflow-hidden">
+                <div class="absolute -right-10 -bottom-10 opacity-5 pointer-events-none text-9xl text-sky-400">
+                    <i class="fa-solid fa-id-badge"></i>
+                </div>
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-950 text-sky-300 border border-sky-800">
+                                <i class="fa-solid fa-fingerprint mr-1"></i> OSINT Identity Intelligence
+                            </span>
+                            <span class="text-xs text-slate-500 font-mono">Inspirado en UserRecon (wishihab/userrecon)</span>
+                        </div>
+                        <h3 class="text-xl font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-id-badge text-sky-400"></i>
+                            LoginRecon (Rastreo de Huella Digital & Cuentas Expuestas)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1 max-w-3xl">
+                            Sondeo asíncrono y en tiempo real de más de 75 redes sociales, repositorios de código, comunidades y plataformas web para identificar cuentas asociadas a logins corporativos, desarrolladores o credenciales comprometidas.
+                        </p>
+                    </div>
+
+                    <!-- Preset Loader -->
+                    <div class="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-xl border border-cyber-border">
+                        <i class="fa-solid fa-key text-sky-400 text-xs"></i>
+                        <select id="loginrecon-preset-select" class="bg-slate-950 text-xs text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-sky-500 max-w-[200px]">
+                            <option value="">Logins / Fugas Detectadas...</option>
+                        </select>
+                        <button onclick="applyLoginReconPreset()" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition">
+                            Cargar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Bar Card -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                    <div class="md:col-span-6">
+                        <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Nombre de Usuario / Login Objetivo (OSINT)</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 font-mono text-xs">@</span>
+                            <input type="text" id="loginrecon-input-username" placeholder="ejemplo: admin, torvalds, jsmith, ciso" class="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono">
+                        </div>
+                    </div>
+                    <div class="md:col-span-3">
+                        <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Categoría de Plataformas</label>
+                        <select id="loginrecon-select-category" class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500">
+                            <option value="all">Todas las Plataformas (75+)</option>
+                            <option value="social">Redes Sociales (Twitter, Instagram, FB...)</option>
+                            <option value="dev">Código & DevOps (GitHub, GitLab, BitBucket...)</option>
+                            <option value="media">Multimedia & Streaming (YouTube, Spotify...)</option>
+                            <option value="blogs">Blogs & Foros (Medium, WordPress, Reddit...)</option>
+                            <option value="prof">Profesionales & Otros (Slack, Behance, Ebay...)</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-3">
+                        <button onclick="runLoginReconSearch()" id="btn-loginrecon-search" class="w-full px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-sky-950/50">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <span>Rastrear Huella Digital</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Metrics & Export Card (Hidden until search) -->
+                <div id="loginrecon-metrics-card" class="hidden border border-cyber-border rounded-xl p-4 bg-slate-950/70 space-y-4">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyber-border/70 pb-3">
+                        <div class="flex items-center gap-4">
+                            <div>
+                                <span class="text-[10px] uppercase text-slate-500 font-bold block">Plataformas Evaluadas</span>
+                                <span id="loginrecon-stat-total" class="text-xl font-black text-white font-mono">0</span>
+                            </div>
+                            <div class="border-l border-slate-800 pl-4">
+                                <span class="text-[10px] uppercase text-slate-500 font-bold block">Perfiles Confirmados</span>
+                                <span id="loginrecon-stat-found" class="text-xl font-black text-emerald-400 font-mono">0</span>
+                            </div>
+                            <div class="border-l border-slate-800 pl-4">
+                                <span class="text-[10px] uppercase text-slate-500 font-bold block">Tasa de Huella Digital</span>
+                                <span id="loginrecon-stat-rate" class="text-xl font-black text-sky-400 font-mono">0%</span>
+                            </div>
+                            <div class="border-l border-slate-800 pl-4">
+                                <span class="text-[10px] uppercase text-slate-500 font-bold block">Tiempo de Sondeo</span>
+                                <span id="loginrecon-stat-time" class="text-xl font-black text-amber-400 font-mono">0 ms</span>
+                            </div>
+                        </div>
+
+                        <!-- Export buttons -->
+                        <div class="flex items-center gap-2">
+                            <button onclick="exportLoginReconTxt()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5" title="Descargar reporte .txt estilo UserRecon">
+                                <i class="fa-solid fa-download text-emerald-400"></i>
+                                <span>Descargar .TXT</span>
+                            </button>
+                            <button onclick="copyLoginReconLinks()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5" title="Copiar URLs encontradas al portapapeles">
+                                <i class="fa-solid fa-copy text-sky-400"></i>
+                                <span>Copiar Enlaces</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Category Filter Pills inside Results -->
+                    <div class="flex items-center gap-2 overflow-x-auto text-xs font-medium pt-1">
+                        <button onclick="filterLoginReconCards('all')" id="loginrecon-filter-all" class="px-3 py-1 rounded-lg bg-sky-950 text-sky-300 border border-sky-800 transition font-bold shadow">Todas (<span id="count-pill-all">0</span>)</button>
+                        <button onclick="filterLoginReconCards('found')" id="loginrecon-filter-found" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Confirmadas (<span id="count-pill-found">0</span>)</button>
+                        <button onclick="filterLoginReconCards('social')" id="loginrecon-filter-social" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Social (<span id="count-pill-social">0</span>)</button>
+                        <button onclick="filterLoginReconCards('dev')" id="loginrecon-filter-dev" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">DevOps (<span id="count-pill-dev">0</span>)</button>
+                        <button onclick="filterLoginReconCards('media')" id="loginrecon-filter-media" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Media (<span id="count-pill-media">0</span>)</button>
+                        <button onclick="filterLoginReconCards('blogs')" id="loginrecon-filter-blogs" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Blogs & Foros (<span id="count-pill-blogs">0</span>)</button>
+                        <button onclick="filterLoginReconCards('prof')" id="loginrecon-filter-prof" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Profesional (<span id="count-pill-prof">0</span>)</button>
+                    </div>
+                </div>
+
+                <!-- Results Grid -->
+                <div id="loginrecon-results-container" class="space-y-3">
+                    <div id="loginrecon-initial-message" class="text-center py-16 text-slate-500 space-y-3 border border-dashed border-slate-800 rounded-xl bg-slate-950/40">
+                        <i class="fa-solid fa-id-badge text-5xl text-slate-600"></i>
+                        <p class="text-xs max-w-md mx-auto">Ingresa un nombre de usuario o selecciona una credencial filtrada para iniciar el reconocimiento OSINT en 75+ plataformas simultáneas.</p>
+                    </div>
+                    <div id="loginrecon-results-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 hidden"></div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- Work Plan & Roadmap Modal -->
@@ -1914,7 +2042,7 @@
                 activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
             }
 
-            ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix'].forEach(t => {
+            ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon'].forEach(t => {
                 const el = document.getElementById(`tab-content-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tabId);
             });
@@ -1925,6 +2053,9 @@
 
             if (tabId === 'strix') {
                 populateStrixAssetDropdown();
+            }
+            if (tabId === 'loginrecon') {
+                populateLoginReconPresets();
             }
         }
 
@@ -4546,6 +4677,199 @@
                 return;
             }
             window.print();
+        }
+
+        // ==========================================
+        // LOGINRECON (OSINT DIGITAL FOOTPRINT ENGINE)
+        // ==========================================
+        let currentLoginReconData = null;
+        let currentLoginReconFilter = 'all';
+
+        async function populateLoginReconPresets() {
+            try {
+                const res = await fetch(`${API_URL}?action=loginrecon_get_leaked_users`);
+                const data = await res.json();
+                if (!data.success) return;
+                const select = document.getElementById('loginrecon-preset-select');
+                if (!select) return;
+                let html = '<option value="">Logins / Fugas Detectadas...</option>';
+                (data.users || []).forEach(u => {
+                    html += `<option value="${u}">@${u}</option>`;
+                });
+                select.innerHTML = html;
+            } catch (e) {
+                console.error("Error loading leaked presets:", e);
+            }
+        }
+
+        function applyLoginReconPreset() {
+            const select = document.getElementById('loginrecon-preset-select');
+            if (!select || !select.value) return;
+            document.getElementById('loginrecon-input-username').value = select.value;
+            runLoginReconSearch();
+        }
+
+        async function runLoginReconSearch() {
+            const input = document.getElementById('loginrecon-input-username');
+            const selectCat = document.getElementById('loginrecon-select-category');
+            const btn = document.getElementById('btn-loginrecon-search');
+            const username = (input.value || '').trim();
+            const category = selectCat.value || 'all';
+
+            if (!username) {
+                showToast('Ingresa un nombre de usuario para iniciar el rastreo', true);
+                return;
+            }
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Rastreando (75+)...</span>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=loginrecon_search&username=${encodeURIComponent(username)}&category=${encodeURIComponent(category)}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    showToast(data.error || 'Error en el rastreo de LoginRecon', true);
+                    return;
+                }
+
+                currentLoginReconData = data;
+                document.getElementById('loginrecon-initial-message').classList.add('hidden');
+                document.getElementById('loginrecon-metrics-card').classList.remove('hidden');
+                document.getElementById('loginrecon-results-grid').classList.remove('hidden');
+
+                document.getElementById('loginrecon-stat-total').innerText = data.total_platforms;
+                document.getElementById('loginrecon-stat-found').innerText = data.found_count;
+                document.getElementById('loginrecon-stat-rate').innerText = `${data.footprint_rate}%`;
+                document.getElementById('loginrecon-stat-time').innerText = `${data.duration_ms} ms`;
+
+                // Update category pill counts
+                const allRes = data.results || [];
+                document.getElementById('count-pill-all').innerText = allRes.length;
+                document.getElementById('count-pill-found').innerText = data.found_count;
+                document.getElementById('count-pill-social').innerText = allRes.filter(r => r.category === 'social').length;
+                document.getElementById('count-pill-dev').innerText = allRes.filter(r => r.category === 'dev').length;
+                document.getElementById('count-pill-media').innerText = allRes.filter(r => r.category === 'media').length;
+                document.getElementById('count-pill-blogs').innerText = allRes.filter(r => r.category === 'blogs').length;
+                document.getElementById('count-pill-prof').innerText = allRes.filter(r => r.category === 'prof').length;
+
+                renderLoginReconCards(allRes);
+                showToast(`LoginRecon finalizado: ${data.found_count} perfiles confirmados para @${username}`);
+            } catch (e) {
+                showToast('Error de conexión en LoginRecon', true);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i><span>Rastrear Huella Digital</span>';
+            }
+        }
+
+        function filterLoginReconCards(cat) {
+            currentLoginReconFilter = cat;
+            ['all', 'found', 'social', 'dev', 'media', 'blogs', 'prof'].forEach(c => {
+                const btn = document.getElementById(`loginrecon-filter-${c}`);
+                if (btn) {
+                    if (c === cat) {
+                        btn.className = 'px-3 py-1 rounded-lg bg-sky-950 text-sky-300 border border-sky-800 transition font-bold shadow';
+                    } else {
+                        btn.className = 'px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition';
+                    }
+                }
+            });
+
+            if (!currentLoginReconData || !currentLoginReconData.results) return;
+            let filtered = currentLoginReconData.results;
+            if (cat === 'found') {
+                filtered = filtered.filter(r => r.is_found);
+            } else if (cat !== 'all') {
+                filtered = filtered.filter(r => r.category === cat);
+            }
+            renderLoginReconCards(filtered);
+        }
+
+        function renderLoginReconCards(items) {
+            const grid = document.getElementById('loginrecon-results-grid');
+            if (!grid) return;
+
+            if (!items || items.length === 0) {
+                grid.innerHTML = '<div class="col-span-full py-12 text-center text-slate-500 font-mono text-xs">No se encontraron plataformas que coincidan con el filtro seleccionado.</div>';
+                return;
+            }
+
+            grid.innerHTML = items.map(item => {
+                const isFound = item.is_found;
+                const cardBorder = isFound ? 'border-emerald-700/80 bg-emerald-950/20' : 'border-slate-800/80 bg-slate-900/40 opacity-70';
+                const badgeClass = isFound ? 'bg-emerald-950 text-emerald-300 border-emerald-700' : 'bg-slate-800 text-slate-400 border-slate-700';
+
+                return `
+                    <div class="p-3.5 rounded-xl border ${cardBorder} flex flex-col justify-between space-y-3 transition hover:border-sky-500/60">
+                        <div class="flex items-start justify-between gap-2">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-white text-sm">
+                                    <i class="${item.icon}"></i>
+                                </div>
+                                <div class="truncate max-w-[120px]">
+                                    <h4 class="text-xs font-bold text-white truncate">${item.name}</h4>
+                                    <span class="text-[10px] text-slate-400 font-mono capitalize">${item.category}</span>
+                                </div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${badgeClass}">
+                                ${isFound ? 'Confirmado' : 'No Encontrado'}
+                            </span>
+                        </div>
+
+                        <div class="pt-2 border-t border-cyber-border/40 flex items-center justify-between text-xs">
+                            ${isFound ? `
+                                <a href="${item.url}" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:text-sky-300 flex items-center gap-1 font-mono text-[11px] truncate max-w-[140px]">
+                                    <span>Abrir Perfil</span>
+                                    <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                                </a>
+                                <button onclick="launchStrixForUrl('${item.url}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-emerald-400 text-[10px] font-bold border border-emerald-900/60 transition flex items-center gap-1">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
+                                    <span>Strix</span>
+                                </button>
+                            ` : `
+                                <span class="text-[10px] text-slate-500 font-mono">Disponible / HTTP ${item.status_code || 404}</span>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function exportLoginReconTxt() {
+            if (!currentLoginReconData || !currentLoginReconData.txt_content) {
+                showToast('Primero realiza una búsqueda para exportar resultados', true);
+                return;
+            }
+            const blob = new Blob([currentLoginReconData.txt_content], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${currentLoginReconData.username}_userrecon.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`Archivo ${currentLoginReconData.username}_userrecon.txt descargado`);
+        }
+
+        function copyLoginReconLinks() {
+            if (!currentLoginReconData || !currentLoginReconData.results) {
+                showToast('No hay resultados para copiar', true);
+                return;
+            }
+            const found = currentLoginReconData.results.filter(r => r.is_found).map(r => r.url);
+            if (found.length === 0) {
+                showToast('No hay enlaces confirmados para copiar', true);
+                return;
+            }
+            navigator.clipboard.writeText(found.join('\n')).then(() => {
+                showToast(`${found.length} enlaces copiados al portapapeles`);
+            }).catch(() => {
+                showToast('Error al copiar al portapapeles', true);
+            });
         }
 
         window.onload = init;

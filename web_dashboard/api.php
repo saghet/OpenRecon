@@ -232,6 +232,12 @@ switch ($action) {
     case 'get_unified_resilience_metrics':
         getUnifiedResilienceMetrics($pdo);
         break;
+    case 'loginrecon_search':
+        loginReconSearch($pdo);
+        break;
+    case 'loginrecon_get_leaked_users':
+        loginReconGetLeakedUsers($pdo);
+        break;
     default:
         echo json_encode(['status' => 'ok', 'message' => 'OpenRecon API v1.0 running']);
         break;
@@ -3355,5 +3361,236 @@ function getUnifiedResilienceMetrics($pdo) {
         'severity_counts' => $counts,
         'total_vulnerabilities' => count($vulns),
         'waf_detected' => $isWafProtected
+    ]);
+}
+
+/**
+ * =========================================================================
+ * LOGINRECON ENGINE (OSINT Digital Footprint & Username Reconnaissance)
+ * Inspired by UserRecon (wishihab/userrecon) - Parallel Multi-cURL Probing
+ * =========================================================================
+ */
+function loginReconSearch($pdo) {
+    set_time_limit(180);
+    $username = trim($_POST['username'] ?? $_GET['username'] ?? '');
+    $categoryFilter = strtolower(trim($_POST['category'] ?? $_GET['category'] ?? 'all'));
+    
+    // Validate username
+    if (empty($username) || !preg_match('/^[a-zA-Z0-9._-]{2,64}$/', $username)) {
+        echo json_encode([
+            'success' => false,
+            'error' => 'Nombre de usuario inválido. Ingresa entre 2 y 64 caracteres alfanuméricos (a-z, 0-9, ., _, -)'
+        ]);
+        return;
+    }
+
+    $platforms = [
+        ['name' => 'INSTAGRAM', 'url' => 'https://www.instagram.com/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-instagram', 'error_pattern' => 'The link you followed may be broken'],
+        ['name' => 'Facebook', 'url' => 'https://www.facebook.com/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-facebook', 'error_pattern' => 'not found'],
+        ['name' => 'TWITTER', 'url' => 'https://twitter.com/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-x-twitter', 'error_pattern' => 'page doesn’t exist'],
+        ['name' => 'YOUTUBE', 'url' => 'https://www.youtube.com/@{username}', 'category' => 'media', 'icon' => 'fa-brands fa-youtube', 'error_pattern' => 'Not Found'],
+        ['name' => 'BLOGGER', 'url' => 'https://{username}.blogspot.com', 'category' => 'blogs', 'icon' => 'fa-brands fa-blogger', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'GLOOGLE PLUS', 'url' => 'https://plus.google.com/+{username}/posts', 'category' => 'social', 'icon' => 'fa-brands fa-google', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'REDDIT', 'url' => 'https://www.reddit.com/user/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-reddit', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'WORDPRESS', 'url' => 'https://{username}.wordpress.com', 'category' => 'blogs', 'icon' => 'fa-brands fa-wordpress', 'error_pattern' => 'Do you want to register'],
+        ['name' => 'PINTEREST', 'url' => 'https://www.pinterest.com/{username}/', 'category' => 'social', 'icon' => 'fa-brands fa-pinterest', 'error_pattern' => '?show_error'],
+        ['name' => 'GITHUB', 'url' => 'https://github.com/{username}', 'category' => 'dev', 'icon' => 'fa-brands fa-github', 'error_pattern' => '404 Not Found'],
+        ['name' => 'TUMBLR', 'url' => 'https://{username}.tumblr.com', 'category' => 'blogs', 'icon' => 'fa-brands fa-tumblr', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'FLICKR', 'url' => 'https://www.flickr.com/people/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-flickr', 'error_pattern' => 'Not Found'],
+        ['name' => 'STEAM', 'url' => 'https://steamcommunity.com/id/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-steam', 'error_pattern' => 'The specified profile could not be found'],
+        ['name' => 'VIMEO', 'url' => 'https://vimeo.com/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-vimeo', 'error_pattern' => '404 Not Found'],
+        ['name' => 'SoundCloud', 'url' => 'https://soundcloud.com/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-soundcloud', 'error_pattern' => '404 Not Found'],
+        ['name' => 'DISQUS', 'url' => 'https://disqus.com/by/{username}', 'category' => 'blogs', 'icon' => 'fa-solid fa-comments', 'error_pattern' => '404 NOT FOUND'],
+        ['name' => 'MEDIUM', 'url' => 'https://medium.com/@{username}', 'category' => 'blogs', 'icon' => 'fa-brands fa-medium', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'DEVIANTART', 'url' => 'https://{username}.deviantart.com', 'category' => 'media', 'icon' => 'fa-brands fa-deviantart', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'VK', 'url' => 'https://vk.com/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-vk', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'About.me', 'url' => 'https://about.me/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-address-card', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Imgur', 'url' => 'https://imgur.com/user/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-image', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'FlipBoard', 'url' => 'https://flipboard.com/@{username}', 'category' => 'social', 'icon' => 'fa-brands fa-flipboard', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'SlideShare', 'url' => 'https://slideshare.net/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-slideshare', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Fotolog', 'url' => 'https://fotolog.com/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-camera', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Spotify', 'url' => 'https://open.spotify.com/user/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-spotify', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'MixCloud', 'url' => 'https://www.mixcloud.com/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-mixcloud', 'error_pattern' => 'error-message'],
+        ['name' => 'Scribd', 'url' => 'https://www.scribd.com/{username}', 'category' => 'blogs', 'icon' => 'fa-brands fa-scribd', 'error_pattern' => 'show_404'],
+        ['name' => 'Badoo', 'url' => 'https://badoo.com/en/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-heart', 'error_pattern' => '404 Not Found'],
+        ['name' => 'BitBucket', 'url' => 'https://bitbucket.org/{username}', 'category' => 'dev', 'icon' => 'fa-brands fa-bitbucket', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'DailyMotion', 'url' => 'https://www.dailymotion.com/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-dailymotion', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Etsy', 'url' => 'https://www.etsy.com/people/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-etsy', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'CashMe', 'url' => 'https://cash.me/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-dollar-sign', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Behance', 'url' => 'https://www.behance.net/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-behance', 'error_pattern' => '404 Not Found'],
+        ['name' => 'GoodReads', 'url' => 'https://www.goodreads.com/{username}', 'category' => 'blogs', 'icon' => 'fa-brands fa-goodreads', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Instructables', 'url' => 'https://www.instructables.com/member/{username}', 'category' => 'blogs', 'icon' => 'fa-solid fa-screwdriver-wrench', 'error_pattern' => '404 NOT FOUND'],
+        ['name' => 'KeyBase', 'url' => 'https://keybase.io/{username}', 'category' => 'dev', 'icon' => 'fa-brands fa-keybase', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Kongregate', 'url' => 'https://kongregate.com/accounts/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-gamepad', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Livejournal', 'url' => 'https://{username}.livejournal.com', 'category' => 'blogs', 'icon' => 'fa-solid fa-pen-nib', 'error_pattern' => '404 Not Found'],
+        ['name' => 'AngelList', 'url' => 'https://angel.co/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-angellist', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Last.fm', 'url' => 'https://last.fm/user/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-lastfm', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Dribbble', 'url' => 'https://dribbble.com/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-dribbble', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Codecademy', 'url' => 'https://www.codecademy.com/profiles/{username}', 'category' => 'dev', 'icon' => 'fa-solid fa-code', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Gravatar', 'url' => 'https://en.gravatar.com/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-circle-user', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Pastebin', 'url' => 'https://pastebin.com/u/{username}', 'category' => 'dev', 'icon' => 'fa-solid fa-paste', 'error_pattern' => 'location: /index'],
+        ['name' => 'Foursquare', 'url' => 'https://foursquare.com/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-foursquare', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Roblox', 'url' => 'https://www.roblox.com/user.aspx?username={username}', 'category' => 'media', 'icon' => 'fa-solid fa-cube', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Gumroad', 'url' => 'https://{username}.gumroad.com', 'category' => 'prof', 'icon' => 'fa-solid fa-bag-shopping', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Newgrounds', 'url' => 'https://{username}.newgrounds.com', 'category' => 'media', 'icon' => 'fa-solid fa-skull', 'error_pattern' => 'HTTP/2 404 '],
+        ['name' => 'Wattpad', 'url' => 'https://www.wattpad.com/user/{username}', 'category' => 'blogs', 'icon' => 'fa-solid fa-book', 'error_pattern' => 'HTTP/2 404 '],
+        ['name' => 'Canva', 'url' => 'https://www.canva.com/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-palette', 'error_pattern' => 'HTTP/2 404 '],
+        ['name' => 'CreativeMarket', 'url' => 'https://creativemarket.com/users/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-store', 'error_pattern' => '404eef72'],
+        ['name' => 'Trakt', 'url' => 'https://www.trakt.tv/users/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-film', 'error_pattern' => 'HTTP/2 404 '],
+        ['name' => '500px', 'url' => 'https://500px.com/p/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-500px', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Buzzfeed', 'url' => 'https://buzzfeed.com/{username}', 'category' => 'blogs', 'icon' => 'fa-solid fa-bullhorn', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'TripAdvisor', 'url' => 'https://tripadvisor.com/members/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-plane', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'HubPages', 'url' => 'https://hubpages.com/@{username}', 'category' => 'blogs', 'icon' => 'fa-solid fa-newspaper', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Contently', 'url' => 'https://{username}.contently.com', 'category' => 'blogs', 'icon' => 'fa-solid fa-feather', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Houzz', 'url' => 'https://houzz.com/user/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-houzz', 'error_pattern' => 'an error has occurred'],
+        ['name' => 'blip.fm', 'url' => 'https://blip.fm/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-radio', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Wikipedia', 'url' => 'https://en.wikipedia.org/wiki/User:{username}', 'category' => 'blogs', 'icon' => 'fa-brands fa-wikipedia-w', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'HackerNews', 'url' => 'https://news.ycombinator.com/user?id={username}', 'category' => 'dev', 'icon' => 'fa-brands fa-y-combinator', 'error_pattern' => 'No such user'],
+        ['name' => 'CodeMentor', 'url' => 'https://www.codementor.io/@{username}', 'category' => 'dev', 'icon' => 'fa-solid fa-laptop-code', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'ReverbNation', 'url' => 'https://www.reverbnation.com/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-guitar', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'Designspiration', 'url' => 'https://www.designspiration.net/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-lightbulb', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'Bandcamp', 'url' => 'https://{username}.bandcamp.com', 'category' => 'media', 'icon' => 'fa-brands fa-bandcamp', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'ColourLovers', 'url' => 'https://www.colourlovers.com/lover/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-droplet', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'IFTTT', 'url' => 'https://ifttt.com/p/{username}', 'category' => 'dev', 'icon' => 'fa-solid fa-network-wired', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'Ebay', 'url' => 'https://www.ebay.com/usr/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-ebay', 'error_pattern' => 'HTTP/2 404\|404 Not Found\|eBay Profile - error'],
+        ['name' => 'Slack', 'url' => 'https://{username}.slack.com', 'category' => 'dev', 'icon' => 'fa-brands fa-slack', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'OkCupid', 'url' => 'https://www.okcupid.com/profile/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-heart', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'Trip', 'url' => 'https://www.trip.skyscanner.com/user/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-compass', 'error_pattern' => 'HTTP/2 404\|404 Not Found\|HTTP/2 410'],
+        ['name' => 'Ello', 'url' => 'https://ello.co/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-circle', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+        ['name' => 'Tracky', 'url' => 'https://tracky.com/user/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-list-check', 'error_pattern' => 'profile:username'],
+        ['name' => 'Tripit', 'url' => 'https://www.tripit.com/people/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-ticket', 'error_pattern' => 'location: https://www.tripit.com/home'],
+        ['name' => 'Basecamp', 'url' => 'https://{username}.basecamphq.com', 'category' => 'dev', 'icon' => 'fa-solid fa-campground', 'error_pattern' => 'HTTP/2 404\|404 Not Found'],
+    ];
+
+
+    if ($categoryFilter !== 'all') {
+        $platforms = array_filter($platforms, function($p) use ($categoryFilter) {
+            return ($p['category'] ?? '') === $categoryFilter;
+        });
+        $platforms = array_values($platforms);
+    }
+
+    $startTotal = microtime(true);
+    $batchSize = 25;
+    $results = [];
+    $foundUrls = [];
+    
+    $chunks = array_chunk($platforms, $batchSize);
+    foreach ($chunks as $chunk) {
+        $mh = curl_multi_init();
+        $handles = [];
+        
+        foreach ($chunk as $idx => $p) {
+            $url = str_replace('{username}', urlencode($username), $p['url']);
+            $ch = curl_init($url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+            curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
+            curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+            curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept-Language: en-US,en;q=0.9']);
+            curl_multi_add_handle($mh, $ch);
+            $handles[$idx] = ['ch' => $ch, 'platform' => $p, 'url' => $url];
+        }
+        
+        $running = null;
+        do {
+            curl_multi_exec($mh, $running);
+            curl_multi_select($mh, 0.05);
+        } while ($running > 0);
+        
+        foreach ($handles as $h) {
+            $code = curl_getinfo($h['ch'], CURLINFO_HTTP_CODE);
+            $body = curl_multi_getcontent($h['ch']);
+            curl_multi_remove_handle($mh, $h['ch']);
+            curl_close($h['ch']);
+            
+            $errPattern = $h['platform']['error_pattern'] ?? '';
+            $isFound = false;
+            
+            if ($code >= 200 && $code < 300) {
+                $isFound = true;
+                if (!empty($errPattern) && stripos($body, $errPattern) !== false) {
+                    $isFound = false;
+                }
+            }
+            
+            if ($isFound) {
+                $foundUrls[] = $h['url'];
+            }
+            
+            $results[] = [
+                'name' => $h['platform']['name'],
+                'url' => $h['url'],
+                'category' => $h['platform']['category'] ?? 'social',
+                'icon' => $h['platform']['icon'] ?? 'fa-solid fa-globe',
+                'status_code' => $code,
+                'is_found' => $isFound,
+                'status' => $isFound ? 'FOUND' : 'NOT_FOUND',
+                'verdict' => $isFound ? 'Perfil Encontrado' : 'No Encontrado / Disponible'
+            ];
+        }
+        curl_multi_close($mh);
+    }
+    
+    // Sort: found profiles first
+    usort($results, function($a, $b) {
+        if ($a['is_found'] !== $b['is_found']) {
+            return $b['is_found'] ? 1 : -1;
+        }
+        return strcmp($a['name'], $b['name']);
+    });
+    
+    $totalDuration = round((microtime(true) - $startTotal) * 1000, 1);
+    $foundCount = count($foundUrls);
+    $footprintRate = count($results) > 0 ? round(($foundCount / count($results)) * 100, 1) : 0;
+    
+    // Format text output exactly like userrecon.sh $username.txt
+    $txtContent = "# UserRecon / LoginRecon OSINT Report\n";
+    $txtContent .= "# Target Username: {$username}\n";
+    $txtContent .= "# Platforms Checked: " . count($results) . "\n";
+    $txtContent .= "# Verified Profiles: {$foundCount}\n";
+    $txtContent .= "# Digital Footprint: {$footprintRate}%\n";
+    $txtContent .= "# Scan Date: " . date('Y-m-d H:i:s T') . "\n\n";
+    foreach ($foundUrls as $u) {
+        $txtContent .= "{$u}\n";
+    }
+
+    echo json_encode([
+        'success' => true,
+        'username' => $username,
+        'duration_ms' => $totalDuration,
+        'total_platforms' => count($results),
+        'found_count' => $foundCount,
+        'not_found_count' => count($results) - $foundCount,
+        'footprint_rate' => $footprintRate,
+        'results' => $results,
+        'txt_content' => $txtContent
+    ]);
+}
+
+function loginReconGetLeakedUsers($pdo) {
+    $users = [];
+    try {
+        $stmt = $pdo->query("SELECT email, username FROM credential_leaks LIMIT 50");
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            if (!empty($row['username'])) $users[] = $row['username'];
+            if (!empty($row['email'])) {
+                $parts = explode('@', $row['email']);
+                if (!empty($parts[0])) $users[] = $parts[0];
+            }
+        }
+    } catch (Exception $e) {}
+
+    $presets = ['admin', 'administrator', 'ciso', 'devops', 'security', 'soporte', 'root', 'jsmith'];
+    $users = array_values(array_unique(array_filter(array_merge($users, $presets))));
+    sort($users);
+    
+    echo json_encode([
+        'success' => true,
+        'users' => $users
     ]);
 }
