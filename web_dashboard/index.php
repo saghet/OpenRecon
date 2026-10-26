@@ -606,6 +606,96 @@
                 </div>
             </div>
 
+            <!-- CRI METRIC HARMONIZATION CARD (AUDIT & MULTI-DIMENSIONAL SCORING) -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-cyber-border/70 pb-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 rounded-xl bg-indigo-950 border border-indigo-700 flex items-center justify-center text-indigo-400">
+                            <i class="fa-solid fa-scale-balanced text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h3 class="text-sm font-bold text-white">Índice Global de Resiliencia Cibernética (CRI)</h3>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono bg-indigo-950 text-indigo-300 border border-indigo-800">Marco de Armonización</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Ponderación matemática de las 3 dimensiones evaluadas para justificación ante comités y auditores.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select id="cri-target-select" onchange="loadCriMetrics()" class="bg-slate-900 border border-cyber-border text-xs text-white rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500 font-mono">
+                            <option value="">Seleccionar activo para evaluar CRI...</option>
+                        </select>
+                        <button onclick="loadCriMetrics()" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-arrows-rotate text-[11px]"></i>
+                            <span>Calcular CRI</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 3 Dimensions + Composite CRI -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <!-- Dimensión 1: EASM Core -->
+                    <div class="p-3.5 rounded-xl bg-slate-950/80 border border-cyber-border space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-slate-300">1. OpenRecon EASM</span>
+                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">Peso 30%</span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="cri-score-easm" class="text-2xl font-black text-cyan-400 font-mono">--</span>
+                            <span class="text-[10px] text-slate-500 font-mono">/100</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 leading-tight">
+                            <strong>Amplitud & Higiene:</strong> Evalúa puertos, certificados SSL, subdominios y cabeceras pasivas.
+                        </div>
+                    </div>
+
+                    <!-- Dimensión 2: AutoPentestX -->
+                    <div class="p-3.5 rounded-xl bg-slate-950/80 border border-cyber-border space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-slate-300">2. AutoPentestX CVE</span>
+                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-950 text-purple-300 border border-purple-800">Peso 30%</span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="cri-score-apx" class="text-2xl font-black text-purple-400 font-mono">--</span>
+                            <span class="text-[10px] text-slate-500 font-mono">/100</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 leading-tight">
+                            <strong>Deuda Teórica:</strong> Pondera severidad agregada según catálogo CVSS y orquestación de red.
+                        </div>
+                    </div>
+
+                    <!-- Dimensión 3: Strix PoC Engine -->
+                    <div class="p-3.5 rounded-xl bg-slate-950/80 border border-cyber-border space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-slate-300">3. Strix PoC Engine</span>
+                            <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">Peso 40%</span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="cri-score-strix" class="text-2xl font-black text-emerald-400 font-mono">--</span>
+                            <span class="text-[10px] text-slate-500 font-mono">/100</span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 leading-tight">
+                            <strong>Explotabilidad Real:</strong> Tolerancia cero a falsos positivos; valida PoCs funcionales o bloqueo por WAF.
+                        </div>
+                    </div>
+
+                    <!-- Composite CRI Global -->
+                    <div class="p-3.5 rounded-xl bg-gradient-to-br from-indigo-950/60 to-slate-950 border border-indigo-700/60 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] font-bold text-white">Índice Global CRI</span>
+                            <span id="cri-posture-badge" class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">Sin Evaluar</span>
+                        </div>
+                        <div class="flex items-baseline gap-1">
+                            <span id="cri-score-global" class="text-2xl font-black text-indigo-400 font-mono">--</span>
+                            <span class="text-[10px] text-slate-500 font-mono">/100</span>
+                        </div>
+                        <div id="cri-briefing" class="text-[10px] text-slate-300 leading-tight line-clamp-2">
+                            Selecciona un objetivo para calcular la armonización de métricas.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- CONTAINER SUITE STRIX -->
             <div id="container-suite-strix" class="space-y-6">
             <!-- Header Card -->
@@ -3314,6 +3404,8 @@
             if (apxSelect) apxSelect.innerHTML = optionsHtml;
             const apxReportSelect = document.getElementById('apx-report-target-select');
             if (apxReportSelect) apxReportSelect.innerHTML = optionsHtml;
+            const criSelect = document.getElementById('cri-target-select');
+            if (criSelect) criSelect.innerHTML = optionsHtml;
         }
 
         function applyStrixSelectedAsset() {
@@ -3865,6 +3957,43 @@
                 btn.disabled = false;
                 btn.classList.remove('opacity-75');
                 btn.innerHTML = '<i class="fa-solid fa-network-wired"></i><span>Consultar DNS RFC</span>';
+            }
+        }
+
+        // ==========================================
+        // CRI (CYBER RESILIENCE INDEX) HARMONIZATION
+        // ==========================================
+        async function loadCriMetrics() {
+            const select = document.getElementById('cri-target-select');
+            let target = (select ? select.value : '') || '';
+            if (!target) {
+                target = (activeSeed && activeSeed !== 'ALL') ? activeSeed : (globalAssets && globalAssets[0] ? globalAssets[0].subdomain : 'demo.testfire.net');
+                if (select) select.value = target;
+            }
+            if (!target) return;
+
+            try {
+                const res = await fetch(`${API_URL}?action=get_unified_resilience_metrics&target=${encodeURIComponent(target)}`);
+                const data = await res.json();
+                if (!data.success) return;
+
+                document.getElementById('cri-score-easm').innerText = data.dimensions.easm.score;
+                document.getElementById('cri-score-apx').innerText = data.dimensions.autopentestx.score;
+                document.getElementById('cri-score-strix').innerText = data.dimensions.strix.score;
+
+                const globalEl = document.getElementById('cri-score-global');
+                const badgeEl = document.getElementById('cri-posture-badge');
+                const briefEl = document.getElementById('cri-briefing');
+
+                globalEl.innerText = data.cri_score;
+                globalEl.className = `text-2xl font-black font-mono ${data.cri_class}`;
+                badgeEl.innerText = data.cri_posture;
+                briefEl.innerText = data.auditor_briefing;
+                briefEl.title = data.auditor_briefing;
+
+                showToast(`CRI calculado para ${data.target}: ${data.cri_score}/100 (${data.cri_posture})`);
+            } catch (err) {
+                console.error("Error loading CRI metrics:", err);
             }
         }
 

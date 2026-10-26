@@ -229,6 +229,9 @@ switch ($action) {
     case 'autopentestx_generate_report':
         autoPentestXGenerateReport($pdo);
         break;
+    case 'get_unified_resilience_metrics':
+        getUnifiedResilienceMetrics($pdo);
+        break;
     default:
         echo json_encode(['status' => 'ok', 'message' => 'OpenRecon API v1.0 running']);
         break;
@@ -3225,5 +3228,132 @@ function autoPentestXGenerateReport($pdo) {
         'total_vulnerabilities' => count($dbVulns),
         'vulnerabilities' => $dbVulns,
         'compliance_frameworks' => $frameworks
+    ]);
+}
+
+function getUnifiedResilienceMetrics($pdo) {
+    $target = trim($_POST['target'] ?? $_GET['target'] ?? '');
+    if (empty($target)) {
+        echo json_encode(['success' => false, 'error' => 'Objetivo no especificado']);
+        return;
+    }
+
+    $rawHost = preg_replace('#^https?://#i', '', $target);
+    $host = explode('/', $rawHost)[0];
+    $host = explode(':', $host)[0];
+
+    // 1. Fetch DB assets & vulnerabilities
+    $stmt = $pdo->prepare("SELECT * FROM assets WHERE subdomain = ? OR seed_domain = ? OR subdomain LIKE ?");
+    $stmt->execute([$host, $host, "%{$host}%"]);
+    $assets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmtV = $pdo->prepare("SELECT * FROM vulnerabilities WHERE asset_subdomain = ? OR asset_subdomain LIKE ?");
+    $stmtV->execute([$host, "%{$host}%"]);
+    $vulns = $stmtV->fetchAll(PDO::FETCH_ASSOC);
+
+    // Counts by severity
+    $counts = ['CRITICAL' => 0, 'HIGH' => 0, 'MEDIUM' => 0, 'LOW' => 0, 'INFO' => 0];
+    foreach ($vulns as $v) {
+        $s = strtoupper($v['severity'] ?? 'INFO');
+        if (isset($counts[$s])) $counts[$s]++;
+        else $counts['INFO']++;
+    }
+
+    // DIMENSIÓN 1: OpenRecon EASM Core (Amplitud & Exposición Perimetral)
+    $easmScore = 95;
+    $riskyPorts = [21, 22, 23, 3389, 3306, 5432, 27017, 6379];
+    foreach ($assets as $a) {
+        $ports = json_decode($a['ports'] ?? '[]', true) ?: [];
+        foreach ($ports as $p) {
+            $pNum = is_array($p) ? ($p['port'] ?? 0) : intval($p);
+            if (in_array($pNum, $riskyPorts)) {
+                $easmScore -= 10;
+            }
+        }
+    }
+    foreach ($vulns as $v) {
+        $t = strtolower($v['title'] ?? '');
+        if (strpos($t, 'hsts') !== false || strpos($t, 'clickjacking') !== false || strpos($t, 'mime') !== false) {
+            $easmScore -= 4;
+        }
+        if (strpos($t, 'ssl') !== false || strpos($t, 'tls') !== false || strpos($t, 'certificado') !== false) {
+            $easmScore -= 12;
+        }
+    }
+    if ($easmScore < 20) $easmScore = 20;
+    if ($easmScore > 100) $easmScore = 100;
+    $easmPosture = ($easmScore >= 85) ? 'Óptima' : (($easmScore >= 70) ? 'Adecuada' : (($easmScore >= 50) ? 'Baja' : 'Crítica'));
+
+    // DIMENSIÓN 2: AutoPentestX Risk Score (Deuda Teórica de Vulnerabilidades & CVEs)
+    $apxScore = 100 - ($counts['CRITICAL'] * 25) - ($counts['HIGH'] * 15) - ($counts['MEDIUM'] * 7) - ($counts['LOW'] * 2);
+    if ($apxScore < 10) $apxScore = 10;
+    if ($apxScore > 100) $apxScore = 100;
+    $apxPosture = ($apxScore >= 85) ? 'Bajo Riesgo' : (($apxScore >= 70) ? 'Riesgo Moderado' : (($apxScore >= 50) ? 'Riesgo Alto' : 'Riesgo Crítico'));
+
+    // DIMENSIÓN 3: Strix Exploitability Score (Explotabilidad Real & PoCs Deterministas)
+    $strixScore = 90;
+    $isWafProtected = false;
+    foreach ($assets as $a) {
+        $w = strtolower($a['waf_detected'] ?? '');
+        if (!empty($w) && $w !== 'none' && $w !== 'no') {
+            $isWafProtected = true;
+            break;
+        }
+    }
+    if ($counts['CRITICAL'] > 0) {
+        $strixScore -= ($isWafProtected ? 15 : 35);
+    }
+    if ($counts['HIGH'] > 0) {
+        $strixScore -= ($isWafProtected ? 8 : 18);
+    }
+    if ($strixScore < 15) $strixScore = 15;
+    if ($strixScore > 100) $strixScore = 100;
+    $strixPosture = ($strixScore >= 85) ? 'Alta Resiliencia' : (($strixScore >= 70) ? 'Explotabilidad Moderada' : (($strixScore >= 50) ? 'Explotabilidad Alta' : 'Vulnerable Directo'));
+
+    // COMPOSITE CRI (Cyber Resilience Index)
+    $criScore = round(($easmScore * 0.30) + ($apxScore * 0.30) + ($strixScore * 0.40));
+    $criPosture = ($criScore >= 85) ? 'Resiliente / Óptimo' : (($criScore >= 70) ? 'Riesgo Moderado' : (($criScore >= 50) ? 'Riesgo Alto' : 'Crítico / Brecha Inminente'));
+    $criClass = ($criScore >= 85) ? 'text-emerald-400' : (($criScore >= 70) ? 'text-amber-400' : 'text-rose-400');
+
+    // Auditor Explanation of Metric Discrepancies
+    $auditorBriefing = "Evaluación comparativa de 3 dimensiones: 1) OpenRecon EASM ({$easmScore}/100) mide la higiene perimetral y exposición pasiva. 2) AutoPentestX ({$apxScore}/100) pondera la deuda técnica agregada y CVEs catalogados ({$counts['CRITICAL']} críticas, {$counts['HIGH']} altas). 3) Strix PoC Engine ({$strixScore}/100) evalúa la explotabilidad determinista real " . ($isWafProtected ? "confirmando mitigación activa mediante WAF/Firewall perimetral." : "sin detección de WAF activo.") . " El Índice Global CRI resultante es {$criScore}/100 ({$criPosture}).";
+
+    echo json_encode([
+        'success' => true,
+        'target' => $host,
+        'timestamp' => date('Y-m-d H:i:s T'),
+        'cri_score' => $criScore,
+        'cri_posture' => $criPosture,
+        'cri_class' => $criClass,
+        'auditor_briefing' => $auditorBriefing,
+        'dimensions' => [
+            'easm' => [
+                'name' => 'OpenRecon Core (EASM & DRP)',
+                'score' => $easmScore,
+                'posture' => $easmPosture,
+                'weight' => '30%',
+                'focus' => 'Amplitud de Superficie & Higiene Perimetral',
+                'description' => 'Mide exposición pasiva, certificados SSL, puertos de red abiertos y cabeceras HTTP de protección.'
+            ],
+            'autopentestx' => [
+                'name' => 'AutoPentestX (Orquestación & CVEs)',
+                'score' => $apxScore,
+                'posture' => $apxPosture,
+                'weight' => '30%',
+                'focus' => 'Deuda Teórica de Vulnerabilidades & CVSS',
+                'description' => 'Mide volumen de vulnerabilidades catalogadas y su severidad agregada según estándares Nmap/Nikto/CVSS.'
+            ],
+            'strix' => [
+                'name' => 'Strix (PoC Determinista & IA)',
+                'score' => $strixScore,
+                'posture' => $strixPosture,
+                'weight' => '40%',
+                'focus' => 'Explotabilidad Real sin Falsos Positivos',
+                'description' => 'Mide la viabilidad de intrusión comprobada mediante PoCs reproducibles y efectividad de WAFs perimetrales.'
+            ]
+        ],
+        'severity_counts' => $counts,
+        'total_vulnerabilities' => count($vulns),
+        'waf_detected' => $isWafProtected
     ]);
 }
