@@ -93,8 +93,12 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reporte Ejecutivo de Ciberseguridad Perimetral | <?php echo htmlspecialchars($domainTitle); ?></title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- Core Local CSS & Anti-FOUC Foundation -->
+    <link rel="stylesheet" href="assets/css/openrecon-styles.css">
+    <!-- Local FontAwesome 6.5.1 -->
+    <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
+    <!-- Local Tailwind Engine -->
+    <script src="assets/js/tailwindcss.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
         body { font-family: 'Inter', sans-serif; }

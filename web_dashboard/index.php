@@ -4,47 +4,43 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenRecon | EASM, DRP, CTI & Attack Surface Management</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- FontAwesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Vis.js Network for Attack Surface Topology Graph -->
-    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+    <!-- Core Local CSS & Anti-FOUC Foundation (Render-Blocking) -->
+    <link rel="stylesheet" href="assets/css/openrecon-styles.css">
+    <!-- Local FontAwesome 6.5.1 -->
+    <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
+    <!-- Local Tailwind Engine -->
+    <script src="assets/js/tailwindcss.min.js"></script>
+    <!-- Local Chart.js & Vis-Network -->
+    <script src="assets/vendor/chart.min.js"></script>
+    <script src="assets/vendor/vis-network.min.js"></script>
     <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        cyber: {
-                            dark: '#0a0d14',
-                            card: '#111726',
-                            border: '#1e293b',
-                            accent: '#06b6d4',
-                            neon: '#10b981',
-                            danger: '#f43f5e',
-                            warning: '#f59e0b',
-                            purple: '#a855f7'
+        if (typeof tailwind !== 'undefined') {
+            tailwind.config = {
+                darkMode: 'class',
+                theme: {
+                    extend: {
+                        colors: {
+                            cyber: {
+                                dark: '#0a0d14',
+                                card: '#111726',
+                                border: '#1e293b',
+                                accent: '#06b6d4',
+                                neon: '#10b981',
+                                danger: '#f43f5e',
+                                warning: '#f59e0b',
+                                purple: '#a855f7'
+                            }
                         }
                     }
                 }
-            }
+            };
         }
     </script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #07090e; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; background-color: #07090e; }
         .font-mono { font-family: 'JetBrains Mono', monospace; }
         #network-canvas { width: 100%; height: 580px; background: radial-gradient(circle at center, #0f172a 0%, #07090e 100%); }
-        @media print {
-            body { background-color: #ffffff !important; color: #000000 !important; }
-            header, .no-print { display: none !important; }
-            .bg-cyber-card, .bg-slate-900 { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }
-            .text-white { color: #0f172a !important; }
-            .text-slate-400, .text-slate-300 { color: #475569 !important; }
-        }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
