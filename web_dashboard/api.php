@@ -166,8 +166,11 @@ switch ($action) {
     case 'get_exposed_secrets':
         getExposedSecrets($pdo);
         break;
-    case 'get_ransomware_leaks':
+        case 'get_ransomware_leaks':
         getRansomwareLeaks($pdo);
+        break;
+    case 'generate_cti_advisory':
+        generateCtiAdvisory($pdo);
         break;
     case 'get_threat_iocs':
         getThreatIocs($pdo);
@@ -270,10 +273,11 @@ function getStats($pdo) {
         $credLeaksCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM credential_leaks WHERE seed_domain = ?", [$seed]);
         $secretsCount = (int)queryScalar($pdo, "SELECT COUNT(*) FROM exposed_secrets WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)", [$seed]);
 
-        $cleanDomain = preg_replace('/^www\./i', '', $seed);
-        $core = explode('.', $cleanDomain)[0];
+        $apex = getApexDomain($seed);
+        $cleanApex = preg_replace('/^www\./i', '', $apex);
+        $core = explode('.', $cleanApex)[0];
         if (strlen($core) >= 3) {
-            $ransomMatched = (int)queryScalar($pdo, "SELECT COUNT(*) FROM ransomware_leaks WHERE victim_name LIKE ?", ['%' . $core . '%']);
+            $ransomMatched = (int)queryScalar($pdo, "SELECT COUNT(*) FROM ransomware_leaks WHERE LOWER(victim_name) LIKE ? OR LOWER(victim_name) LIKE ? OR LOWER(claim_url) LIKE ? OR LOWER(proof_summary) LIKE ?", ['%' . strtolower($core) . '%', '%' . strtolower($cleanApex) . '%', '%' . strtolower($core) . '%', '%' . strtolower($core) . '%']);
         } else {
             $ransomMatched = 0;
         }
@@ -415,17 +419,146 @@ function getExposedSecrets($pdo) {
 function getRansomwareLeaks($pdo) {
     $seed = trim($_GET['seed'] ?? '');
     if (!empty($seed) && $seed !== 'ALL') {
-        $cleanDomain = preg_replace('/^www\./i', '', $seed);
-        $core = explode('.', $cleanDomain)[0];
+        $apex = getApexDomain($seed);
+        $cleanApex = preg_replace('/^www\./i', '', $apex);
+        $core = explode('.', $cleanApex)[0];
         if (strlen($core) >= 3) {
-            $stmt = $pdo->prepare("SELECT *, (CASE WHEN victim_name LIKE ? THEN 1 ELSE 0 END) as is_matched FROM ransomware_leaks ORDER BY is_matched DESC, discovered_date DESC LIMIT 60");
-            $stmt->execute(['%' . $core . '%']);
+            $stmt = $pdo->prepare("SELECT *, 
+                (CASE 
+                    WHEN LOWER(victim_name) LIKE :k1 OR LOWER(victim_name) LIKE :k2 OR LOWER(claim_url) LIKE :k1 OR LOWER(proof_summary) LIKE :k1 THEN 1 
+                    ELSE 0 
+                END) as is_matched 
+                FROM ransomware_leaks 
+                ORDER BY is_matched DESC, discovered_date DESC LIMIT 100");
+            $stmt->execute([
+                ':k1' => '%' . strtolower($core) . '%',
+                ':k2' => '%' . strtolower($cleanApex) . '%'
+            ]);
             echo json_encode($stmt->fetchAll());
             return;
         }
     }
-    $stmt = $pdo->query("SELECT * FROM ransomware_leaks ORDER BY is_matched DESC, discovered_date DESC LIMIT 60");
+    $stmt = $pdo->query("SELECT * FROM ransomware_leaks ORDER BY is_matched DESC, discovered_date DESC LIMIT 100");
     echo json_encode($stmt->fetchAll());
+}
+
+function generateCtiAdvisory($pdo) {
+    $leakId = (int)($_POST['leak_id'] ?? $_GET['leak_id'] ?? 0);
+    $leak = null;
+    if ($leakId > 0) {
+        $stmt = $pdo->prepare("SELECT * FROM ransomware_leaks WHERE id = ?");
+        $stmt->execute([$leakId]);
+        $leak = $stmt->fetch();
+    }
+    
+    $victimName = $leak['victim_name'] ?? trim($_POST['victim_name'] ?? $_GET['victim_name'] ?? 'Organización Objetivo');
+    $groupName = $leak['group_name'] ?? trim($_POST['group_name'] ?? $_GET['group_name'] ?? 'Sindicato Ransomware No Identificado');
+    $discoveredDate = $leak['discovered_date'] ?? date('Y-m-d H:i:s');
+    $claimUrl = $leak['claim_url'] ?? 'http://darkweb-tor-portal.onion/victim-record';
+    $extortionDeadline = $leak['extortion_deadline'] ?? '72 horas (Cuenta regresiva activa)';
+    $dataSize = $leak['data_size'] ?? '450 GB';
+    $status = $leak['status'] ?? 'En Negociación / Ultimátum Activo';
+    $proofSummary = $leak['proof_summary'] ?? 'Bases de datos SQL de producción, credenciales de administración, respaldos y documentos confidenciales.';
+    $severity = $leak['threat_severity'] ?? 'CRITICAL';
+    $isSimulation = (int)($leak['is_simulation'] ?? 0);
+    
+    $incidentRef = 'INC-DW-' . date('Y') . '-' . strtoupper(substr(md5($victimName . $groupName . time()), 0, 6));
+    $timestampUtc = gmdate('Y-m-d H:i:s') . ' UTC';
+    
+    // Plain text notice
+    $text = "================================================================================\n";
+    $text .= "CONFIDENCIAL // CSIRT EARLY WARNING & EXTORTION ADVISORY // TLP:AMBER+STRICT\n";
+    $text .= "FORTIRECON CYBER THREAT INTELLIGENCE & DARK WEB WATCHDOG UNIT\n";
+    $text .= "================================================================================\n";
+    $text .= "REFERENCIA INCIDENTE : " . $incidentRef . "\n";
+    $text .= "FECHA/HORA EMISIÓN   : " . $timestampUtc . "\n";
+    $text .= "NIVEL DE SEVERIDAD   : " . $severity . " // AMENAZA DE EXTORSION ACTIVA\n";
+    $text .= "ORGANIZACIÓN AFECTADA: " . $victimName . "\n";
+    $text .= "GRUPO CIBERCRIMINAL  : " . $groupName . "\n";
+    $text .= "PORTAL TOR (.ONION)  : " . $claimUrl . "\n";
+    $text .= "PLAZO LÍMITE (TIMER) : " . $extortionDeadline . "\n";
+    $text .= "VOLUMEN EXFILTRADO   : " . $dataSize . "\n";
+    $text .= "ESTADO DEL CASO      : " . $status . ($isSimulation ? " [ENTORNO DE PRUEBAS / SIMULACIÓN]" : "") . "\n";
+    $text .= "RESUMEN DE PRUEBAS   : " . $proofSummary . "\n";
+    $text .= "================================================================================\n\n";
+    $text .= "1. RESUMEN EJECUTIVO DE LA AMENAZA\n";
+    $text .= "Nuestros sensores avanzados de recolección en redes Dark Web y blogs de extorsión\n";
+    $text .= "han identificado que la organización \"" . $victimName . "\" figura como objetivo comprometido\n";
+    $text .= "por el grupo \"" . $groupName . "\". Los actores de amenaza afirman poseer " . $dataSize . " de información\n";
+    $text .= "corporativa confidencial y han establecido una cuenta regresiva para la publicación o subasta.\n\n";
+    $text .= "2. EVIDENCIA Y ACTIVOS EXFILTRADOS REPORTADOS\n";
+    $text .= "• Muestras de filtración: " . $proofSummary . "\n";
+    $text .= "• Enlace de publicación en Dark Web: " . $claimUrl . "\n";
+    $text .= "• Fecha de descubrimiento por telemetría: " . $discoveredDate . "\n\n";
+    $text .= "3. PLAYBOOK DE CONTENCIÓN INMEDIATA (NIST SP 800-61r2)\n";
+    $text .= "[ ] PASO 1 - AISLAMIENTO PERIMETRAL Y SEGMENTACIÓN DE RED:\n";
+    $text .= "    - Desconectar inmediatamente de la red los servidores y estaciones con telemetría anómala.\n";
+    $text .= "    - Terminar sesiones VPN / RDP activas y revocar certificados cliente comprometidos.\n\n";
+    $text .= "[ ] PASO 2 - PURGA Y ROTACIÓN MASIVA DE CREDENCIALES:\n";
+    $text .= "    - Forzar reseteo de contraseñas de cuentas Domain Admins y cuentas de servicio con privilegios.\n";
+    $text .= "    - Ejecutar reseteo doble de la cuenta 'krbtgt' en Active Directory con ventana de 24 horas.\n";
+    $text .= "    - Invalidar API keys, tokens de acceso a nubes (AWS/GCP/Azure) y secretos en repositorios.\n\n";
+    $text .= "[ ] PASO 3 - PRESERVACIÓN FORENSE DE EVIDENCIA:\n";
+    $text .= "    - No reiniciar servidores sospechosos sin antes capturar imagen forense de memoria RAM.\n";
+    $text .= "    - Exportar y custodiar logs de Active Directory, cortafuegos perimetrales, DNS y EDR.\n\n";
+    $text .= "[ ] PASO 4 - BLOQUEO PERIMETRAL DE INDICADORES DE COMPROMISO (IoCs):\n";
+    $text .= "    - Aplicar reglas de bloqueo perimetral en firewalls contra infraestructura C2 de " . $groupName . ".\n";
+    $text .= "    - Auditar tareas programadas (schtasks), servicios recién instalados y llaves Run de registro.\n\n";
+    $text .= "4. CANALES DE COORDINACIÓN Y RESPUESTA A INCIDENTES\n";
+    $text .= "Para asistencia técnica forense y coordinación de respuesta inmediata, comuníquese con el CSIRT:\n";
+    $text .= "• Correo Electrónico: csirt@fortirecon.security / soc@empresa.com\n";
+    $text .= "• Teléfono de Emergencia SOC (24/7): +57 (601) 800-FORTI\n";
+    $text .= "• Clave PGP de Comunicación Segura: 0x9F41E7A23C89B01F\n";
+    $text .= "• Manejo de la Información: TLP:AMBER+STRICT (Distribución restringida a la alta dirección y equipo CSIRT).\n";
+    $text .= "================================================================================\n";
+
+    // Markdown formatted version
+    $md = "# 🚨 ALERTA TEMPRANA DE INCIDENTE // CSIRT EXTORTION ADVISORY\n\n";
+    $md .= "> **Clasificación de Manejo:** `TLP:AMBER+STRICT`  \n";
+    $md .= "> **Referencia:** `" . $incidentRef . "` | **Emisión:** `" . $timestampUtc . "` | **Severidad:** `" . $severity . "`  \n\n";
+    $md .= "---\n\n";
+    $md .= "## 1. Ficha Técnica de la Amenaza\n\n";
+    $md .= "| Parámetro | Detalle Identificado |\n";
+    $md .= "| :--- | :--- |\n";
+    $md .= "| **Organización Afectada** | **" . htmlspecialchars($victimName) . "** |\n";
+    $md .= "| **Grupo Cibercriminal** | **" . htmlspecialchars($groupName) . "** |\n";
+    $md .= "| **Plazo Límite / Ultimátum** | `" . htmlspecialchars($extortionDeadline) . "` |\n";
+    $md .= "| **Volumen de Datos Exfiltrados** | `" . htmlspecialchars($dataSize) . "` |\n";
+    $md .= "| **Estado Actual** | `" . htmlspecialchars($status) . "`" . ($isSimulation ? " *(Simulación Lab)*" : "") . " |\n";
+    $md .= "| **Portal Tor Onion** | `" . htmlspecialchars($claimUrl) . "` |\n";
+    $md .= "| **Fecha Detección Telemetría** | `" . htmlspecialchars($discoveredDate) . "` |\n\n";
+    $md .= "### Resumen de Muestras Exfiltradas\n";
+    $md .= "> *" . htmlspecialchars($proofSummary) . "*\n\n";
+    $md .= "---\n\n";
+    $md .= "## 2. Playbook de Contención Inmediata (NIST SP 800-61r2)\n\n";
+    $md .= "- [ ] **Aislamiento Perimetral:** Desconectar de la red servidores expuestos a internet (RDP, VPN, Web) y terminar túneles activos.\n";
+    $md .= "- [ ] **Purga de Credenciales:** Reset forzado de credenciales de Domain Admins y doble rotación de `krbtgt`.\n";
+    $md .= "- [ ] **Preservación Forense:** Adquisición de memoria RAM y congelación de registros de auditoría (logs AD, firewall, EDR).\n";
+    $md .= "- [ ] **Bloqueo de IoCs:** Despliegue de listas negras en gateways y DNS sinkhole contra nodos de `" . htmlspecialchars($groupName) . "`.\n\n";
+    $md .= "---\n\n";
+    $md .= "## 3. Contacto de Asistencia Técnica CSIRT\n";
+    $md .= "- **Email SOC/CSIRT:** `csirt@fortirecon.security`\n";
+    $md .= "- **Línea de Crisis 24/7:** `+57 (601) 800-FORTI`\n";
+    $md .= "- **PGP Fingerprint:** `9F41 E7A2 3C89 B01F D82E  4A11 72C5 B680 1F3A 9021`\n";
+
+    echo json_encode([
+        'success' => true,
+        'incident_id' => $incidentRef,
+        'tlp' => 'TLP:AMBER+STRICT',
+        'generated_at' => $timestampUtc,
+        'victim_name' => $victimName,
+        'group_name' => $groupName,
+        'discovered_date' => $discoveredDate,
+        'claim_url' => $claimUrl,
+        'extortion_deadline' => $extortionDeadline,
+        'data_size' => $dataSize,
+        'status' => $status,
+        'proof_summary' => $proofSummary,
+        'threat_severity' => $severity,
+        'is_simulation' => $isSimulation,
+        'advisory_text' => $text,
+        'advisory_markdown' => $md
+    ]);
 }
 
 function getThreatIocs($pdo) {

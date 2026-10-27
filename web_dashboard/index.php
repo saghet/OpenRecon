@@ -252,17 +252,23 @@
             </div>
 
             <div class="bg-cyber-card border border-cyber-border rounded-2xl overflow-hidden shadow-xl">
+                                <div class="mb-4 p-3 rounded-xl bg-slate-900/80 border border-cyber-border/70 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+                    <div class="flex items-center gap-2 text-slate-300">
+                        <i class="fa-solid fa-flask-vial text-cyan-400 text-sm"></i>
+                        <span><strong class="text-white">Laboratorio de Pruebas y Validación:</strong> Puedes auditar y validar este módulo con los sitios de prueba oficiales: <code class="text-cyan-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">vulnweb.com</code>, <code class="text-cyan-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">hackthissite.org</code>, <code class="text-cyan-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">juice-shop.herokuapp.com</code>, <code class="text-cyan-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">dvwa.co.uk</code>, <code class="text-cyan-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">zero.webappsecurity.com</code>, <code class="text-cyan-300 bg-slate-800 px-1.5 py-0.5 rounded font-mono">demo.testfire.net</code>.</span>
+                    </div>
+                    <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/60 whitespace-nowrap font-mono"><i class="fa-solid fa-shield-virus mr-1"></i>Modo Auditoría CSIRT</span>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-cyber-border">
                             <tr>
-                                <th class="p-4">Activo / Subdominio</th>
-                                <th class="p-4">Dirección IP</th>
-                                <th class="p-4">Proveedor / Infraestructura</th>
-                                <th class="p-4">Fuente de Descubrimiento</th>
-                                <th class="p-4">Puertos Detectados</th>
-                                <th class="p-4 text-center">Estado</th>
-                                <th class="p-4 text-center">Gestión Semillas</th>
+                                <th class="p-4">Víctima Reclamada / Empresa</th>
+                                <th class="p-4">Grupo Cibercriminal</th>
+                                <th class="p-4">Ultimátum / Datos Exfiltrados</th>
+                                <th class="p-4 text-center">Estado de Amenaza</th>
+                                <th class="p-4 text-center">Acción / Alerta Temprana</th>
                             </tr>
                         </thead>
                         <tbody id="assets-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
@@ -1829,6 +1835,73 @@
         </div>
     </div>
 
+    <!-- CTI Incident Advisory Modal -->
+    <div id="cti-advisory-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cyber-card border border-rose-500/60 rounded-2xl max-w-3xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div class="flex items-center justify-between pb-4 border-b border-cyber-border">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-700/80 flex items-center justify-center text-rose-400 text-lg shadow-lg shadow-rose-950/50">
+                        <i class="fa-solid fa-shield-virus"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-white text-base">Alerta Temprana de Extorsión & Ransomware</h3>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-700 font-mono">TLP:AMBER+STRICT</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Comunicado confidencial CSIRT / CISO y Guía de Contención Inmediata (NIST SP 800-61r2).</p>
+                    </div>
+                </div>
+                <button onclick="closeCtiAdvisoryModal()" class="text-slate-400 hover:text-white p-2 rounded-lg bg-slate-800/60 border border-slate-700/50 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div class="p-2.5 rounded-xl bg-slate-900/90 border border-cyber-border">
+                    <span class="text-slate-400 text-[10px] block">Organización Objetivo:</span>
+                    <strong id="advisory-victim" class="text-white font-mono truncate block">-</strong>
+                </div>
+                <div class="p-2.5 rounded-xl bg-slate-900/90 border border-cyber-border">
+                    <span class="text-slate-400 text-[10px] block">Sindicato Atacante:</span>
+                    <strong id="advisory-group" class="text-purple-400 font-mono truncate block">-</strong>
+                </div>
+                <div class="p-2.5 rounded-xl bg-slate-900/90 border border-cyber-border">
+                    <span class="text-slate-400 text-[10px] block">Ultimátum / Timer:</span>
+                    <strong id="advisory-deadline" class="text-amber-400 font-mono truncate block">-</strong>
+                </div>
+                <div class="p-2.5 rounded-xl bg-slate-900/90 border border-cyber-border">
+                    <span class="text-slate-400 text-[10px] block">Volumen Exfiltrado:</span>
+                    <strong id="advisory-size" class="text-cyan-400 font-mono truncate block">-</strong>
+                </div>
+            </div>
+
+            <div class="mt-4 flex-1 flex flex-col min-h-0 relative">
+                <textarea id="cti-advisory-text" readonly class="w-full flex-1 p-4 rounded-xl bg-slate-950 border border-cyber-border font-mono text-[11px] text-slate-300 focus:outline-none resize-none leading-relaxed overflow-y-auto" rows="12"></textarea>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-cyber-border flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <button onclick="copyCtiAdvisoryText()" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-rose-900/40 transition">
+                        <i class="fa-solid fa-copy"></i>
+                        <span>Copiar Comunicado</span>
+                    </button>
+                    <button onclick="downloadCtiAdvisoryText('txt')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-file-lines text-slate-400"></i>
+                        <span>Descargar (.TXT)</span>
+                    </button>
+                    <button onclick="downloadCtiAdvisoryText('md')" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs flex items-center gap-1.5 transition">
+                        <i class="fa-brands fa-markdown text-cyan-400"></i>
+                        <span>Descargar (.MD)</span>
+                    </button>
+                </div>
+                <button onclick="closeCtiAdvisoryModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+
     <!-- Forensic Breach Detail & Remediation Playbook Modal -->
     <div id="breach-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-cyber-card border border-amber-500/50 rounded-2xl max-w-3xl w-full p-6 shadow-2xl relative max-h-[92vh] flex flex-col">
@@ -3171,23 +3244,71 @@
                 const leaks = await resR.json();
                 const tbodyR = document.getElementById('ransomware-table-body');
 
+                // Dynamic update of top alert badge
+                const hasMatched = leaks.some(r => r.is_matched == 1 || r.is_matched === true);
+                const ransomBadge = document.getElementById('ransom-alert-badge');
+                if (ransomBadge) {
+                    if (hasMatched) {
+                        ransomBadge.className = 'px-3 py-1.5 rounded-xl bg-rose-950 text-rose-300 border border-rose-700 text-xs font-bold flex items-center gap-2 animate-bounce shadow-lg shadow-rose-950/50';
+                        ransomBadge.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-400"></i><span>ALERTA CRÍTICA: ¡Empresa en Lista de Extorsión Dark Web!</span>`;
+                    } else {
+                        ransomBadge.className = 'px-3 py-1.5 rounded-xl bg-emerald-950 text-emerald-400 border border-emerald-800/60 text-xs font-bold flex items-center gap-2';
+                        ransomBadge.innerHTML = `<i class="fa-solid fa-shield-check"></i><span>Tu empresa no figura como víctima (Telemetría limpia)</span>`;
+                    }
+                }
+
                 if (leaks.length === 0) {
-                    tbodyR.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-slate-500">Presiona "Sincronizar CTI" para descargar los últimos registros de la Dark Web.</td></tr>`;
+                    tbodyR.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-slate-500">Presiona "Sincronizar CTI" para descargar los últimos registros de la Dark Web.</td></tr>`;
                 } else {
                     tbodyR.innerHTML = leaks.map(r => {
-                        const alertBadge = r.is_matched ? 
-                            '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-800 animate-pulse">OBJETIVO: TU EMPRESA</span>' : 
-                            '<span class="text-slate-500 text-[10px]">Tercero / Global</span>';
+                        const isMatch = (r.is_matched == 1 || r.is_matched === true);
+                        const alertBadge = isMatch ? 
+                            `<div class="flex flex-col items-center gap-1">
+                                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-800 animate-pulse">OBJETIVO: TU EMPRESA</span>
+                                ${r.is_simulation ? '<span class="text-[9px] text-amber-400 font-mono">[SIMULACIÓN LAB]</span>' : ''}
+                            </div>` : 
+                            `<span class="text-slate-500 text-[10px]">Tercero / Global</span>`;
+
+                        const ultimatumInfo = (r.extortion_deadline || r.data_size) ?
+                            `<div class="text-[11px]">
+                                <div class="text-amber-400 font-semibold flex items-center gap-1"><i class="fa-regular fa-clock text-[10px]"></i> ${r.extortion_deadline || 'No especificado'}</div>
+                                <div class="text-slate-400 text-[10px] flex items-center gap-1 mt-0.5"><i class="fa-solid fa-database text-[9px] text-cyan-400"></i> ${r.data_size || 'N/D'} &bull; ${r.discovered_date || '-'}</div>
+                            </div>` :
+                            `<span class="font-mono text-[11px] text-slate-400">${r.discovered_date || '-'}</span>`;
+
+                        const statusDisplay = r.status ?
+                            `<span class="px-2 py-1 rounded text-[10px] font-semibold ${isMatch ? 'bg-rose-900/50 text-rose-200 border border-rose-700/70' : 'bg-slate-800 text-slate-400 border border-slate-700'}">${r.status}</span>` :
+                            alertBadge;
 
                         return `
-                            <tr class="hover:bg-slate-800/40 transition ${r.is_matched ? 'bg-rose-950/20' : ''}">
-                                <td class="p-4 font-bold text-white flex items-center gap-2">
-                                    <i class="fa-solid fa-building text-slate-400"></i>
-                                    ${r.victim_name}
+                            <tr class="hover:bg-slate-800/40 transition ${isMatch ? 'bg-rose-950/25' : ''}">
+                                <td class="p-4 font-bold text-white">
+                                    <div class="flex items-center gap-2">
+                                        <i class="fa-solid fa-building ${isMatch ? 'text-rose-400' : 'text-slate-400'}"></i>
+                                        <span>${r.victim_name}</span>
+                                    </div>
+                                    ${r.proof_summary ? `<div class="text-[10px] text-slate-400 font-normal mt-1 line-clamp-1 max-w-sm" title="${r.proof_summary}">${r.proof_summary}</div>` : ''}
                                 </td>
-                                <td class="p-4 font-mono text-purple-400 font-semibold">${r.group_name}</td>
-                                <td class="p-4 font-mono text-[11px] text-slate-400">${r.discovered_date || '-'}</td>
-                                <td class="p-4 text-center">${alertBadge}</td>
+                                <td class="p-4">
+                                    <div class="font-mono text-purple-400 font-semibold flex items-center gap-1.5">
+                                        <i class="fa-solid fa-skull text-xs text-purple-400/80"></i>
+                                        ${r.group_name}
+                                    </div>
+                                    ${r.claim_url ? `<div class="text-[10px] text-slate-500 font-mono flex items-center gap-1 mt-0.5 truncate max-w-[200px]" title="${r.claim_url}"><i class="fa-solid fa-lock text-[8px] text-amber-500"></i> ${r.claim_url}</div>` : ''}
+                                </td>
+                                <td class="p-4">${ultimatumInfo}</td>
+                                <td class="p-4 text-center">
+                                    <div class="flex flex-col items-center gap-1.5">
+                                        ${statusDisplay}
+                                        ${isMatch ? alertBadge : ''}
+                                    </div>
+                                </td>
+                                <td class="p-4 text-center">
+                                    <button onclick="openCtiAdvisoryModal(${r.id})" class="px-3 py-1.5 rounded-lg text-[11px] font-bold ${isMatch ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-900/50 animate-pulse' : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'} transition flex items-center gap-1.5 justify-center mx-auto whitespace-nowrap">
+                                        <i class="fa-solid fa-bullhorn ${isMatch ? 'text-amber-300' : 'text-slate-400'}"></i>
+                                        <span>${isMatch ? '🚨 Notificar Empresa' : 'Emitir Alerta'}</span>
+                                    </button>
+                                </td>
                             </tr>
                         `;
                     }).join('');
@@ -3280,7 +3401,66 @@
             }
         }
 
-        function closeTakedownModal() {
+        
+        // CTI Advisory Modal Helper Functions
+        let currentAdvisoryData = null;
+
+        async function openCtiAdvisoryModal(leakId) {
+            try {
+                const res = await fetch(`${API_URL}?action=generate_cti_advisory&leak_id=${leakId}`);
+                const data = await res.json();
+                if (!data.success) {
+                    showToast('Error al generar comunicado CSIRT', true);
+                    return;
+                }
+                currentAdvisoryData = data;
+                document.getElementById('advisory-victim').textContent = data.victim_name || '-';
+                document.getElementById('advisory-group').textContent = data.group_name || '-';
+                document.getElementById('advisory-deadline').textContent = data.extortion_deadline || '-';
+                document.getElementById('advisory-size').textContent = data.data_size || '-';
+                document.getElementById('cti-advisory-text').value = data.advisory_text || '';
+                document.getElementById('cti-advisory-modal').classList.remove('hidden');
+            } catch (e) {
+                console.error('Error fetching advisory:', e);
+                showToast('Error de conexión al generar alerta', true);
+            }
+        }
+
+        function closeCtiAdvisoryModal() {
+            document.getElementById('cti-advisory-modal').classList.add('hidden');
+        }
+
+        function copyCtiAdvisoryText() {
+            const txtArea = document.getElementById('cti-advisory-text');
+            if (txtArea && txtArea.value) {
+                navigator.clipboard.writeText(txtArea.value).then(() => {
+                    showToast('¡Comunicado CSIRT copiado al portapapeles!');
+                }).catch(() => {
+                    txtArea.select();
+                    document.execCommand('copy');
+                    showToast('¡Comunicado CSIRT copiado al portapapeles!');
+                });
+            }
+        }
+
+        function downloadCtiAdvisoryText(format) {
+            if (!currentAdvisoryData) return;
+            const content = (format === 'md') ? currentAdvisoryData.advisory_markdown : currentAdvisoryData.advisory_text;
+            const ext = (format === 'md') ? 'md' : 'txt';
+            const cleanName = (currentAdvisoryData.victim_name || 'empresa').replace(/[^a-zA-Z0-9_-]/g, '_');
+            const filename = `ALERTA_TEMPRANA_CSIRT_${cleanName}_${currentAdvisoryData.incident_id}.${ext}`;
+            
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast(`Descargado comunicado oficial (.${ext.toUpperCase()})`);
+        }
+
+function closeTakedownModal() {
             document.getElementById('takedown-modal').classList.add('hidden');
         }
 
