@@ -1,0 +1,29 @@
+[
+  {
+    "target": "127.0.0.1",
+    "ip": "127.0.0.1",
+    "port": 80,
+    "scheme": "http",
+    "http_status": 302,
+    "php_version": "8.2.12",
+    "verdict": "VULNERABLE",
+    "fixed_version": "8.2.35",
+    "branch_eol": false,
+    "version_hidden": false,
+    "behind_cdn_waf": false,
+    "cdn_waf": "",
+    "php_signal": "header",
+    "connect_ip": "127.0.0.1",
+    "host_header": "127.0.0.1",
+    "origin_auto": false,
+    "origin_source": "",
+    "server_header": "Apache/2.4.58 (Win64) OpenSSL/3.1.3 PHP/8.2.12",
+    "powered_by": "PHP/8.2.12",
+    "set_cookie": "",
+    "confidence": "solo-versión",
+    "active_note": "",
+    "latency_ms": 128,
+    "detail": "Versión por debajo de la versión parcheada de su rama",
+    "checked_at": "2026-10-27T06:46:09"
+  }
+]
