@@ -3703,16 +3703,16 @@ function loginReconSearch($pdo) {
         ['name' => 'DEVIANTART', 'url' => 'https://{username}.deviantart.com', 'category' => 'media', 'icon' => 'fa-brands fa-deviantart', 'error_pattern' => 'HTTP/2 404'],
         ['name' => 'VK', 'url' => 'https://vk.com/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-vk', 'error_pattern' => 'HTTP/2 404'],
         ['name' => 'About.me', 'url' => 'https://about.me/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-address-card', 'error_pattern' => 'HTTP/2 404'],
-        ['name' => 'Imgur', 'url' => 'https://imgur.com/user/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-image', 'error_pattern' => 'HTTP/2 404'],
+        ['name' => 'Imgur', 'url' => 'https://imgur.com/user/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-image', 'error_pattern' => 'The magic of the Internet|HTTP/2 404'],
         ['name' => 'FlipBoard', 'url' => 'https://flipboard.com/@{username}', 'category' => 'social', 'icon' => 'fa-brands fa-flipboard', 'error_pattern' => 'HTTP/2 404'],
         ['name' => 'SlideShare', 'url' => 'https://slideshare.net/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-slideshare', 'error_pattern' => 'HTTP/2 404'],
         ['name' => 'Fotolog', 'url' => 'https://fotolog.com/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-camera', 'error_pattern' => 'HTTP/2 404'],
-        ['name' => 'Spotify', 'url' => 'https://open.spotify.com/user/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-spotify', 'error_pattern' => 'HTTP/2 404'],
-        ['name' => 'MixCloud', 'url' => 'https://www.mixcloud.com/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-mixcloud', 'error_pattern' => 'error-message'],
+        ['name' => 'Spotify', 'url' => 'https://open.spotify.com/user/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-spotify', 'error_pattern' => 'Spotify – Web Player|Spotify - Web Player|Web Player|HTTP/2 404'],
+        ['name' => 'MixCloud', 'url' => 'https://www.mixcloud.com/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-mixcloud', 'error_pattern' => 'this is audio culture|Listen to the best DJs|error-message'],
         ['name' => 'Scribd', 'url' => 'https://www.scribd.com/{username}', 'category' => 'blogs', 'icon' => 'fa-brands fa-scribd', 'error_pattern' => 'show_404'],
         ['name' => 'Badoo', 'url' => 'https://badoo.com/en/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-heart', 'error_pattern' => '404 Not Found'],
         ['name' => 'BitBucket', 'url' => 'https://bitbucket.org/{username}', 'category' => 'dev', 'icon' => 'fa-brands fa-bitbucket', 'error_pattern' => 'HTTP/2 404'],
-        ['name' => 'DailyMotion', 'url' => 'https://www.dailymotion.com/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-dailymotion', 'error_pattern' => '404 Not Found'],
+        ['name' => 'DailyMotion', 'url' => 'https://www.dailymotion.com/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-dailymotion', 'error_pattern' => 'Houston, tenemos un problema|no encontramos esa página|404 Not Found'],
         ['name' => 'Etsy', 'url' => 'https://www.etsy.com/people/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-etsy', 'error_pattern' => 'HTTP/2 404'],
         ['name' => 'CashMe', 'url' => 'https://cash.me/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-dollar-sign', 'error_pattern' => '404 Not Found'],
         ['name' => 'Behance', 'url' => 'https://www.behance.net/{username}', 'category' => 'prof', 'icon' => 'fa-brands fa-behance', 'error_pattern' => '404 Not Found'],
@@ -3734,12 +3734,12 @@ function loginReconSearch($pdo) {
         ['name' => 'Wattpad', 'url' => 'https://www.wattpad.com/user/{username}', 'category' => 'blogs', 'icon' => 'fa-solid fa-book', 'error_pattern' => 'HTTP/2 404 '],
         ['name' => 'Canva', 'url' => 'https://www.canva.com/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-palette', 'error_pattern' => 'HTTP/2 404 '],
         ['name' => 'CreativeMarket', 'url' => 'https://creativemarket.com/users/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-store', 'error_pattern' => '404eef72'],
-        ['name' => 'Trakt', 'url' => 'https://www.trakt.tv/users/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-film', 'error_pattern' => 'HTTP/2 404 '],
-        ['name' => '500px', 'url' => 'https://500px.com/p/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-500px', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Trakt', 'url' => 'https://www.trakt.tv/users/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-film', 'error_pattern' => 'Trakt Web: Profile|Trakt Web: A new|HTTP/2 404'],
+        ['name' => '500px', 'url' => 'https://500px.com/p/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-500px', 'error_pattern' => '404 Not Found|This user is unavailable|Back to Home'],
         ['name' => 'Buzzfeed', 'url' => 'https://buzzfeed.com/{username}', 'category' => 'blogs', 'icon' => 'fa-solid fa-bullhorn', 'error_pattern' => 'HTTP/2 404'],
         ['name' => 'TripAdvisor', 'url' => 'https://tripadvisor.com/members/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-plane', 'error_pattern' => 'HTTP/2 404'],
         ['name' => 'HubPages', 'url' => 'https://hubpages.com/@{username}', 'category' => 'blogs', 'icon' => 'fa-solid fa-newspaper', 'error_pattern' => 'HTTP/2 404'],
-        ['name' => 'Contently', 'url' => 'https://{username}.contently.com', 'category' => 'blogs', 'icon' => 'fa-solid fa-feather', 'error_pattern' => '404 Not Found'],
+        ['name' => 'Contently', 'url' => 'https://{username}.contently.com', 'category' => 'blogs', 'icon' => 'fa-solid fa-feather', 'error_pattern' => 'Content built for the brands|Content you can trust|Content for regulated industries|404 Not Found'],
         ['name' => 'Houzz', 'url' => 'https://houzz.com/user/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-houzz', 'error_pattern' => 'an error has occurred'],
         ['name' => 'blip.fm', 'url' => 'https://blip.fm/{username}', 'category' => 'media', 'icon' => 'fa-solid fa-radio', 'error_pattern' => '404 Not Found'],
         ['name' => 'Wikipedia', 'url' => 'https://en.wikipedia.org/wiki/User:{username}', 'category' => 'blogs', 'icon' => 'fa-brands fa-wikipedia-w', 'error_pattern' => 'HTTP/2 404'],
@@ -3760,15 +3760,15 @@ function loginReconSearch($pdo) {
         ['name' => 'Basecamp', 'url' => 'https://{username}.basecamphq.com', 'category' => 'dev', 'icon' => 'fa-solid fa-campground', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
         // Superficie Gubernamental República de Colombia (.gov.co)
         ['name' => 'Datos Abiertos Colombia', 'url' => 'https://www.datos.gov.co/profile/{username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-landmark', 'error_pattern' => '404 Not Found|User not found|Page Not Found'],
-        ['name' => 'Portal del Estado GOV.CO', 'url' => 'https://www.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-building-columns', 'error_pattern' => 'No se encontraron resultados'],
-        ['name' => 'Función Pública (SIGEP)', 'url' => 'https://www.funcionpublica.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-id-card-clip', 'error_pattern' => 'No se encontraron resultados|404'],
-        ['name' => 'Colombia Compra (SECOP)', 'url' => 'https://www.colombiacompra.gov.co/search/node/{username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-file-contract', 'error_pattern' => 'No se han encontrado resultados|404'],
+        ['name' => 'Portal del Estado GOV.CO', 'url' => 'https://www.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-building-columns', 'error_pattern' => 'Más de 78.000 trámites|No se encontraron resultados'],
+        ['name' => 'Función Pública (SIGEP)', 'url' => 'https://www.funcionpublica.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-id-card-clip', 'error_pattern' => 'Buscador gestor normativo|No se encontraron registros|No se encontraron resultados|404'],
+        ['name' => 'Colombia Compra (SECOP)', 'url' => 'https://www.colombiacompra.gov.co/search/node/{username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-file-contract', 'error_pattern' => '0 resultados encontrados|ups...|No se han encontrado resultados|404'],
         ['name' => 'MinCiencias (CvLAC)', 'url' => 'https://scienti.minciencias.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-microscope', 'error_pattern' => 'No se encontraron resultados|404'],
         ['name' => 'Rama Judicial de Colombia', 'url' => 'https://www.ramajudicial.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-scale-balanced', 'error_pattern' => 'No se encontraron resultados|404'],
         ['name' => 'Procuraduría General', 'url' => 'https://www.procuraduria.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-shield-halved', 'error_pattern' => 'No se encontraron resultados|404'],
         ['name' => 'Contraloría General', 'url' => 'https://www.contraloria.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-chart-pie', 'error_pattern' => 'No se encontraron resultados|404'],
-        ['name' => 'Policía Nacional de Colombia', 'url' => 'https://www.policia.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-user-shield', 'error_pattern' => 'No se encontraron resultados|404'],
-        ['name' => 'SENA Sofía Plus', 'url' => 'https://oferta.senasofiaplus.edu.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-graduation-cap', 'error_pattern' => 'No se encontraron resultados|404'],
+        ['name' => 'Policía Nacional de Colombia', 'url' => 'https://www.policia.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-user-shield', 'error_pattern' => 'Buscador | Policía Nacional|No se encontraron resultados|404'],
+        ['name' => 'SENA Sofía Plus', 'url' => 'https://oferta.senasofiaplus.edu.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-graduation-cap', 'error_pattern' => 'Betowa - Ofertas Educativas SENA|0 resultados|No se encontraron resultados|404'],
     ];
 
     if ($categoryFilter !== 'all') {
@@ -3828,9 +3828,16 @@ function loginReconSearch($pdo) {
             if ($code >= 200 && $code < 300) {
                 $isFound = true;
                 
-                // Specific platform error pattern
-                if (!empty($errPattern) && stripos($body, $errPattern) !== false) {
-                    $isFound = false;
+                // Specific platform error pattern (supports pipe '|' separated signatures across full body)
+                if (!empty($errPattern)) {
+                    $errParts = explode('|', $errPattern);
+                    foreach ($errParts as $ep) {
+                        $ep = trim($ep);
+                        if ($ep !== '' && stripos($body, $ep) !== false) {
+                            $isFound = false;
+                            break;
+                        }
+                    }
                 }
                 
                 // Anti-SPA semantic validation: Modern JS single page apps returning HTTP 200 for not found
@@ -3864,7 +3871,31 @@ function loginReconSearch($pdo) {
                         'Bot Verification',
                         'Google Workspace Updates',
                         'Checking your browser',
-                        'Cloudflare Ray ID'
+                        'Cloudflare Ray ID',
+                        'This user is unavailable',
+                        '0 resultados encontrados',
+                        'ups...',
+                        'Houston, tenemos un problema',
+                        'no encontramos esa página',
+                        'Content built for the brands',
+                        'Content you can trust',
+                        'Content for regulated industries',
+                        'Non-GamStop',
+                        'httperrorpage',
+                        'this is audio culture',
+                        'Listen to the best DJs',
+                        'The magic of the Internet',
+                        'Trakt Web: Profile',
+                        'Spotify – Web Player',
+                        'Spotify - Web Player',
+                        'Web Player',
+                        'Más de 78.000 trámites',
+                        'Buscador gestor normativo',
+                        'Buscador | Policía Nacional',
+                        'Betowa - Ofertas Educativas SENA',
+                        'Tracky.com - Contact us',
+                        'Skyscanner',
+                        'Nobody on Reddit goes by that name'
                     ];
                     
                     if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $body, $tm)) {
@@ -3878,12 +3909,51 @@ function loginReconSearch($pdo) {
                     }
                     
                     if ($isFound) {
-                        $bodySnippet = substr($body, 0, 3500);
-                        foreach (['Profile Not Found', 'User Not Found', 'could not be found', 'Page no longer exists', 'The specified profile could not be found', 'Client Challenge', 'Attention Required! | Cloudflare', 'Checking your browser'] as $sfp) {
+                        $bodySnippet = substr($body, 0, 8000);
+                        foreach (['Profile Not Found', 'User Not Found', 'could not be found', 'Page no longer exists', 'The specified profile could not be found', 'Client Challenge', 'Attention Required! | Cloudflare', 'Checking your browser', 'This user is unavailable', '0 resultados encontrados', 'ups...', 'Houston, tenemos un problema', 'no encontramos esa página', 'The magic of the Internet', 'this is audio culture', 'Spotify – Web Player', 'Trakt Web: Profile', 'Buscador gestor normativo', 'Betowa - Ofertas'] as $sfp) {
                             if (stripos($bodySnippet, $sfp) !== false) {
                                 $isFound = false;
                                 break;
                             }
+                        }
+                    }
+                    
+                    // Platform-specific false positive handlers
+                    if ($isFound) {
+                        $pNameLower = strtolower($h['platform']['name']);
+                        if (in_array($pNameLower, ['ello', 'tracky', 'trip', 'gloogle plus', 'fotolog'])) {
+                            $isFound = false;
+                        } elseif ($pNameLower === '500px') {
+                            if (stripos($body, '<div id="root"><!--app-html--></div>') !== false && stripos($body, $username) === false) {
+                                $isFound = false;
+                            }
+                        } elseif ($pNameLower === 'colombia compra (secop)') {
+                            if (stripos($body, '0 resultados encontrados') !== false || stripos($body, 'ups...') !== false || stripos($body, 'No se encontraron resultados') !== false) {
+                                $isFound = false;
+                            }
+                        } elseif ($pNameLower === 'dailymotion') {
+                            $dmApiUrl = 'https://api.dailymotion.com/user/' . rawurlencode($username);
+                            $dmCh = curl_init($dmApiUrl);
+                            curl_setopt($dmCh, CURLOPT_RETURNTRANSFER, true);
+                            curl_setopt($dmCh, CURLOPT_USERAGENT, 'Mozilla/5.0');
+                            curl_setopt($dmCh, CURLOPT_TIMEOUT, 3);
+                            curl_setopt($dmCh, CURLOPT_SSL_VERIFYPEER, false);
+                            $dmResp = curl_exec($dmCh);
+                            $dmCode = curl_getinfo($dmCh, CURLINFO_HTTP_CODE);
+                            curl_close($dmCh);
+                            if ($dmCode !== 200) {
+                                $isFound = false;
+                            }
+                        } elseif ($pNameLower === 'instagram' && (stripos($body, 'httpErrorPage') !== false || trim($titleText) === 'Instagram')) {
+                            $isFound = false;
+                        } elseif ($pNameLower === 'reddit' && (trim($titleText) === 'Reddit' || stripos($body, 'Nobody on Reddit') !== false)) {
+                            $isFound = false;
+                        } elseif ($pNameLower === 'spotify' && (stripos($titleText, 'Web Player') !== false || stripos($body, 'encore-dark-theme') !== false && stripos($body, $username) === false)) {
+                            $isFound = false;
+                        } elseif ($pNameLower === 'pinterest' && (empty($titleText) || stripos($titleText, 'login') !== false)) {
+                            $isFound = false;
+                        } elseif ($pNameLower === 'contently' && (stripos($body, 'Content built for the brands') !== false || stripos($body, 'Content you can trust') !== false)) {
+                            $isFound = false;
                         }
                     }
                 }
