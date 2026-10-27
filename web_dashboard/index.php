@@ -219,7 +219,7 @@
             </button>
             <button onclick="switchTab('strix')" id="tab-btn-strix" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Suite de pentesting interactivo, PoCs reproducibles y herramientas ofensivas (Strix & AutoPentestX)">
                 <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
-                Navaja Suiza (Strix & AutoPentestX)
+                Sackmesser (Strix & AutoPentestX)
             </button>
             <button onclick="switchTab('loginrecon')" id="tab-btn-loginrecon" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Reconocimiento OSINT de identidades, usuarios y huella digital multiplataforma (UserRecon)">
                 <i class="fa-solid fa-id-badge text-sky-400"></i>
@@ -577,7 +577,7 @@
             </div>
         </section>
 
-        <!-- TAB CONTENT: STRIX & AUTOPENTESTX TOOLKIT (NAVAJA SUIZA) -->
+        <!-- TAB CONTENT: STRIX & AUTOPENTESTX TOOLKIT (SACKMESSER) -->
         <section id="tab-content-strix" class="space-y-6 hidden">
             <!-- Suite Switcher: Strix vs AutoPentestX -->
             <div class="bg-cyber-card border border-cyber-border rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -587,7 +587,7 @@
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
-                            <h2 class="text-base font-bold text-white">Navaja Suiza de Pentesting & Auditoría Ofensiva</h2>
+                            <h2 class="text-base font-bold text-white">Sackmesser de Pentesting & Auditoría Ofensiva</h2>
                             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-950 text-purple-300 border border-purple-800">Multi-Framework</span>
                         </div>
                         <p class="text-xs text-slate-400">Selecciona el paquete de herramientas según la necesidad del analista y auditor.</p>
@@ -713,7 +713,7 @@
                         </div>
                         <h3 class="text-xl font-bold text-white flex items-center gap-2">
                             <i class="fa-solid fa-screwdriver-wrench text-emerald-400"></i>
-                            Navaja Suiza Strix (Auditoría Ofensiva & Validación)
+                            Sackmesser Strix (Auditoría Ofensiva & Validación)
                         </h3>
                         <p class="text-xs text-slate-400 mt-1 max-w-3xl">
                             Herramientas multi-plataforma de pentesting interactivo: inspección cruda de paquetes HTTP (estilo Caido/Burp Suite), validación determinista de PoCs con comandos cURL y scripts Python listos para replicar, fuzzing de rutas de exposición, inspección de certificados X.509 y auditorías RFC DNS.
@@ -2551,7 +2551,7 @@
                                 <button onclick="openVulnPlaybookModal(${v.id})" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 transition shadow-sm">
                                     <i class="fa-solid fa-code"></i> Playbook & Guía de Hardening
                                 </button>
-                                <button onclick="launchStrixForUrl('${v.asset_subdomain ? (v.asset_subdomain.startsWith('http') ? v.asset_subdomain : 'https://' + v.asset_subdomain) : ''}', '${(v.title || '').replace(/'/g, "\\'")}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 transition shadow-sm" title="Ejecutar validación de evidencia y Raw HTTP en la Navaja Suiza Strix">
+                                <button onclick="launchStrixForUrl('${v.asset_subdomain ? (v.asset_subdomain.startsWith('http') ? v.asset_subdomain : 'https://' + v.asset_subdomain) : ''}', '${(v.title || '').replace(/'/g, "\\'")}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 transition shadow-sm" title="Ejecutar validación de evidencia y Raw HTTP en Sackmesser Strix">
                                     <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> Validar con Strix
                                 </button>
                             </div>
@@ -3527,7 +3527,7 @@
         }
 
         // ==========================================
-        // STRIX PENTESTING TOOLKIT (NAVAJA SUIZA)
+        // STRIX PENTESTING TOOLKIT (SACKMESSER)
         // ==========================================
         let currentStrixSubTool = 'poc';
 
@@ -3627,7 +3627,7 @@
             document.getElementById('strix-cors-url').value = targetUrl;
             document.getElementById('strix-dns-domain').value = domain;
 
-            showToast(`Activo ${domain} cargado en la Navaja Suiza`);
+            showToast(`Activo ${domain} cargado en Sackmesser`);
         }
 
         function launchStrixForUrl(url, vulnTitle) {
