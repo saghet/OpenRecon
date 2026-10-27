@@ -1504,16 +1504,17 @@
             <div class="bg-cyber-card border border-cyber-border rounded-2xl p-5 space-y-4">
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                     <div class="md:col-span-6">
-                        <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Nombre de Usuario / Login Objetivo (OSINT)</label>
+                        <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Usuario o Correo Electrónico Objetivo (OSINT & CTI)</label>
                         <div class="relative">
                             <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-500 font-mono text-xs">@</span>
-                            <input type="text" id="loginrecon-input-username" placeholder="ejemplo: admin, torvalds, jsmith, ciso" class="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono">
+                            <input type="text" id="loginrecon-input-username" placeholder="ejemplo: usuario, dev@empresa.com, karen.tuu@gmail.com" class="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono">
                         </div>
                     </div>
                     <div class="md:col-span-3">
                         <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Categoría de Plataformas</label>
                         <select id="loginrecon-select-category" class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500">
-                            <option value="all">Todas las Plataformas (75+)</option>
+                            <option value="all">Todas las Plataformas (85+)</option>
+                            <option value="gov_co">🏛️ Gobierno Colombia (.gov.co)</option>
                             <option value="social">Redes Sociales (Twitter, Instagram, FB...)</option>
                             <option value="dev">Código & DevOps (GitHub, GitLab, BitBucket...)</option>
                             <option value="media">Multimedia & Streaming (YouTube, Spotify...)</option>
@@ -1648,6 +1649,7 @@
                     <div class="flex items-center gap-2 overflow-x-auto text-xs font-medium pt-1">
                         <button onclick="filterLoginReconCards('all')" id="loginrecon-filter-all" class="px-3 py-1 rounded-lg bg-sky-950 text-sky-300 border border-sky-800 transition font-bold shadow">Todas (<span id="count-pill-all">0</span>)</button>
                         <button onclick="filterLoginReconCards('found')" id="loginrecon-filter-found" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Confirmadas (<span id="count-pill-found">0</span>)</button>
+                        <button onclick="filterLoginReconCards('gov_co')" id="loginrecon-filter-gov_co" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Gov (.gov.co) (<span id="count-pill-gov_co">0</span>)</button>
                         <button onclick="filterLoginReconCards('social')" id="loginrecon-filter-social" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Social (<span id="count-pill-social">0</span>)</button>
                         <button onclick="filterLoginReconCards('dev')" id="loginrecon-filter-dev" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">DevOps (<span id="count-pill-dev">0</span>)</button>
                         <button onclick="filterLoginReconCards('media')" id="loginrecon-filter-media" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Media (<span id="count-pill-media">0</span>)</button>
@@ -4823,7 +4825,14 @@
                 if (dossierCard) {
                     dossierCard.classList.remove('hidden');
                     document.getElementById('dossier-primary-name').innerText = dossier.primary_name || data.username;
-                    document.getElementById('dossier-username-badge').innerText = `@${data.username}`;
+                    const uBadge = document.getElementById('dossier-username-badge');
+                    if (dossier.target_type === 'EMAIL' && dossier.email) {
+                        uBadge.innerHTML = `<i class="fa-solid fa-envelope mr-1 text-amber-400"></i>${dossier.email}`;
+                        uBadge.className = 'font-mono text-xs text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800';
+                    } else {
+                        uBadge.innerText = `@${data.username}`;
+                        uBadge.className = 'font-mono text-xs text-sky-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-800';
+                    }
                     document.getElementById('dossier-method').innerText = `Método de atribución: ${dossier.attribution_method || 'OSINT'}`;
                     document.getElementById('dossier-footprint').innerText = `${data.footprint_rate}%`;
                     document.getElementById('dossier-accounts-count').innerText = data.found_count;
@@ -4851,10 +4860,16 @@
                         avatarPlaceholder.classList.remove('hidden');
                     }
 
-                    // Emails
+                    // Emails & CTI Leaks
                     const emailsContainer = document.getElementById('dossier-emails-container');
-                    if (dossier.detected_emails && dossier.detected_emails.length > 0) {
+                    if (dossier.detected_breaches && dossier.detected_breaches.length > 0) {
+                        emailsContainer.innerHTML = dossier.detected_breaches.map(b => 
+                            `<div class="truncate text-[11px] text-rose-300"><i class="fa-solid fa-triangle-exclamation mr-1 text-rose-400"></i><strong class="text-white">${b.source_breach}</strong> (${b.breach_date || 'N/A'})</div>`
+                        ).join('');
+                    } else if (dossier.detected_emails && dossier.detected_emails.length > 0) {
                         emailsContainer.innerHTML = dossier.detected_emails.map(em => `<div class="truncate"><i class="fa-solid fa-at mr-1 text-[10px]"></i>${em}</div>`).join('');
+                    } else if (dossier.target_type === 'EMAIL') {
+                        emailsContainer.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-shield-check mr-1"></i>Sin fugas detectadas en CTI</span>`;
                     } else {
                         emailsContainer.innerText = 'No detectados en commits públicos';
                     }
@@ -4885,6 +4900,8 @@
                 const allRes = data.results || [];
                 document.getElementById('count-pill-all').innerText = allRes.length;
                 document.getElementById('count-pill-found').innerText = data.found_count;
+                const pillGov = document.getElementById('count-pill-gov_co');
+                if (pillGov) pillGov.innerText = allRes.filter(r => r.category === 'gov_co').length;
                 document.getElementById('count-pill-social').innerText = allRes.filter(r => r.category === 'social').length;
                 document.getElementById('count-pill-dev').innerText = allRes.filter(r => r.category === 'dev').length;
                 document.getElementById('count-pill-media').innerText = allRes.filter(r => r.category === 'media').length;
@@ -4905,7 +4922,7 @@
 
         function filterLoginReconCards(cat) {
             currentLoginReconFilter = cat;
-            ['all', 'found', 'social', 'dev', 'media', 'blogs', 'prof'].forEach(c => {
+            ['all', 'found', 'gov_co', 'social', 'dev', 'media', 'blogs', 'prof'].forEach(c => {
                 const btn = document.getElementById(`loginrecon-filter-${c}`);
                 if (btn) {
                     if (c === cat) {
@@ -4951,7 +4968,7 @@
                                 ${avatarHtml}
                                 <div class="truncate max-w-[130px]">
                                     <h4 class="text-xs font-bold text-white truncate">${item.name}</h4>
-                                    <span class="text-[10px] text-slate-400 font-mono capitalize">${item.category}</span>
+                                    ${item.category === "gov_co" ? '<span class="text-[10px] text-amber-400 font-mono font-bold"><i class="fa-solid fa-landmark mr-1"></i>Gov Colombia</span>' : `<span class="text-[10px] text-slate-400 font-mono capitalize">${item.category}</span>`}
                                 </div>
                             </div>
                             <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${badgeClass}">

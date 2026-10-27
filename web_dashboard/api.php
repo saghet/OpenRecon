@@ -3565,7 +3565,7 @@ function loginReconProbeGitHub($username) {
     return $data;
 }
 
-function loginReconProbeGravatar($username) {
+function loginReconProbeGravatar($identifier) {
     $data = [
         'found' => false,
         'display_name' => null,
@@ -3573,7 +3573,10 @@ function loginReconProbeGravatar($username) {
         'bio' => null,
         'location' => null
     ];
-    $ch = curl_init("https://en.gravatar.com/" . urlencode($username) . ".json");
+    $clean = strtolower(trim($identifier));
+    $lookupKey = (strpos($clean, '@') !== false) ? md5($clean) : urlencode($clean);
+    
+    $ch = curl_init("https://en.gravatar.com/" . $lookupKey . ".json");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 3);
     curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
@@ -3593,21 +3596,90 @@ function loginReconProbeGravatar($username) {
             $data['location'] = !empty($entry['currentLocation']) ? trim($entry['currentLocation']) : null;
         }
     }
+    
+    // Check if direct gravatar avatar image exists even if public profile JSON is private
+    if (!$data['found']) {
+        $imgHash = (strpos($clean, '@') !== false) ? md5($clean) : (strlen($clean) === 32 && ctype_xdigit($clean) ? $clean : null);
+        if ($imgHash) {
+            $chImg = curl_init("https://www.gravatar.com/avatar/" . $imgHash . "?d=404");
+            curl_setopt($chImg, CURLOPT_NOBODY, true);
+            curl_setopt($chImg, CURLOPT_TIMEOUT, 2);
+            curl_setopt($chImg, CURLOPT_SSL_VERIFYPEER, false);
+            curl_exec($chImg);
+            $imgCode = curl_getinfo($chImg, CURLINFO_HTTP_CODE);
+            curl_close($chImg);
+            if ($imgCode === 200) {
+                $data['found'] = true;
+                $data['avatar_url'] = "https://www.gravatar.com/avatar/" . $imgHash;
+            }
+        }
+    }
     return $data;
 }
 
 function loginReconSearch($pdo) {
     set_time_limit(180);
-    $username = trim($_POST['username'] ?? $_GET['username'] ?? '');
+    $rawInput = trim($_POST['username'] ?? $_GET['username'] ?? '');
     $categoryFilter = strtolower(trim($_POST['category'] ?? $_GET['category'] ?? 'all'));
     
-    // Validate username
-    if (empty($username) || !preg_match('/^[a-zA-Z0-9._-]{2,64}$/', $username)) {
+    if (empty($rawInput)) {
         echo json_encode([
             'success' => false,
-            'error' => 'Nombre de usuario inválido. Ingresa entre 2 y 64 caracteres alfanuméricos (a-z, 0-9, ., _, -)'
+            'error' => 'Por favor ingresa un nombre de usuario o dirección de correo electrónico.'
         ]);
         return;
+    }
+    
+    $isEmail = false;
+    $email = null;
+    $emailDomain = null;
+    $emailHash = null;
+    $username = null;
+    
+    if (filter_var($rawInput, FILTER_VALIDATE_EMAIL)) {
+        $isEmail = true;
+        $email = strtolower($rawInput);
+        $emailParts = explode('@', $email);
+        $username = $emailParts[0];
+        $emailDomain = $emailParts[1] ?? '';
+        $emailHash = md5($email);
+    } else {
+        // Validate username
+        if (!preg_match('/^[a-zA-Z0-9._-]{2,64}$/', $rawInput)) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'Entrada inválida. Ingresa un usuario (2 a 64 caracteres alfanuméricos) o una dirección de correo válida (ej: dev@empresa.com, karen.tuu@gmail.com).'
+            ]);
+            return;
+        }
+        $username = $rawInput;
+    }
+    
+    // Check local CTI credential leaks in SQLite
+    $detectedBreaches = [];
+    try {
+        if ($isEmail) {
+            $stmt = $pdo->prepare("SELECT source_breach, breach_date, pwn_count, severity, data_classes FROM credential_leaks WHERE LOWER(email) = ? OR LOWER(email) LIKE ?");
+            $stmt->execute([$email, "%$username%"]);
+        } else {
+            $stmt = $pdo->prepare("SELECT source_breach, breach_date, pwn_count, severity, data_classes FROM credential_leaks WHERE LOWER(email) LIKE ?");
+            $stmt->execute(["%$username%"]);
+        }
+        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $detectedBreaches[] = $row;
+        }
+    } catch (Exception $e) {}
+    
+    // Check MX records if email
+    $hasValidMx = false;
+    $mxRecords = [];
+    if ($isEmail && !empty($emailDomain)) {
+        if (function_exists('getmxrr') && @getmxrr($emailDomain, $mxhosts)) {
+            $hasValidMx = true;
+            $mxRecords = array_slice($mxhosts, 0, 3);
+        } elseif (@checkdnsrr($emailDomain, 'MX')) {
+            $hasValidMx = true;
+        }
     }
 
     $platforms = [
@@ -3686,6 +3758,17 @@ function loginReconSearch($pdo) {
         ['name' => 'Tracky', 'url' => 'https://tracky.com/user/{username}', 'category' => 'prof', 'icon' => 'fa-solid fa-list-check', 'error_pattern' => 'profile:username'],
         ['name' => 'Tripit', 'url' => 'https://www.tripit.com/people/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-ticket', 'error_pattern' => 'location: https://www.tripit.com/home'],
         ['name' => 'Basecamp', 'url' => 'https://{username}.basecamphq.com', 'category' => 'dev', 'icon' => 'fa-solid fa-campground', 'error_pattern' => 'HTTP/2 404|404 Not Found'],
+        // Superficie Gubernamental República de Colombia (.gov.co)
+        ['name' => 'Datos Abiertos Colombia', 'url' => 'https://www.datos.gov.co/profile/{username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-landmark', 'error_pattern' => '404 Not Found|User not found|Page Not Found'],
+        ['name' => 'Portal del Estado GOV.CO', 'url' => 'https://www.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-building-columns', 'error_pattern' => 'No se encontraron resultados'],
+        ['name' => 'Función Pública (SIGEP)', 'url' => 'https://www.funcionpublica.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-id-card-clip', 'error_pattern' => 'No se encontraron resultados|404'],
+        ['name' => 'Colombia Compra (SECOP)', 'url' => 'https://www.colombiacompra.gov.co/search/node/{username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-file-contract', 'error_pattern' => 'No se han encontrado resultados|404'],
+        ['name' => 'MinCiencias (CvLAC)', 'url' => 'https://scienti.minciencias.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-microscope', 'error_pattern' => 'No se encontraron resultados|404'],
+        ['name' => 'Rama Judicial de Colombia', 'url' => 'https://www.ramajudicial.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-scale-balanced', 'error_pattern' => 'No se encontraron resultados|404'],
+        ['name' => 'Procuraduría General', 'url' => 'https://www.procuraduria.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-shield-halved', 'error_pattern' => 'No se encontraron resultados|404'],
+        ['name' => 'Contraloría General', 'url' => 'https://www.contraloria.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-chart-pie', 'error_pattern' => 'No se encontraron resultados|404'],
+        ['name' => 'Policía Nacional de Colombia', 'url' => 'https://www.policia.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-user-shield', 'error_pattern' => 'No se encontraron resultados|404'],
+        ['name' => 'SENA Sofía Plus', 'url' => 'https://oferta.senasofiaplus.edu.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-graduation-cap', 'error_pattern' => 'No se encontraron resultados|404'],
     ];
 
     if ($categoryFilter !== 'all') {
@@ -3699,7 +3782,7 @@ function loginReconSearch($pdo) {
     
     // Launch parallel forensic API probes for GitHub and Gravatar
     $githubForensics = loginReconProbeGitHub($username);
-    $gravatarForensics = loginReconProbeGravatar($username);
+    $gravatarForensics = loginReconProbeGravatar($isEmail ? $email : $username);
 
     $batchSize = 25;
     $results = [];
@@ -3941,7 +4024,14 @@ function loginReconSearch($pdo) {
     }
     
     $identityDossier = [
+        'target_type' => $isEmail ? 'EMAIL' : 'USERNAME',
+        'target_input' => $rawInput,
         'username' => $username,
+        'email' => $email,
+        'email_domain' => $emailDomain,
+        'has_valid_mx' => $hasValidMx,
+        'mx_records' => $mxRecords,
+        'detected_breaches' => $detectedBreaches,
         'primary_name' => $primaryName,
         'avatar_url' => $primaryAvatar,
         'bio' => $primaryBio,
