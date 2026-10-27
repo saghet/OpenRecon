@@ -1778,7 +1778,7 @@
                     Configuración de Auditoría de Exposición PHP2Shell
                 </h3>
 
-                <form onsubmit="runPhp2shellScan(event)" class="space-y-4">
+                <form onsubmit="runPhp2shellScan(event); return false;" class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
                         <!-- Target Input -->
                         <div class="md:col-span-6 space-y-1.5">
@@ -1843,7 +1843,7 @@
                             </div>
                         </div>
 
-                        <button type="submit" id="php2shell-btn-submit" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/40 transition">
+                        <button type="button" onclick="runPhp2shellScan(event)" id="php2shell-btn-submit" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/40 transition">
                             <i class="fa-solid fa-bolt-lightning"></i>
                             <span>Ejecutar Escáner PHP2Shell</span>
                         </button>
@@ -5716,6 +5716,241 @@ function closeTakedownModal() {
             }).join('');
         }
 
-    </script>
+    
+
+        // -------------------------------------------------------------
+        // PHP2SHELL SCANNER JAVASCRIPT CONTROLLER (CVE-2026-109618 / 109619)
+        // -------------------------------------------------------------
+        let php2shellLastResults = [];
+
+        function setPhp2shellTarget(val) {
+            const input = document.getElementById('php2shell-target-input');
+            if (!input) return;
+            if (val === 'currentSeed') {
+                input.value = (typeof currentSeed !== 'undefined' && currentSeed && currentSeed !== 'ALL') ? currentSeed : 'vulnweb.com';
+            } else {
+                input.value = val;
+            }
+        }
+
+        async function runPhp2shellScan(e) {
+            if (e) {
+                if (typeof e.preventDefault === 'function') e.preventDefault();
+                if (typeof e.stopPropagation === 'function') e.stopPropagation();
+            }
+
+            const targetInput = document.getElementById('php2shell-target-input');
+            const modeSelect = document.getElementById('php2shell-mode-select');
+            const portsInput = document.getElementById('php2shell-ports-input');
+            const timeoutSelect = document.getElementById('php2shell-timeout-select');
+            const autoOriginCheck = document.getElementById('php2shell-auto-origin');
+            const onlyVulnCheck = document.getElementById('php2shell-only-vuln');
+            const btnSubmit = document.getElementById('php2shell-btn-submit');
+            const tbody = document.getElementById('php2shell-results-body');
+
+            const target = (targetInput ? targetInput.value.trim() : '');
+            if (!target) {
+                if (typeof showToast === 'function') {
+                    showToast('Por favor ingresa un objetivo a auditar (ej: vulnweb.com, 127.0.0.1)', true);
+                } else {
+                    alert('Por favor ingresa un objetivo a auditar');
+                }
+                return false;
+            }
+
+            const mode = modeSelect ? modeSelect.value : 'target';
+            const ports = portsInput ? portsInput.value.trim() : '80,443';
+            const timeout = timeoutSelect ? timeoutSelect.value : '6';
+            const noAutoOrigin = (autoOriginCheck && !autoOriginCheck.checked) ? '1' : '0';
+            const onlyVuln = (onlyVulnCheck && onlyVulnCheck.checked) ? '1' : '0';
+
+            if (btnSubmit) {
+                btnSubmit.disabled = true;
+                btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-white"></i><span>Escaneando ${target}...</span>`;
+            }
+
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-indigo-400 block mx-auto"></i>
+                            <div class="font-bold text-white text-sm">Ejecutando escáner pasivo PHP2Shell (CVE-2026-109618 / CVE-2026-109619)...</div>
+                            <div class="text-xs text-slate-400 mt-1">Interrogando banners HTTP, cabeceras Server/X-Powered-By y cookies en <code class="text-indigo-300 font-mono">${target}</code>...</div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            try {
+                const params = new URLSearchParams({
+                    action: 'php2shell_scan',
+                    target: target,
+                    mode: mode,
+                    ports: ports,
+                    timeout: timeout,
+                    no_auto_origin: noAutoOrigin,
+                    only_vuln: onlyVuln
+                });
+
+                const res = await fetch(`api.php?${params.toString()}`);
+                const data = await res.json();
+
+                if (!data.success) {
+                    const errMsg = data.error || 'Error al ejecutar escáner PHP2Shell';
+                    if (typeof showToast === 'function') showToast(errMsg, true);
+                    if (tbody) {
+                        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-400 font-bold">${errMsg}</td></tr>`;
+                    }
+                    return false;
+                }
+
+                php2shellLastResults = data.results || [];
+
+                // Update KPI counters
+                const s = data.stats || {};
+                const statTotal = document.getElementById('php2shell-stat-total');
+                const statVuln = document.getElementById('php2shell-stat-vuln');
+                const statPatched = document.getElementById('php2shell-stat-patched');
+                const statUnknown = document.getElementById('php2shell-stat-unknown');
+                const statOther = document.getElementById('php2shell-stat-other');
+
+                if (statTotal) statTotal.textContent = s.total || '0';
+                if (statVuln) statVuln.textContent = s.vulnerable || '0';
+                if (statPatched) statPatched.textContent = s.patched || '0';
+                if (statUnknown) statUnknown.textContent = s.unknown || '0';
+                if (statOther) statOther.textContent = (s.no_php || 0) + (s.filtered || 0) + (s.closed || 0) + (s.other || 0);
+
+                renderPhp2shellResults(php2shellLastResults);
+
+                if (s.vulnerable > 0) {
+                    if (typeof showToast === 'function') showToast(`⚠️ ¡ALERTA! Se detectaron ${s.vulnerable} objetivo(s) vulnerables a PHP2Shell`, true);
+                } else {
+                    if (typeof showToast === 'function') showToast(`Auditoría completada: ${s.total} objetivo(s) analizados. Sin vulnerabilidades expuestas.`);
+                }
+            } catch (err) {
+                console.error('Error in PHP2Shell scan:', err);
+                if (typeof showToast === 'function') showToast('Error de conexión con el servidor al ejecutar el escáner', true);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-rose-400">Error inesperado al conectar con api.php</td></tr>`;
+                }
+            } finally {
+                if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = `<i class="fa-solid fa-bolt-lightning"></i><span>Ejecutar Escáner PHP2Shell</span>`;
+                }
+            }
+            return false;
+        }
+
+        function renderPhp2shellResults(results) {
+            const tbody = document.getElementById('php2shell-results-body');
+            if (!tbody) return;
+
+            if (!results || results.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="p-8 text-center text-slate-500">
+                            No se encontraron resultados para los criterios seleccionados.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = results.map(r => {
+                const v = (r.verdict || '').toUpperCase();
+                let badge = `<span class="px-2 py-0.5 rounded text-[11px] text-slate-400 bg-slate-800">${v}</span>`;
+                let rowBg = '';
+
+                if (v === 'VULNERABLE') {
+                    badge = `<span class="px-2.5 py-1 rounded-md text-xs font-bold bg-rose-950 text-rose-300 border border-rose-800 animate-pulse flex items-center gap-1 justify-center"><i class="fa-solid fa-triangle-exclamation"></i> VULNERABLE</span>`;
+                    rowBg = 'bg-rose-950/25';
+                } else if (v === 'PATCHED' || v === 'PARCHEADO') {
+                    badge = `<span class="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1 justify-center"><i class="fa-solid fa-circle-check"></i> PARCHEADO</span>`;
+                    rowBg = 'bg-emerald-950/10';
+                } else if (v === 'UNKNOWN' || v === 'DESCONOCIDO') {
+                    badge = `<span class="px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1 justify-center"><i class="fa-solid fa-eye-slash"></i> OCULTO</span>`;
+                } else if (v === 'NO-PHP' || v === 'SIN-PHP') {
+                    badge = `<span class="px-2 py-0.5 rounded text-[11px] text-slate-400 bg-slate-800/80 border border-slate-700">SIN-PHP</span>`;
+                } else if (v === 'FILTRADO') {
+                    badge = `<span class="px-2 py-0.5 rounded text-[11px] text-slate-500 bg-slate-800/60">FILTRADO</span>`;
+                } else if (v === 'CERRADO') {
+                    badge = `<span class="px-2 py-0.5 rounded text-[11px] text-slate-500 bg-slate-800/60">CERRADO</span>`;
+                }
+
+                const wafInfo = r.behind_cdn_waf ?
+                    `<span class="text-amber-400 font-mono text-[10px] flex items-center gap-1"><i class="fa-solid fa-shield"></i> ${r.cdn_waf || 'CDN/WAF'}</span>` :
+                    `<span class="text-slate-500 text-[10px]">Directo</span>`;
+
+                const phpVer = r.php_version ?
+                    `<strong class="${v === 'VULNERABLE' ? 'text-rose-400' : 'text-emerald-400'} font-mono">${r.php_version}</strong>` :
+                    `<span class="text-slate-500 font-mono">-</span>`;
+
+                const fixVer = r.fixed_version ?
+                    `<span class="text-indigo-400 font-mono font-semibold">${r.fixed_version}</span>` :
+                    `<span class="text-slate-500 font-mono">-</span>`;
+
+                const latency = r.latency_ms ? `${r.latency_ms} ms` : '-';
+
+                return `
+                    <tr class="hover:bg-slate-800/40 transition ${rowBg}">
+                        <td class="p-4 font-bold text-white font-mono flex items-center gap-2">
+                            <i class="fa-brands fa-php ${v === 'VULNERABLE' ? 'text-rose-400' : 'text-indigo-400'}"></i>
+                            <span>${r.target || '-'}</span>
+                        </td>
+                        <td class="p-4 font-mono text-[11px] text-slate-300">
+                            <div>${r.ip || '-'}</div>
+                            <div class="text-slate-500 text-[10px] uppercase">${r.scheme || 'http'}:${r.port || 80}</div>
+                        </td>
+                        <td class="p-4">${phpVer}</td>
+                        <td class="p-4">${fixVer}</td>
+                        <td class="p-4">${wafInfo}</td>
+                        <td class="p-4 text-center">${badge}</td>
+                        <td class="p-4 text-[11px]">
+                            <div class="text-slate-300">${r.detail || '-'}</div>
+                            <div class="text-slate-500 text-[10px] mt-0.5">Latencia: ${latency} &bull; HTTP: ${r.http_status || '-'}</div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function exportPhp2shellJson() {
+            if (!php2shellLastResults || php2shellLastResults.length === 0) {
+                if (typeof showToast === 'function') showToast('No hay resultados de PHP2Shell para exportar', true);
+                return;
+            }
+            const blob = new Blob([JSON.stringify(php2shellLastResults, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `php2shell_audit_${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            if (typeof showToast === 'function') showToast('Resultados exportados en formato JSON');
+        }
+
+        function exportPhp2shellCsv() {
+            if (!php2shellLastResults || php2shellLastResults.length === 0) {
+                if (typeof showToast === 'function') showToast('No hay resultados de PHP2Shell para exportar', true);
+                return;
+            }
+            const headers = ['target', 'ip', 'port', 'scheme', 'http_status', 'php_version', 'verdict', 'fixed_version', 'latency_ms', 'detail'];
+            const rows = php2shellLastResults.map(r => headers.map(h => `"${(r[h] ?? '').toString().replace(/"/g, '""')}"`).join(','));
+            const csvContent = headers.join(',') + '\n' + rows.join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `php2shell_audit_${Date.now()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            if (typeof showToast === 'function') showToast('Resultados exportados en formato CSV');
+        }
+
+</script>
 </body>
 </html>
