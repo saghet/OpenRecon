@@ -3772,6 +3772,21 @@ function loginReconSearch($pdo) {
         ['name' => 'Contraloría General', 'url' => 'https://www.contraloria.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-chart-pie', 'error_pattern' => 'No se encontraron resultados|404'],
         ['name' => 'Policía Nacional de Colombia', 'url' => 'https://www.policia.gov.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-user-shield', 'error_pattern' => 'Buscador | Policía Nacional|No se encontraron resultados|404'],
         ['name' => 'SENA Sofía Plus', 'url' => 'https://oferta.senasofiaplus.edu.co/buscador?q={username}', 'category' => 'gov_co', 'icon' => 'fa-solid fa-graduation-cap', 'error_pattern' => 'Betowa - Ofertas Educativas SENA|0 resultados|No se encontraron resultados|404'],
+        ['name' => 'Tinder', 'url' => 'https://tinder.com/@{username}', 'category' => 'dating', 'icon' => 'fa-solid fa-fire', 'error_pattern' => 'Tinder | Dating, Make Friends &amp; Meet New People|Tinder | Dating, Make Friends|Looking for someone?'],
+        ['name' => 'OnlyFans', 'url' => 'https://onlyfans.com/{username}', 'probe_url' => 'https://onlysearch.co/api/search?q={username}', 'category' => 'adult', 'icon' => 'fa-solid fa-lock', 'error_pattern' => '"results":[]|404 Not Found'],
+        ['name' => 'Fansly', 'url' => 'https://fansly.com/{username}', 'probe_url' => 'https://apiv3.fansly.com/api/v1/account?usernames={username}', 'category' => 'adult', 'icon' => 'fa-solid fa-gem', 'error_pattern' => '"response":[]|404'],
+        ['name' => 'Bumble', 'url' => 'https://bumble.com/@{username}', 'category' => 'dating', 'icon' => 'fa-solid fa-comments', 'error_pattern' => 'Bumble | Date, Chat &amp; Meet New People|Bumble | Date, Chat'],
+        ['name' => 'Chaturbate', 'url' => 'https://chaturbate.com/{username}/', 'category' => 'adult', 'icon' => 'fa-solid fa-video', 'error_pattern' => '404 Not Found|Room is currently offline'],
+        ['name' => 'FetLife', 'url' => 'https://fetlife.com/users/{username}', 'category' => 'dating', 'icon' => 'fa-solid fa-heart', 'error_pattern' => 'Login | FetLife|Page Not Found|HTTP/2 401'],
+        ['name' => 'Pornhub', 'url' => 'https://www.pornhub.com/users/{username}', 'category' => 'adult', 'icon' => 'fa-solid fa-play', 'error_pattern' => 'Page Not Found|404'],
+        ['name' => 'ManyVids', 'url' => 'https://www.manyvids.com/Profile/{username}', 'category' => 'adult', 'icon' => 'fa-solid fa-clapperboard', 'error_pattern' => 'Monetize Your Passion|User not found'],
+        ['name' => 'LoyalFans', 'url' => 'https://www.loyalfans.com/{username}', 'category' => 'adult', 'icon' => 'fa-solid fa-star', 'error_pattern' => 'LoyalFans.com|Model not found'],
+        ['name' => 'Patreon', 'url' => 'https://www.patreon.com/{username}', 'category' => 'creators', 'icon' => 'fa-brands fa-patreon', 'error_pattern' => 'errorCode": 404|404 Not Found'],
+        ['name' => 'Twitch', 'url' => 'https://www.twitch.tv/{username}', 'category' => 'media', 'icon' => 'fa-brands fa-twitch', 'error_pattern' => '<title>Twitch</title>|Time Machine|unavailable'],
+        ['name' => 'Telegram', 'url' => 'https://t.me/{username}', 'category' => 'social', 'icon' => 'fa-brands fa-telegram', 'error_pattern' => 'noindex, nofollow'],
+        ['name' => 'Linktree', 'url' => 'https://linktr.ee/{username}', 'category' => 'social', 'icon' => 'fa-solid fa-link', 'error_pattern' => '404|statusCode":404|Page not found'],
+        ['name' => 'Ko-fi', 'url' => 'https://ko-fi.com/{username}', 'category' => 'creators', 'icon' => 'fa-solid fa-mug-hot', 'error_pattern' => 'Make money doing what you love|Object moved'],
+        ['name' => 'Substack', 'url' => 'https://{username}.substack.com', 'probe_url' => 'https://substack.com/api/v1/user/{username}/public_profile', 'category' => 'blogs', 'icon' => 'fa-solid fa-bookmark', 'error_pattern' => '"error":"profile not found"|not found'],
     ];
 
     if ($categoryFilter !== 'all') {
@@ -3798,7 +3813,8 @@ function loginReconSearch($pdo) {
         
         foreach ($chunk as $idx => $p) {
             $url = str_replace('{username}', urlencode($username), $p['url']);
-            $ch = curl_init($url);
+            $probeUrl = !empty($p['probe_url']) ? str_replace('{username}', urlencode($username), $p['probe_url']) : $url;
+            $ch = curl_init($probeUrl);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 4);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
@@ -3957,6 +3973,30 @@ function loginReconSearch($pdo) {
                             $isFound = false;
                         } elseif ($pNameLower === 'contently' && (stripos($body, 'Content built for the brands') !== false || stripos($body, 'Content you can trust') !== false)) {
                             $isFound = false;
+                        } elseif ($pNameLower === 'telegram') {
+                            if (stripos($body, 'noindex, nofollow') !== false || (stripos($titleText, 'Telegram: Contact') !== false && stripos($body, 'tgme_page_extra') === false)) {
+                                $isFound = false;
+                            }
+                        } elseif ($pNameLower === 'twitch') {
+                            if (trim($titleText) === 'Twitch' || stripos($body, 'Time Machine') !== false || stripos($body, 'content is unavailable') !== false) {
+                                $isFound = false;
+                            }
+                        } elseif ($pNameLower === 'tinder') {
+                            if (stripos($titleText, 'Tinder | Dating') !== false || stripos($body, 'Tinder | Dating, Make Friends') !== false) {
+                                $isFound = false;
+                            }
+                        } elseif ($pNameLower === 'bumble') {
+                            if (stripos($titleText, 'Bumble | Date') !== false || stripos($body, 'Bumble | Date, Chat') !== false) {
+                                $isFound = false;
+                            }
+                        } elseif ($pNameLower === 'fansly') {
+                            if (stripos($body, '"response":[]') !== false) {
+                                $isFound = false;
+                            }
+                        } elseif ($pNameLower === 'onlyfans') {
+                            if (stripos($body, '"results":[]') !== false || stripos($body, 'Attention Required') !== false) {
+                                $isFound = false;
+                            }
                         }
                     }
                 }

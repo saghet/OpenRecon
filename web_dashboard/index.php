@@ -1483,7 +1483,7 @@
                             LoginRecon (Rastreo de Huella Digital & Cuentas Expuestas)
                         </h3>
                         <p class="text-xs text-slate-400 mt-1 max-w-3xl">
-                            Sondeo asíncrono y en tiempo real de más de 75 redes sociales, repositorios de código, comunidades y plataformas web para identificar cuentas asociadas a logins corporativos, desarrolladores o credenciales comprometidas.
+                            Sondeo asíncrono y en tiempo real de 100 redes sociales, plataformas de citas, comunidades de creadores, repositorios de código, comunidades y plataformas web para identificar cuentas asociadas a logins corporativos, desarrolladores o credenciales comprometidas.
                         </p>
                     </div>
 
@@ -1513,13 +1513,16 @@
                     <div class="md:col-span-3">
                         <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Categoría de Plataformas</label>
                         <select id="loginrecon-select-category" class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500">
-                            <option value="all">Todas las Plataformas (85+)</option>
+                            <option value="all">Todas las Plataformas (100)</option>
                             <option value="gov_co">🏛️ Gobierno Colombia (.gov.co)</option>
-                            <option value="social">Redes Sociales (Twitter, Instagram, FB...)</option>
+                            <option value="social">Redes Sociales (Twitter, Instagram, FB, Telegram...)</option>
+                            <option value="dating">Citas & Relaciones (Tinder, Bumble, FetLife...)</option>
+                            <option value="adult">Suscripción Creadores & Adulto (OnlyFans, Fansly, Pornhub...)</option>
+                            <option value="creators">Comunidades de Creadores (Patreon, Ko-fi...)</option>
                             <option value="dev">Código & DevOps (GitHub, GitLab, BitBucket...)</option>
-                            <option value="media">Multimedia & Streaming (YouTube, Spotify...)</option>
-                            <option value="blogs">Blogs & Foros (Medium, WordPress, Reddit...)</option>
-                            <option value="prof">Profesionales & Otros (Slack, Behance, Ebay...)</option>
+                            <option value="media">Multimedia & Streaming (YouTube, Spotify, Twitch...)</option>
+                            <option value="blogs">Blogs & Foros (Medium, Substack, Reddit...)</option>
+                            <option value="prof">Profesionales & Otros (Slack, Behance, Linktree...)</option>
                         </select>
                     </div>
                     <div class="md:col-span-3">
@@ -1703,6 +1706,9 @@
                         <button onclick="filterLoginReconCards('dev')" id="loginrecon-filter-dev" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">DevOps (<span id="count-pill-dev">0</span>)</button>
                         <button onclick="filterLoginReconCards('media')" id="loginrecon-filter-media" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Media (<span id="count-pill-media">0</span>)</button>
                         <button onclick="filterLoginReconCards('blogs')" id="loginrecon-filter-blogs" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Blogs & Foros (<span id="count-pill-blogs">0</span>)</button>
+                        <button onclick="filterLoginReconCards('dating')" id="loginrecon-filter-dating" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Citas (<span id="count-pill-dating">0</span>)</button>
+                        <button onclick="filterLoginReconCards('adult')" id="loginrecon-filter-adult" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Adulto/Fans (<span id="count-pill-adult">0</span>)</button>
+                        <button onclick="filterLoginReconCards('creators')" id="loginrecon-filter-creators" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Creadores (<span id="count-pill-creators">0</span>)</button>
                         <button onclick="filterLoginReconCards('prof')" id="loginrecon-filter-prof" class="px-3 py-1 rounded-lg bg-slate-900 text-slate-400 hover:text-white border border-cyber-border transition">Profesional (<span id="count-pill-prof">0</span>)</button>
                     </div>
                 </div>
@@ -1711,7 +1717,7 @@
                 <div id="loginrecon-results-container" class="space-y-3">
                     <div id="loginrecon-initial-message" class="text-center py-16 text-slate-500 space-y-3 border border-dashed border-slate-800 rounded-xl bg-slate-950/40">
                         <i class="fa-solid fa-id-badge text-5xl text-slate-600"></i>
-                        <p class="text-xs max-w-md mx-auto">Ingresa un nombre de usuario o selecciona una credencial filtrada para iniciar el reconocimiento OSINT en 75+ plataformas simultáneas.</p>
+                        <p class="text-xs max-w-md mx-auto">Ingresa un nombre de usuario o selecciona una credencial filtrada para iniciar el reconocimiento OSINT en 100 plataformas simultáneas.</p>
                     </div>
                     <div id="loginrecon-results-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 hidden"></div>
                 </div>
@@ -4973,6 +4979,12 @@
                 document.getElementById('count-pill-dev').innerText = allRes.filter(r => r.category === 'dev').length;
                 document.getElementById('count-pill-media').innerText = allRes.filter(r => r.category === 'media').length;
                 document.getElementById('count-pill-blogs').innerText = allRes.filter(r => r.category === 'blogs').length;
+                const pillDating = document.getElementById('count-pill-dating');
+                if (pillDating) pillDating.innerText = allRes.filter(r => r.category === 'dating').length;
+                const pillAdult = document.getElementById('count-pill-adult');
+                if (pillAdult) pillAdult.innerText = allRes.filter(r => r.category === 'adult').length;
+                const pillCreators = document.getElementById('count-pill-creators');
+                if (pillCreators) pillCreators.innerText = allRes.filter(r => r.category === 'creators').length;
                 document.getElementById('count-pill-prof').innerText = allRes.filter(r => r.category === 'prof').length;
 
                 renderLoginReconCards(allRes);
@@ -4989,7 +5001,7 @@
 
         function filterLoginReconCards(cat) {
             currentLoginReconFilter = cat;
-            ['all', 'found', 'gov_co', 'social', 'dev', 'media', 'blogs', 'prof'].forEach(c => {
+            ['all', 'found', 'gov_co', 'social', 'dev', 'media', 'blogs', 'prof', 'dating', 'adult', 'creators'].forEach(c => {
                 const btn = document.getElementById(`loginrecon-filter-${c}`);
                 if (btn) {
                     if (c === cat) {
