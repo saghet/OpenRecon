@@ -1610,6 +1610,55 @@
                     </div>
                 </div>
 
+                <!-- Facebook AI Vision Correlation Panel -->
+                <div id="loginrecon-facebook-ai-card" class="hidden bg-gradient-to-r from-slate-900 via-blue-950/20 to-slate-900 border-2 border-blue-500/40 rounded-2xl p-5 shadow-2xl relative overflow-hidden space-y-4">
+                    <div class="absolute -right-6 -bottom-6 opacity-10 pointer-events-none text-8xl text-blue-400">
+                        <i class="fa-brands fa-facebook"></i>
+                    </div>
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div class="space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-blue-950 text-blue-300 border border-blue-800 flex items-center gap-1.5">
+                                    <i class="fa-brands fa-facebook text-blue-400"></i> Correlación Facial Facebook (IA Vision)
+                                </span>
+                                <span id="fb-ai-badge" class="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-900 text-slate-400 border border-slate-800">
+                                    Listo para Análisis
+                                </span>
+                            </div>
+                            <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                                Cruce Fotográfico y de Identidad Asistido por Visión Artificial
+                            </h3>
+                            <p class="text-xs text-slate-400">
+                                Compara avatares extraídos (Instagram, GitHub, Pinterest) con perfiles en Facebook usando Computer Vision (pHash, SIFT/ORB y correlación cromática).
+                            </p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            <button onclick="triggerFacebookAICorrelation()" id="btn-run-fb-ai" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-blue-900/50">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> Escanear Facebook con IA
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="fb-ai-loading" class="hidden py-8 text-center space-y-2">
+                        <div class="inline-block animate-spin text-blue-400 text-3xl">
+                            <i class="fa-solid fa-circle-notch"></i>
+                        </div>
+                        <p class="text-xs text-slate-400 font-mono">Descargando candidatos públicos de Facebook y evaluando similitud biométrica con IA...</p>
+                    </div>
+
+                    <!-- Initial Placeholder -->
+                    <div id="fb-ai-empty-message" class="text-xs text-slate-400/90 italic py-2 bg-slate-950/40 p-3 rounded-xl border border-slate-800/60 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-info text-blue-400"></i>
+                        <span>Presiona <strong>"Escanear Facebook con IA"</strong> para cruzar automáticamente las fotos y nombres detectados con candidatos de Facebook.</span>
+                    </div>
+
+                    <!-- Candidates Grid -->
+                    <div id="fb-ai-candidates-grid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+
                 <!-- Metrics & Export Card (Hidden until search) -->
                 <div id="loginrecon-metrics-card" class="hidden border border-cyber-border rounded-xl p-4 bg-slate-950/70 space-y-4">
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-cyber-border/70 pb-3">
@@ -4891,6 +4940,24 @@
                     }
                 }
 
+                // Activate Facebook AI correlation card
+                const fbCard = document.getElementById('loginrecon-facebook-ai-card');
+                if (fbCard) {
+                    fbCard.classList.remove('hidden');
+                    const seed = data.facebook_correlation_seed || {};
+                    const avatarCount = (seed.source_avatars || []).length;
+                    const namesCount = (seed.names || []).length;
+                    const badge = document.getElementById('fb-ai-badge');
+                    if (badge) {
+                        badge.innerText = `${avatarCount} fotos | ${namesCount} nombres detectados`;
+                        badge.className = 'px-2.5 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-950/80 text-blue-300 border border-blue-700';
+                    }
+                    // Reset grid state for new search
+                    document.getElementById('fb-ai-empty-message').classList.remove('hidden');
+                    document.getElementById('fb-ai-candidates-grid').classList.add('hidden');
+                    document.getElementById('fb-ai-candidates-grid').innerHTML = '';
+                }
+
                 document.getElementById('loginrecon-stat-total').innerText = data.total_platforms;
                 document.getElementById('loginrecon-stat-found').innerText = data.found_count;
                 document.getElementById('loginrecon-stat-rate').innerText = `${data.footprint_rate}%`;
@@ -5044,6 +5111,159 @@
         }
 
         window.onload = init;
+
+        // -------------------------------------------------------------
+        // FACEBOOK AI VISION CORRELATOR CLIENT CONTROLLER
+        // -------------------------------------------------------------
+        async function triggerFacebookAICorrelation() {
+            if (!currentLoginReconData || !currentLoginReconData.facebook_correlation_seed) {
+                showToast('Primero realiza una búsqueda en LoginRecon', true);
+                return;
+            }
+
+            const btn = document.getElementById('btn-run-fb-ai');
+            const loading = document.getElementById('fb-ai-loading');
+            const emptyMsg = document.getElementById('fb-ai-empty-message');
+            const grid = document.getElementById('fb-ai-candidates-grid');
+
+            btn.disabled = true;
+            btn.classList.add('opacity-75');
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i><span>Analizando IA...</span>';
+            loading.classList.remove('hidden');
+            emptyMsg.classList.add('hidden');
+            grid.classList.add('hidden');
+
+            try {
+                const seed = currentLoginReconData.facebook_correlation_seed;
+                const res = await fetch(`${API_URL}?action=loginrecon_facebook_correlate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(seed)
+                });
+                const data = await res.json();
+
+                loading.classList.add('hidden');
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i><span>Re-Escanear Facebook (IA)</span>';
+
+                if (data.status === 'success' && data.matches && data.matches.length > 0) {
+                    renderFacebookAICandidates(data.matches);
+                    grid.classList.remove('hidden');
+                    const badge = document.getElementById('fb-ai-badge');
+                    if (badge) {
+                        badge.innerText = `${data.matches.length} Candidatos Evaluados`;
+                        badge.className = 'px-2.5 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-950 text-emerald-300 border border-emerald-700';
+                    }
+                    showToast(`Facebook AI: ${data.matches.length} candidatos correlacionados exitosamente`);
+                } else {
+                    emptyMsg.classList.remove('hidden');
+                    emptyMsg.innerHTML = '<i class="fa-solid fa-circle-exclamation text-amber-400"></i> No se encontraron perfiles públicos en Facebook con los datos suministrados.';
+                    showToast('No se encontraron perfiles públicos en Facebook', false);
+                }
+            } catch (err) {
+                console.error('Error in Facebook AI correlation:', err);
+                loading.classList.add('hidden');
+                emptyMsg.classList.remove('hidden');
+                emptyMsg.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-rose-400"></i> Error de conexión con el motor de IA de Facebook.';
+                btn.disabled = false;
+                btn.classList.remove('opacity-75');
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i><span>Reintentar Escaneo IA</span>';
+                showToast('Error ejecutando la correlación en Facebook con IA', true);
+            }
+        }
+
+        function renderFacebookAICandidates(matches) {
+            const grid = document.getElementById('fb-ai-candidates-grid');
+            if (!grid) return;
+
+            grid.innerHTML = matches.map((m, idx) => {
+                const sim = m.similarity_percent || 0.0;
+                let badgeClass = 'bg-slate-800 text-slate-300 border-slate-700';
+                let iconClass = 'fa-solid fa-user';
+                let verdictText = m.confidence || 'Perfil Encontrado';
+
+                if (m.verdict === 'MATCH_HIGH' || sim >= 75) {
+                    badgeClass = 'bg-emerald-950 text-emerald-300 border-emerald-700 shadow-md shadow-emerald-950/60';
+                    iconClass = 'fa-solid fa-circle-check text-emerald-400';
+                } else if (m.verdict === 'MATCH_MODERATE' || sim >= 50) {
+                    badgeClass = 'bg-amber-950 text-amber-300 border-amber-700';
+                    iconClass = 'fa-solid fa-triangle-exclamation text-amber-400';
+                }
+
+                const sourceImgHtml = m.source_avatar_url ? `
+                    <div class="text-center">
+                        <span class="text-[9px] uppercase font-bold text-slate-400 block mb-1">Origen (${m.matched_platform || 'OSINT'})</span>
+                        <img src="${m.source_avatar_url}" alt="Origen" class="w-12 h-12 rounded-xl object-cover border border-sky-500/60 shadow mx-auto" />
+                    </div>
+                ` : '';
+
+                const fbImgHtml = m.facebook_avatar ? `
+                    <div class="text-center">
+                        <span class="text-[9px] uppercase font-bold text-slate-400 block mb-1">Facebook</span>
+                        <img src="${m.facebook_avatar}" alt="Facebook" class="w-12 h-12 rounded-xl object-cover border border-blue-500/60 shadow mx-auto" onerror="this.src='https://static.xx.fbcdn.net/rsrc.php/v3/yO/r/zg6f851o1DJ.png';" />
+                    </div>
+                ` : `
+                    <div class="text-center">
+                        <span class="text-[9px] uppercase font-bold text-slate-400 block mb-1">Facebook</span>
+                        <div class="w-12 h-12 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-blue-400 text-lg mx-auto">
+                            <i class="fa-brands fa-facebook"></i>
+                        </div>
+                    </div>
+                `;
+
+                const aiDetailsHtml = m.ai_details ? `
+                    <div class="mt-2 pt-2 border-t border-slate-800/80 grid grid-cols-3 gap-1 text-[10px] text-center font-mono">
+                        <div class="bg-slate-950 p-1 rounded border border-slate-800/50">
+                            <span class="text-slate-500 block text-[8px] uppercase">pHash</span>
+                            <span class="text-sky-300 font-bold">${m.ai_details.phash_similarity}%</span>
+                        </div>
+                        <div class="bg-slate-950 p-1 rounded border border-slate-800/50">
+                            <span class="text-slate-500 block text-[8px] uppercase">SIFT/ORB</span>
+                            <span class="text-purple-300 font-bold">${m.ai_details.feature_similarity}%</span>
+                        </div>
+                        <div class="bg-slate-950 p-1 rounded border border-slate-800/50">
+                            <span class="text-slate-500 block text-[8px] uppercase">Color HSV</span>
+                            <span class="text-emerald-300 font-bold">${m.ai_details.color_similarity}%</span>
+                        </div>
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="p-4 rounded-xl border border-blue-500/30 bg-slate-950/70 hover:border-blue-400/60 transition shadow-lg space-y-3 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-start justify-between gap-2 mb-2">
+                                <div class="truncate max-w-[170px]">
+                                    <h4 class="text-xs font-bold text-white flex items-center gap-1.5 truncate" title="${m.facebook_name}">
+                                        <i class="fa-brands fa-facebook text-blue-400"></i> ${m.facebook_name}
+                                    </h4>
+                                    <span class="text-[10px] text-slate-400 font-mono">slug: /${m.slug || 'perfil'}</span>
+                                </div>
+                                <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${badgeClass} flex items-center gap-1">
+                                    <i class="${iconClass}"></i> ${sim}%
+                                </span>
+                            </div>
+
+                            <div class="flex items-center justify-center gap-3 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/70">
+                                ${sourceImgHtml}
+                                ${m.source_avatar_url ? '<div class="text-slate-600 text-xs"><i class="fa-solid fa-arrows-left-right"></i></div>' : ''}
+                                ${fbImgHtml}
+                            </div>
+
+                            ${aiDetailsHtml}
+                        </div>
+
+                        <div class="pt-2 border-t border-slate-800/60 flex items-center justify-between gap-2">
+                            <span class="text-[10px] text-slate-400 font-medium">${verdictText}</span>
+                            <a href="${m.profile_url}" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 rounded-lg bg-blue-600/30 hover:bg-blue-600/60 text-blue-300 hover:text-white border border-blue-500/40 text-[10px] font-bold transition flex items-center gap-1">
+                                <span>Ver Perfil</span> <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
     </script>
 </body>
 </html>

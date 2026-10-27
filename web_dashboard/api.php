@@ -235,6 +235,9 @@ switch ($action) {
     case 'loginrecon_search':
         loginReconSearch($pdo);
         break;
+    case 'loginrecon_facebook_correlate':
+        loginReconFacebookCorrelate($pdo);
+        break;
     case 'loginrecon_get_leaked_users':
         loginReconGetLeakedUsers($pdo);
         break;
@@ -4164,6 +4167,17 @@ function loginReconSearch($pdo) {
         'not_found_count' => count($results) - $foundCount,
         'footprint_rate' => $footprintRate,
         'identity_dossier' => $identityDossier,
+        'facebook_correlation_seed' => [
+            'username' => $username,
+            'names' => array_values(array_unique(array_filter(array_merge(
+                !empty($identityDossier['primary_name']) ? [$identityDossier['primary_name']] : [],
+                array_column(array_filter($results, fn($r) => !empty($r['is_found']) && !empty($r['display_name'])), 'display_name')
+            )))),
+            'source_avatars' => array_values(array_map(fn($r) => [
+                'platform' => $r['name'],
+                'url' => $r['avatar']
+            ], array_filter($results, fn($r) => !empty($r['is_found']) && !empty($r['avatar']))))
+        ],
         'results' => $results,
         'txt_content' => $txtContent
     ]);
@@ -4191,4 +4205,50 @@ function loginReconGetLeakedUsers($pdo) {
         'success' => true,
         'users' => $users
     ]);
+}
+
+
+function loginReconFacebookCorrelate($pdo) {
+    header('Content-Type: application/json');
+    $rawInput = file_get_contents('php://input');
+    $input = json_decode($rawInput, true);
+    
+    if (!$input) {
+        $input = [
+            'username' => trim($_GET['username'] ?? ''),
+            'names' => !empty($_GET['names']) ? explode(',', $_GET['names']) : [],
+            'source_avatars' => []
+        ];
+    }
+    
+    $username = trim($input['username'] ?? '');
+    if (empty($username)) {
+        echo json_encode(['status' => 'error', 'message' => 'Username requerido para correlación']);
+        return;
+    }
+    
+    $scriptPath = __DIR__ . DIRECTORY_SEPARATOR . 'engine' . DIRECTORY_SEPARATOR . 'facebook_ai_correlator.py';
+    if (!file_exists($scriptPath)) {
+        echo json_encode(['status' => 'error', 'message' => 'Script facebook_ai_correlator.py no encontrado en ' . $scriptPath]);
+        return;
+    }
+    
+    $payloadJson = json_encode($input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $tempFile = tempnam(sys_get_temp_dir(), 'fbai_');
+    file_put_contents($tempFile, $payloadJson);
+    
+    $cmd = 'python ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg($tempFile) . ' 2>&1';
+    $output = shell_exec($cmd);
+    @unlink($tempFile);
+    
+    $decoded = json_decode($output, true);
+    if ($decoded) {
+        echo json_encode($decoded);
+    } else {
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Error ejecutando motor de IA de correlación',
+            'raw_output' => substr($output ?? '', 0, 800)
+        ]);
+    }
 }
