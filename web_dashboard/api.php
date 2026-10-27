@@ -244,6 +244,9 @@ switch ($action) {
     case 'loginrecon_get_leaked_users':
         loginReconGetLeakedUsers($pdo);
         break;
+    case 'php2shell_scan':
+        php2shellScan($pdo);
+        break;
     default:
         echo json_encode(['status' => 'ok', 'message' => 'OpenRecon API v1.0 running']);
         break;
@@ -4533,3 +4536,175 @@ function loginReconFacebookCorrelate($pdo) {
         ]);
     }
 }
+
+// -------------------------------------------------------------
+// PHP2SHELL SCANNER (CVE-2026-109618 / CVE-2026-109619)
+// -------------------------------------------------------------
+function php2shellScan($pdo) {
+    set_time_limit(300);
+    header('Content-Type: application/json');
+
+    $target = trim($_POST['target'] ?? $_GET['target'] ?? '');
+    $mode = trim($_POST['mode'] ?? $_GET['mode'] ?? 'target'); // 'target', 'domain', 'cidr'
+    $ports = trim($_POST['ports'] ?? $_GET['ports'] ?? '80,443');
+    $timeout = min(30, max(3, (int)($_POST['timeout'] ?? $_GET['timeout'] ?? 6)));
+    $noAutoOrigin = !empty($_POST['no_auto_origin']) || !empty($_GET['no_auto_origin']);
+    $onlyVuln = !empty($_POST['only_vuln']) || !empty($_GET['only_vuln']);
+
+    if (empty($target)) {
+        echo json_encode([
+            'success' => false,
+            'error' => 'Por favor especifica un objetivo (IP, dominio o segmento CIDR).'
+        ]);
+        return;
+    }
+
+    // Clean protocol prefix if present
+    $target = preg_replace('#^https?://#i', '', $target);
+    $target = rtrim($target, '/');
+
+    // Strict validation
+    if ($mode === 'cidr') {
+        if (!preg_match('#^(\\d{1,3}\\.){3}\\d{1,3}/\\d{1,2}$#', $target)) {
+            echo json_encode(['success' => false, 'error' => 'Formato CIDR inválido. Ejemplo: 192.168.1.0/24']);
+            return;
+        }
+    } else {
+        if (!preg_match('#^[a-zA-Z0-9.-]+(:[0-9]{1,5})?$#', $target)) {
+            echo json_encode(['success' => false, 'error' => 'Formato de objetivo inválido. Ingresa un dominio o IP válido (ej: vulnweb.com, 127.0.0.1).']);
+            return;
+        }
+    }
+
+    // Sanitize ports
+    $cleanPorts = [];
+    foreach (explode(',', $ports) as $p) {
+        $pNum = (int)trim($p);
+        if ($pNum > 0 && $pNum <= 65535) {
+            $cleanPorts[] = $pNum;
+        }
+    }
+    if (empty($cleanPorts)) {
+        $cleanPorts = [80, 443];
+    }
+    $portsArg = implode(',', array_unique($cleanPorts));
+
+    // Locate script path
+    $possiblePaths = [
+        __DIR__ . DIRECTORY_SEPARATOR . 'backend' . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'php2shell_scanner' . DIRECTORY_SEPARATOR . 'php2shell_version_scanner.py',
+        dirname(__DIR__) . DIRECTORY_SEPARATOR . 'backend' . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'php2shell_scanner' . DIRECTORY_SEPARATOR . 'php2shell_version_scanner.py',
+        'C:' . DIRECTORY_SEPARATOR . 'xampp' . DIRECTORY_SEPARATOR . 'htdocs' . DIRECTORY_SEPARATOR . 'openrecon' . DIRECTORY_SEPARATOR . 'backend' . DIRECTORY_SEPARATOR . 'tools' . DIRECTORY_SEPARATOR . 'php2shell_scanner' . DIRECTORY_SEPARATOR . 'php2shell_version_scanner.py'
+    ];
+
+    $scriptPath = null;
+    foreach ($possiblePaths as $path) {
+        if (file_exists($path)) {
+            $scriptPath = $path;
+            break;
+        }
+    }
+
+    if (!$scriptPath) {
+        echo json_encode([
+            'success' => false,
+            'error' => 'El ejecutable php2shell_version_scanner.py no fue encontrado en el servidor.'
+        ]);
+        return;
+    }
+
+    $tempJsonOut = tempnam(sys_get_temp_dir(), 'php2s_') . '.json';
+
+    // Build command
+    $cmdParts = [
+        'python',
+        escapeshellarg($scriptPath),
+        '--ports', escapeshellarg($portsArg),
+        '--timeout', (string)$timeout,
+        '--threads', '30',
+        '--json', escapeshellarg($tempJsonOut),
+        '--no-color'
+    ];
+
+    if ($mode === 'domain') {
+        $cmdParts[] = '-d';
+        $cmdParts[] = escapeshellarg($target);
+    } elseif ($mode === 'cidr') {
+        $cmdParts[] = '--cidr';
+        $cmdParts[] = escapeshellarg($target);
+    } else {
+        $cmdParts[] = '--target';
+        $cmdParts[] = escapeshellarg($target);
+    }
+
+    if ($noAutoOrigin) {
+        $cmdParts[] = '--no-auto-origin';
+    }
+    if ($onlyVuln) {
+        $cmdParts[] = '--only-vuln';
+    }
+
+    $cmd = implode(' ', $cmdParts) . ' 2>&1';
+    $cliOutput = shell_exec($cmd);
+
+    $results = [];
+    if (file_exists($tempJsonOut)) {
+        $rawJson = file_get_contents($tempJsonOut);
+        $results = json_decode($rawJson, true) ?: [];
+        @unlink($tempJsonOut);
+    }
+
+    // Summary counters
+    $stats = [
+        'total' => count($results),
+        'vulnerable' => 0,
+        'patched' => 0,
+        'unknown' => 0,
+        'no_php' => 0,
+        'filtered' => 0,
+        'closed' => 0,
+        'other' => 0
+    ];
+
+    foreach ($results as $item) {
+        $v = strtoupper($item['verdict'] ?? '');
+        if ($v === 'VULNERABLE') {
+            $stats['vulnerable']++;
+            // Optionally record into vulnerabilities table
+            try {
+                $host = $item['target'] ?? $target;
+                $cveDesc = "PHP2Shell RCE (" . ($item['php_version'] ? 'PHP ' . $item['php_version'] : 'PHP') . ") en puerto " . ($item['port'] ?? 80) . " - Requiere actualización a " . ($item['fixed_version'] ?: 'versión parcheada');
+                $stmtV = $pdo->prepare("
+                    INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, cve_id, description, status)
+                    VALUES (?, ?, 'CRITICAL', 'CVE-2026-109618', ?, 'OPEN')
+                ");
+                $stmtV->execute([$host, 'PHP2Shell Remote Code Execution (CVE-2026-109618 / CVE-2026-109619)', $cveDesc]);
+            } catch (Exception $e) {
+                // Ignore DB write errors
+            }
+        } elseif ($v === 'PATCHED' || $v === 'PARCHEADO') {
+            $stats['patched']++;
+        } elseif ($v === 'UNKNOWN' || $v === 'DESCONOCIDO') {
+            $stats['unknown']++;
+        } elseif ($v === 'NO-PHP' || $v === 'SIN-PHP') {
+            $stats['no_php']++;
+        } elseif ($v === 'FILTRADO') {
+            $stats['filtered']++;
+        } elseif ($v === 'CERRADO') {
+            $stats['closed']++;
+        } else {
+            $stats['other']++;
+        }
+    }
+
+    echo json_encode([
+        'success' => true,
+        'target' => $target,
+        'mode' => $mode,
+        'ports' => $portsArg,
+        'timeout' => $timeout,
+        'stats' => $stats,
+        'results' => $results,
+        'cli_summary' => trim($cliOutput ?? '')
+    ]);
+}
+

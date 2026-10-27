@@ -225,6 +225,11 @@
                 <i class="fa-solid fa-id-badge text-sky-400"></i>
                 LoginRecon
             </button>
+            <button onclick="switchTab('php2shell')" id="tab-btn-php2shell" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Escáner pasivo y verificación de vulnerabilidad PHP2Shell (CVE-2026-109618 / CVE-2026-109619)">
+                <i class="fa-brands fa-php text-indigo-400 text-lg"></i>
+                <span>PHP2Shell Scanner</span>
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-950 text-rose-300 border border-rose-800/80 animate-pulse">CVE-2026</span>
+            </button>
         </div>
 
         <!-- TAB CONTENT: EASM (Assets) -->
@@ -1730,6 +1735,241 @@
             </div>
         </section>
 
+    
+        <!-- TAB CONTENT: PHP2SHELL SCANNER (CVE-2026-109618 / CVE-2026-109619) -->
+        <section id="tab-content-php2shell" class="space-y-6 hidden">
+            <!-- Header Card -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6 relative overflow-hidden">
+                <div class="absolute -right-8 -bottom-8 opacity-5 pointer-events-none text-9xl text-indigo-400">
+                    <i class="fa-brands fa-php"></i>
+                </div>
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div class="space-y-2">
+                        <div class="flex flex-wrap items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-indigo-950/80 border border-indigo-700/80 flex items-center justify-center text-indigo-400 text-xl shadow-lg shadow-indigo-950/50">
+                                <i class="fa-brands fa-php"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <h2 class="text-xl font-bold text-white tracking-tight">PHP2Shell Scanner — CVE-2026-109618 / CVE-2026-109619</h2>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-700 font-mono">CVSS 9.2 CRITICAL</span>
+                                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-700 font-mono">100% PASIVO</span>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-0.5">
+                                    Detección diagnóstica y no intrusiva de versiones de PHP vulnerables a Ejecución Remota de Código (RCE) pre-autenticación.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 text-xs">
+                        <div class="px-3 py-1.5 rounded-xl bg-slate-900 border border-cyber-border flex items-center gap-2">
+                            <i class="fa-brands fa-github text-slate-300"></i>
+                            <span class="text-slate-400">Comunidad:</span>
+                            <a href="https://github.com/GlobalsecureAcademy/php2shell-scanner-CVE-2026-109618-CVE-2026-109619" target="_blank" class="text-indigo-400 hover:text-indigo-300 font-mono font-semibold">GlobalsecureAcademy</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scanner Control Card -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
+                <h3 class="text-base font-bold text-white flex items-center gap-2 mb-4">
+                    <i class="fa-solid fa-radar text-indigo-400"></i>
+                    Configuración de Auditoría de Exposición PHP2Shell
+                </h3>
+
+                <form onsubmit="runPhp2shellScan(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                        <!-- Target Input -->
+                        <div class="md:col-span-6 space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                                <span>Objetivo a Auditar (IP, Dominio o Red):</span>
+                                <span class="text-[10px] text-slate-400">Ej: vulnweb.com, 127.0.0.1, 10.0.0.0/24</span>
+                            </label>
+                            <div class="relative">
+                                <i class="fa-solid fa-crosshairs absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                                <input type="text" id="php2shell-target-input" required placeholder="Ingresa dominio, IP o CIDR (ej: 127.0.0.1)"
+                                    class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition font-mono">
+                            </div>
+                            <div class="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
+                                <span class="text-slate-400">Accesos rápidos:</span>
+                                <button type="button" onclick="setPhp2shellTarget('127.0.0.1')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono border border-slate-700 transition">127.0.0.1</button>
+                                <button type="button" onclick="setPhp2shellTarget('testphp.vulnweb.com')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono border border-slate-700 transition">testphp.vulnweb.com</button>
+                                <button type="button" onclick="setPhp2shellTarget('vulnweb.com')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono border border-slate-700 transition">vulnweb.com</button>
+                                <button type="button" onclick="setPhp2shellTarget('currentSeed')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono border border-slate-700 transition">Semilla Activa</button>
+                            </div>
+                        </div>
+
+                        <!-- Mode Selector -->
+                        <div class="md:col-span-3 space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300">Modo de Escaneo:</label>
+                            <select id="php2shell-mode-select" class="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white focus:outline-none focus:border-indigo-500 transition">
+                                <option value="target" selected>Host / IP Individual (--target)</option>
+                                <option value="domain">Dominio Completo + Subdominios (-d)</option>
+                                <option value="cidr">Segmento de Red CIDR (--cidr)</option>
+                            </select>
+                        </div>
+
+                        <!-- Ports Input -->
+                        <div class="md:col-span-3 space-y-1.5">
+                            <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
+                                <span>Puertos a Sondear:</span>
+                                <span class="text-[10px] text-slate-400">Separados por coma</span>
+                            </label>
+                            <input type="text" id="php2shell-ports-input" value="80,443" placeholder="80,443"
+                                class="w-full px-3 py-2.5 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white focus:outline-none focus:border-indigo-500 transition font-mono">
+                        </div>
+                    </div>
+
+                    <!-- Additional Options & Action Button -->
+                    <div class="pt-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-t border-cyber-border/60">
+                        <div class="flex flex-wrap items-center gap-4 text-xs">
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                                <input type="checkbox" id="php2shell-auto-origin" checked class="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0">
+                                <span>Bypass CDN (Auto-descubrir origen Cloudflare)</span>
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer text-slate-300 hover:text-white">
+                                <input type="checkbox" id="php2shell-only-vuln" class="rounded bg-slate-900 border-slate-700 text-rose-600 focus:ring-0">
+                                <span>Mostrar solo vulnerables</span>
+                            </label>
+                            <div class="flex items-center gap-1.5 text-slate-400 text-[11px]">
+                                <span>Timeout:</span>
+                                <select id="php2shell-timeout-select" class="px-2 py-1 rounded-lg bg-slate-900 border border-cyber-border text-xs text-slate-300">
+                                    <option value="4">4s</option>
+                                    <option value="6" selected>6s (Recomendado)</option>
+                                    <option value="10">10s</option>
+                                    <option value="15">15s</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="php2shell-btn-submit" class="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/40 transition">
+                            <i class="fa-solid fa-bolt-lightning"></i>
+                            <span>Ejecutar Escáner PHP2Shell</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- KPI Summary Counters -->
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-cyber-border">
+                    <div class="text-slate-400 text-xs mb-1">Total Sondeados</div>
+                    <div id="php2shell-stat-total" class="text-xl font-bold font-mono text-white">0</div>
+                </div>
+                <div class="p-4 rounded-xl bg-rose-950/30 border border-rose-800/40">
+                    <div class="text-rose-400 text-xs mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        Vulnerables
+                    </div>
+                    <div id="php2shell-stat-vuln" class="text-xl font-bold font-mono text-rose-400">0</div>
+                </div>
+                <div class="p-4 rounded-xl bg-emerald-950/30 border border-emerald-800/40">
+                    <div class="text-emerald-400 text-xs mb-1 flex items-center gap-1">
+                        <i class="fa-solid fa-shield-check"></i>
+                        Parcheados
+                    </div>
+                    <div id="php2shell-stat-patched" class="text-xl font-bold font-mono text-emerald-400">0</div>
+                </div>
+                <div class="p-4 rounded-xl bg-amber-950/30 border border-amber-800/40">
+                    <div class="text-amber-400 text-xs mb-1">expose_php Off</div>
+                    <div id="php2shell-stat-unknown" class="text-xl font-bold font-mono text-amber-400">0</div>
+                </div>
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-cyber-border">
+                    <div class="text-slate-400 text-xs mb-1">Sin PHP / Filtro</div>
+                    <div id="php2shell-stat-other" class="text-xl font-bold font-mono text-slate-400">0</div>
+                </div>
+            </div>
+
+            <!-- Findings Table Card -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-table-list text-indigo-400"></i>
+                            Matriz de Resultados y Diagnóstico de Exposición
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-0.5">Veredicto por host y puerto analizado con las versiones oficiales corregidas.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="exportPhp2shellJson()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-file-code text-cyan-400"></i>
+                            <span>Exportar JSON</span>
+                        </button>
+                        <button onclick="exportPhp2shellCsv()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs flex items-center gap-1.5 transition">
+                            <i class="fa-solid fa-file-csv text-emerald-400"></i>
+                            <span>Exportar CSV</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-cyber-border">
+                            <tr>
+                                <th class="p-4">Objetivo / Host</th>
+                                <th class="p-4">IP & Puerto</th>
+                                <th class="p-4">Versión Detectada</th>
+                                <th class="p-4">Parche Oficial</th>
+                                <th class="p-4">WAF / CDN</th>
+                                <th class="p-4 text-center">Veredicto</th>
+                                <th class="p-4">Detalle / Latencia</th>
+                            </tr>
+                        </thead>
+                        <tbody id="php2shell-results-body" class="divide-y divide-cyber-border/60 text-slate-300">
+                            <tr>
+                                <td colspan="7" class="p-8 text-center text-slate-500">
+                                    <i class="fa-brands fa-php text-3xl mb-2 text-indigo-400/40 block"></i>
+                                    Configura el objetivo arriba y presiona "Ejecutar Escáner PHP2Shell" para iniciar la auditoría diagnóstica.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Official Mitigation Playbook -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
+                <h3 class="text-base font-bold text-white flex items-center gap-2 mb-2">
+                    <i class="fa-solid fa-shield-virus text-emerald-400"></i>
+                    Guía de Mitigación y Versiones Parcheadas Oficiales
+                </h3>
+                <p class="text-xs text-slate-400 mb-4">
+                    Para resolver la vulnerabilidad PHP2Shell (CVE-2026-109618 / CVE-2026-109619), la única remediación definitiva es actualizar el intérprete de PHP a las versiones seguras publicadas por el PHP Group:
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs mb-4">
+                    <div class="p-3 rounded-xl bg-slate-900 border border-cyber-border font-mono">
+                        <div class="text-slate-400 text-[10px]">Rama PHP 8.2:</div>
+                        <strong class="text-emerald-400 text-sm">>= 8.2.35</strong>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-900 border border-cyber-border font-mono">
+                        <div class="text-slate-400 text-[10px]">Rama PHP 8.3:</div>
+                        <strong class="text-emerald-400 text-sm">>= 8.3.36</strong>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-900 border border-cyber-border font-mono">
+                        <div class="text-slate-400 text-[10px]">Rama PHP 8.4:</div>
+                        <strong class="text-emerald-400 text-sm">>= 8.4.27</strong>
+                    </div>
+                    <div class="p-3 rounded-xl bg-slate-900 border border-cyber-border font-mono">
+                        <div class="text-slate-400 text-[10px]">Rama PHP 8.5:</div>
+                        <strong class="text-emerald-400 text-sm">>= 8.5.12</strong>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-xl bg-slate-950 border border-cyber-border font-mono text-[11px] text-slate-300 space-y-2">
+                    <div class="text-slate-400 text-[10px] uppercase font-bold">Comandos de Actualización Rápida en Servidores:</div>
+                    <div class="text-emerald-300"># Debian / Ubuntu (ppa:ondrej/php):</div>
+                    <div class="text-slate-200">sudo apt update && sudo apt install --only-upgrade php8.2 php8.3 php8.4 libapache2-mod-php* php*-fpm</div>
+                    <div class="text-emerald-300 mt-2"># RHEL / Rocky Linux / AlmaLinux (Remi Repo):</div>
+                    <div class="text-slate-200">sudo dnf upgrade "php*"</div>
+                    <div class="text-emerald-300 mt-2"># Mitigación Temporal mientras se programa mantenimiento (php.ini):</div>
+                    <div class="text-amber-300">expose_php = Off</div>
+                    <div class="text-amber-300">session.upload_progress.enabled = 0</div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- Work Plan & Roadmap Modal -->
@@ -2254,7 +2494,7 @@
                 activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
             }
 
-            ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon'].forEach(t => {
+            ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell'].forEach(t => {
                 const el = document.getElementById(`tab-content-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tabId);
             });
