@@ -1808,10 +1808,16 @@
                 </p>
                 <div class="relative">
                     <textarea id="takedown-text" readonly rows="12" class="w-full p-4 rounded-xl bg-slate-950 border border-cyber-border font-mono text-[11px] text-slate-300 focus:outline-none"></textarea>
-                    <button onclick="copyTakedownText()" class="absolute top-3 right-3 px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow">
-                        <i class="fa-solid fa-copy"></i>
-                        <span>Copiar Notificación</span>
-                    </button>
+                    <div class="absolute top-3 right-3 flex items-center gap-2">
+                        <button onclick="copyTakedownText()" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 shadow transition">
+                            <i class="fa-solid fa-copy"></i>
+                            <span>Copiar Notificación</span>
+                        </button>
+                        <button onclick="downloadTakedownNotice()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs flex items-center gap-1.5 shadow transition">
+                            <i class="fa-solid fa-download"></i>
+                            <span>Descargar (.txt)</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -3283,6 +3289,20 @@
             textarea.select();
             navigator.clipboard.writeText(textarea.value);
             showToast('¡Notificación de abuso copiada al portapapeles!');
+        }
+
+        function downloadTakedownNotice() {
+            const text = document.getElementById('takedown-text').value;
+            if (!text) {
+                showToast('No hay notificación de takedown para descargar', true);
+                return;
+            }
+            const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `takedown_abuse_notice_${Date.now()}.txt`;
+            a.click();
+            showToast('Notificación legal de Takedown descargada en .txt');
         }
 
         // Breach Intelligence Forensic Modal
