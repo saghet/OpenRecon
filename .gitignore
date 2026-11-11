@@ -42,3 +42,7 @@ ENV/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Scratch and temporary testing files
+scratch/
+*.bak*
