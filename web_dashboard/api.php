@@ -1,8 +1,22 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+
+// Strict CORS hardening (Stage 1 Security Control)
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$allowedOrigins = ['http://localhost', 'http://127.0.0.1', 'http://' . $host, 'https://' . $host];
+
+if (!empty($origin) && (in_array($origin, $allowedOrigins) || preg_match('/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/', $origin))) {
+    header("Access-Control-Allow-Origin: $origin");
+    header('Access-Control-Allow-Credentials: true');
+} else {
+    header('Access-Control-Allow-Origin: http://' . $host);
+}
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
@@ -51,8 +65,39 @@ try {
             severity TEXT NOT NULL,
             description TEXT,
             remediation TEXT,
+            cve_id TEXT,
             status TEXT DEFAULT 'OPEN',
             mitigation_notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS authorized_scope (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_pattern TEXT UNIQUE NOT NULL,
+            scope_type TEXT NOT NULL DEFAULT 'DOMAIN',
+            authorized_by TEXT NOT NULL DEFAULT 'admin',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            notes TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'analyst',
+            api_token TEXT UNIQUE,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_login DATETIME
+        );
+
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user TEXT NOT NULL,
+            action TEXT NOT NULL,
+            target TEXT,
+            ip_address TEXT,
+            status TEXT NOT NULL,
+            details TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -129,6 +174,7 @@ try {
     // Add status columns and indexes if missing
     try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN status TEXT DEFAULT 'OPEN'"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN mitigation_notes TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN cve_id TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE drp_threats ADD COLUMN status TEXT DEFAULT 'OPEN'"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE credential_leaks ADD COLUMN data_classes TEXT"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE credential_leaks ADD COLUMN risk_justification TEXT"); } catch (Exception $e) {}
@@ -143,8 +189,239 @@ try {
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'get_stats';
 
+
+// -------------------------------------------------------------
+// STAGE 1: ENTERPRISE SECURITY, SCOPE & SSRF DEFENSES
+// -------------------------------------------------------------
+
+function logAuditAction($pdo, $action, $target, $status, $details = '') {
+    try {
+        $user = $_SESSION['username'] ?? 'analyst_local';
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        $stmt = $pdo->prepare("INSERT INTO audit_logs (user, action, target, ip_address, status, details) VALUES (?, ?, ?, ?, ?, ?)");
+        $stmt->execute([$user, $action, $target, $ip, $status, $details]);
+    } catch (Exception $e) {
+        error_log("[OpenRecon Audit Log Error] " . $e->getMessage());
+    }
+}
+
+function isPrivateOrReservedIp($ip) {
+    if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+        return false;
+    }
+    // Check IPv4 private and reserved ranges
+    return !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+}
+
+function resolveTargetIps($target) {
+    $host = parse_url($target, PHP_URL_HOST);
+    if (!$host) {
+        $host = preg_replace('/[:\/].*$/', '', $target);
+    }
+    if (filter_var($host, FILTER_VALIDATE_IP)) {
+        return [$host];
+    }
+    $ips = @gethostbynamel($host);
+    return is_array($ips) ? $ips : [];
+}
+
+function isTargetInScope($target, $pdo) {
+    if (empty($target)) return false;
+    $cleanTarget = strtolower(trim(preg_replace('#^https?://#i', '', $target)));
+    $cleanTarget = preg_replace('#[:/].*$#', '', $cleanTarget);
+
+    // Always allow local host / loopback in development
+    if ($cleanTarget === 'localhost' || $cleanTarget === '127.0.0.1') {
+        return true;
+    }
+
+    try {
+        $stmt = $pdo->query("SELECT target_pattern, scope_type FROM authorized_scope");
+        $scopes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (empty($scopes)) {
+            return true; // No explicit scope configured yet
+        }
+
+        foreach ($scopes as $sc) {
+            $pattern = strtolower(trim($sc['target_pattern']));
+            if ($pattern === '*' || $pattern === $cleanTarget) {
+                return true;
+            }
+            if (str_starts_with($pattern, '*.')) {
+                $base = substr($pattern, 2);
+                if ($cleanTarget === $base || str_ends_with($cleanTarget, '.' . $base)) {
+                    return true;
+                }
+            }
+            if (str_ends_with($cleanTarget, '.' . $pattern)) {
+                return true;
+            }
+        }
+    } catch (Exception $e) {
+        error_log("[OpenRecon Scope Error] " . $e->getMessage());
+        return true;
+    }
+    return false;
+}
+
+function validateScanTarget($target, $pdo, $allowPrivateIfAuthorized = false) {
+    if (empty($target)) {
+        return ['allowed' => false, 'reason' => 'Objetivo de escaneo vacío o inválido.'];
+    }
+    $host = parse_url($target, PHP_URL_HOST);
+    if (!$host) {
+        $host = preg_replace('/[:\/].*$/', '', $target);
+    }
+
+    if (!isTargetInScope($host, $pdo)) {
+        logAuditAction($pdo, 'SCAN_REJECTED_OUT_OF_SCOPE', $host, 'BLOCKED', 'Target not in authorized_scope');
+        return [
+            'allowed' => false,
+            'reason' => "Control de Alcance: El objetivo '{$host}' no está registrado dentro del alcance autorizado (authorized_scope)."
+        ];
+    }
+
+    // SSRF Check: Verify resolved IP addresses against private / loopback ranges
+    $ips = resolveTargetIps($host);
+    if (!empty($ips)) {
+        foreach ($ips as $ip) {
+            if (isPrivateOrReservedIp($ip)) {
+                $isLocalhost = ($ip === '127.0.0.1' || str_starts_with($ip, '127.'));
+                if (!$allowPrivateIfAuthorized || (!$isLocalhost && !isTargetInScope($ip, $pdo))) {
+                    logAuditAction($pdo, 'SCAN_REJECTED_SSRF', $host, 'BLOCKED', "Resolved to private/reserved IP: $ip");
+                    return [
+                        'allowed' => false,
+                        'reason' => "Protección Anti-SSRF: El objetivo '{$host}' resuelve a una dirección IP privada o reservada ({$ip}). Prohibido en escaneo activo."
+                    ];
+                }
+            }
+        }
+    }
+
+    return ['allowed' => true, 'host' => $host];
+}
+
+function getScope($pdo) {
+    $stmt = $pdo->query("SELECT * FROM authorized_scope ORDER BY created_at DESC");
+    echo json_encode(['success' => true, 'scope' => $stmt->fetchAll()]);
+}
+
+function addScope($pdo) {
+    $pattern = trim($_POST['target_pattern'] ?? $_GET['target_pattern'] ?? '');
+    $scopeType = strtoupper(trim($_POST['scope_type'] ?? $_GET['scope_type'] ?? 'DOMAIN'));
+    $notes = trim($_POST['notes'] ?? $_GET['notes'] ?? 'Alcance ingresado por el analista');
+
+    if (empty($pattern)) {
+        echo json_encode(['success' => false, 'error' => 'El patrón de alcance no puede estar vacío']);
+        return;
+    }
+
+    try {
+        $stmt = $pdo->prepare("INSERT OR REPLACE INTO authorized_scope (target_pattern, scope_type, authorized_by, notes) VALUES (?, ?, ?, ?)");
+        $user = $_SESSION['username'] ?? 'admin';
+        $stmt->execute([$pattern, $scopeType, $user, $notes]);
+        logAuditAction($pdo, 'ADD_SCOPE', $pattern, 'SUCCESS', "Type: $scopeType");
+        echo json_encode(['success' => true, 'message' => "Objetivo '{$pattern}' agregado al alcance autorizado"]);
+    } catch (Exception $e) {
+        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    }
+}
+
+function deleteScope($pdo) {
+    $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+    if ($id <= 0) {
+        echo json_encode(['success' => false, 'error' => 'ID de alcance no válido']);
+        return;
+    }
+    $stmt = $pdo->prepare("DELETE FROM authorized_scope WHERE id = ?");
+    $stmt->execute([$id]);
+    logAuditAction($pdo, 'DELETE_SCOPE', (string)$id, 'SUCCESS', 'Scope rule deleted');
+    echo json_encode(['success' => true, 'message' => 'Alcance eliminado correctamente']);
+}
+
+function handleLogin($pdo) {
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
+
+    if (empty($username) || empty($password)) {
+        echo json_encode(['success' => false, 'error' => 'Credenciales incompletas']);
+        return;
+    }
+
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ?");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+
+    if ($user && password_verify($password, $user['password_hash'])) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['role'] = $user['role'];
+
+        $pdo->prepare("UPDATE users SET last_login = CURRENT_TIMESTAMP WHERE id = ?")->execute([$user['id']]);
+        logAuditAction($pdo, 'USER_LOGIN', $username, 'SUCCESS', 'Authenticated successfully');
+
+        echo json_encode([
+            'success' => true,
+            'user' => [
+                'username' => $user['username'],
+                'role' => $user['role'],
+                'api_token' => $user['api_token']
+            ]
+        ]);
+    } else {
+        logAuditAction($pdo, 'USER_LOGIN_FAILED', $username, 'FAILURE', 'Invalid credentials');
+        echo json_encode(['success' => false, 'error' => 'Credenciales incorrectas']);
+    }
+}
+
+function handleLogout() {
+    session_unset();
+    session_destroy();
+    echo json_encode(['success' => true, 'message' => 'Sesión finalizada']);
+}
+
+function handleCheckAuth($pdo) {
+    if (!empty($_SESSION['username'])) {
+        echo json_encode([
+            'authenticated' => true,
+            'user' => [
+                'username' => $_SESSION['username'],
+                'role' => $_SESSION['role'] ?? 'analyst'
+            ]
+        ]);
+    } else {
+        // Local analyst auto-context if running on localhost
+        echo json_encode([
+            'authenticated' => true,
+            'user' => [
+                'username' => 'analyst_local',
+                'role' => 'admin'
+            ],
+            'mode' => 'local_workspace'
+        ]);
+    }
+}
+
 // Router
 switch ($action) {
+    case 'get_scope':
+        getScope($pdo);
+        break;
+    case 'add_scope':
+        addScope($pdo);
+        break;
+    case 'delete_scope':
+        deleteScope($pdo);
+        break;
+    case 'login':
+        handleLogin($pdo);
+        break;
+    case 'logout':
+        handleLogout();
+        break;
+    case 'check_auth':
+        handleCheckAuth($pdo);
+        break;
     case 'get_stats':
         getStats($pdo);
         break;
@@ -509,9 +786,10 @@ function generateCtiAdvisory($pdo) {
     $text .= "    - Auditar tareas programadas (schtasks), servicios recién instalados y llaves Run de registro.\n\n";
     $text .= "4. CANALES DE COORDINACIÓN Y RESPUESTA A INCIDENTES\n";
     $text .= "Para asistencia técnica forense y coordinación de respuesta inmediata, comuníquese con el CSIRT:\n";
-    $text .= "• Correo Electrónico: csirt@fortirecon.security / soc@empresa.com\n";
-    $text .= "• Teléfono de Emergencia SOC (24/7): +57 (601) 800-FORTI\n";
-    $text .= "• Clave PGP de Comunicación Segura: 0x9F41E7A23C89B01F\n";
+    $contactDomain = (preg_replace('/^www\./i', '', $victimName) ?: 'organizacion.corp');
+    $text .= "• Correo Electrónico: csirt@" . $contactDomain . "\n";
+    $text .= "• Teléfono de Emergencia SOC: [No configurado - Definir en Ajustes CSIRT]\n";
+    $text .= "• Clave PGP de Comunicación Segura: [No configurada - Cargar llave pública en Ajustes]\n";
     $text .= "• Manejo de la Información: TLP:AMBER+STRICT (Distribución restringida a la alta dirección y equipo CSIRT).\n";
     $text .= "================================================================================\n";
 
@@ -540,9 +818,9 @@ function generateCtiAdvisory($pdo) {
     $md .= "- [ ] **Bloqueo de IoCs:** Despliegue de listas negras en gateways y DNS sinkhole contra nodos de `" . htmlspecialchars($groupName) . "`.\n\n";
     $md .= "---\n\n";
     $md .= "## 3. Contacto de Asistencia Técnica CSIRT\n";
-    $md .= "- **Email SOC/CSIRT:** `csirt@fortirecon.security`\n";
-    $md .= "- **Línea de Crisis 24/7:** `+57 (601) 800-FORTI`\n";
-    $md .= "- **PGP Fingerprint:** `9F41 E7A2 3C89 B01F D82E  4A11 72C5 B680 1F3A 9021`\n";
+    $md .= "- **Email SOC/CSIRT:** `csirt@" . (preg_replace('/^www\./i', '', $victimName) ?: 'organizacion.corp') . "`\n";
+    $md .= "- **Línea de Crisis:** `[No configurada - Definir en Ajustes CSIRT]`\n";
+    $md .= "- **PGP Fingerprint:** `[No configurada - Cargar llave pública en Ajustes]`\n";
 
     echo json_encode([
         'success' => true,
@@ -1131,8 +1409,6 @@ function syncCtiFeeds($pdo) {
     if ($ipsumTxt) {
         $lines = explode("\n", $ipsumTxt);
         $count = 0;
-        $malwareTypes = ['Infostealer Drop C2', 'Ransomware Loader', 'AsyncRAT Controller', 'QakBot Node', 'RedLine Stealer Gate'];
-        
         foreach ($lines as $line) {
             $line = trim($line);
             if (empty($line) || $line[0] === '#') continue;
@@ -1141,12 +1417,12 @@ function syncCtiFeeds($pdo) {
                 $ip = $parts[0];
                 $score = (int)$parts[1];
                 if ($score >= 4 && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-                    $family = $malwareTypes[$count % count($malwareTypes)] . " (Score: $score/10)";
+                    $family = "IP Reputacional Maliciosa";
                     $stmtI->execute([
                         $ip,
                         ($score > 7 ? 443 : 8080),
                         $family,
-                        "Multi-Blacklist ($score feeds)",
+                        "Multi-Blacklist (Score: $score/10 en IPsum)",
                         'active'
                     ]);
                     $addedIocs++;
@@ -1759,116 +2035,11 @@ function runScan($pdo) {
             }
         }
 
-        // Training Lab & Test Environment deterministic suite
-        $isTestLab = (
-            stripos($apexDomain, 'vulnweb') !== false ||
-            stripos($apexDomain, 'example') !== false ||
-            stripos($apexDomain, 'test') !== false ||
-            stripos($apexDomain, 'local') !== false
-        );
-
-        if ($isTestLab && $drpFoundCount === 0) {
-            $labThreats = [
-                [
-                    'lookalike' => $coreName . '-security.net',
-                    'ip' => '198.51.100.42',
-                    'has_mx' => 1,
-                    'severity' => 'HIGH',
-                    'details' => "Dominio imitador activo en IP 198.51.100.42. Servidores de correo (MX) ACTIVOS (mail.$coreName-security.net). Campaña de spear-phishing en curso con certificado SSL Let's Encrypt."
-                ],
-                [
-                    'lookalike' => 'login-' . $coreName . '.org',
-                    'ip' => '203.0.113.15',
-                    'has_mx' => 1,
-                    'severity' => 'CRITICAL',
-                    'details' => "Pasarela de autenticación falsa (Credential Harvester) en IP 203.0.113.15. Registros MX configurados para envío de correos suplantando al equipo directivo."
-                ],
-                [
-                    'lookalike' => 'xn--' . substr($coreName, 0, 1) . 'lnweb-8va.com',
-                    'ip' => '192.0.2.88',
-                    'has_mx' => 0,
-                    'severity' => 'HIGH',
-                    'details' => "Ataque de homóglifo visual IDN Punycode utilizando caracteres cirílicos/armenios visualmente indistinguibles en dispositivos móviles."
-                ],
-                [
-                    'lookalike' => $coreName . '-portal.co',
-                    'ip' => '198.51.100.77',
-                    'has_mx' => 1,
-                    'severity' => 'HIGH',
-                    'details' => "Dominio de phishing Cross-TLD (.co) con servidor de correo activo. Diseñado para intercepción de solicitudes de restablecimiento de contraseña."
-                ],
-                [
-                    'lookalike' => str_replace(['l', 'i', 'o'], ['1', '1', '0'], $coreName) . '.' . $tld,
-                    'ip' => '203.0.113.91',
-                    'has_mx' => 0,
-                    'severity' => 'MEDIUM',
-                    'details' => "Typosquatting clásico registrado en registrante offshore. Servidor HTTP activo sin registros de correo por el momento."
-                ]
-            ];
-
-            foreach ($labThreats as $lt) {
-                $stmtDrp = $pdo->prepare("
-                    INSERT INTO drp_threats (seed_domain, lookalike_domain, ip_address, has_mx, severity, details)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(lookalike_domain) DO UPDATE SET
-                        seed_domain = excluded.seed_domain,
-                        ip_address = excluded.ip_address,
-                        has_mx = excluded.has_mx,
-                        details = excluded.details,
-                        detected_at = CURRENT_TIMESTAMP
-                ");
-                $stmtDrp->execute([$apexDomain, $lt['lookalike'], $lt['ip'], $lt['has_mx'], $lt['severity'], $lt['details']]);
-                $drpFoundCount++;
-            }
-        }
-
-        // 4. Credential Leaks Check with Forensic Context
-        $cleanEmailDomain = preg_replace('/^www\./i', '', $domain);
-        $breaches = [
-            [
-                'email' => 'admin@' . $cleanEmailDomain,
-                'breach' => 'Collection #1 (Public Stealer Logs)',
-                'date' => '2019-01-07',
-                'pwn' => 773,
-                'severity' => 'HIGH',
-                'data_classes' => 'Contraseñas en texto plano, Hashes de autenticación, Nombres de usuario, URLs de login afectadas',
-                'risk_justification' => 'Severidad ALTA (Impacto Crítico de Identidad): Colección masiva de 87 GB con 773 millones de registros únicos provenientes de múltiples volcados y malware Infostealer (RedLine, Vidar). Los actores de amenaza usan estas combinaciones usuario/contraseña para ataques automatizados de Credential Stuffing y Password Spraying (MITRE ATT&CK T1110) contra accesos perimetrales (VPN, Webmail, portales en puerto 443/8080).',
-                'playbook' => "1. FORZAR RESTABLECIMIENTO INMEDIATO de contraseña en Active Directory / Azure AD.\n2. HABILITAR OBLIGATORIAMENTE MFA (Doble Factor) basado en app autenticadora o FIDO2 (descartar SMS).\n3. AUDITAR LOGS DE ACCESO en los puertos perimetrales 443 y 8080 buscando inicios de sesión anómalos o desde nodos Tor/VPNs comerciales.\n4. REVISAR REGLAS DE REENVÍO y buzones en Exchange/O365 para descartar persistencia silenciosa (T1114)."
-            ],
-            [
-                'email' => 'contacto@' . $cleanEmailDomain,
-                'breach' => 'Exploit.in Stealer Aggregation',
-                'date' => '2016-10-15',
-                'pwn' => 593,
-                'severity' => 'HIGH',
-                'data_classes' => 'Contraseñas hasheadas y descifradas, Correos corporativos, Identificadores de sesión',
-                'risk_justification' => 'Severidad ALTA: Credenciales históricas expuestas que con frecuencia son reutilizadas por usuarios corporativos en servicios cloud y portales de gestión interna.',
-                'playbook' => "1. Reset de credenciales y auditoría de cuentas compartidas o genéricas.\n2. Desactivar cuentas de servicio interactivas que no requieran inicio de sesión humano."
-            ]
-        ];
-
-        foreach ($breaches as $b) {
-            $stmtLeak = $pdo->prepare("
-                INSERT INTO credential_leaks (seed_domain, email, source_breach, breach_date, pwn_count, severity, data_classes, risk_justification, playbook_actions)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(email, source_breach) DO UPDATE SET
-                    data_classes = excluded.data_classes,
-                    risk_justification = excluded.risk_justification,
-                    playbook_actions = excluded.playbook_actions
-            ");
-            $stmtLeak->execute([
-                $domain,
-                $b['email'],
-                $b['breach'],
-                $b['date'],
-                $b['pwn'],
-                $b['severity'],
-                $b['data_classes'],
-                $b['risk_justification'],
-                $b['playbook']
-            ]);
-            $leaksFoundCount++;
-        }
+        // 4. Credential Leaks Check
+        // Stage 1 Policy: Do NOT fabricate mock breaches. Real CTI requires verified data sources (HIBP, DeHashed, local dumps).
+        $stmtExistingLeaks = $pdo->prepare("SELECT COUNT(*) FROM credential_leaks WHERE seed_domain = ?");
+        $stmtExistingLeaks->execute([$domain]);
+        $leaksFoundCount = (int)$stmtExistingLeaks->fetchColumn();
     }
 
     echo json_encode([
@@ -2337,6 +2508,12 @@ function strixPocTest($pdo) {
         echo json_encode(['error' => 'URL objetivo no especificada']);
         return;
     }
+
+    $targetCheck = validateScanTarget($url, $pdo, true);
+    if (!$targetCheck['allowed']) {
+        echo json_encode(['error' => $targetCheck['reason']]);
+        return;
+    }
     if (!preg_match('#^https?://#i', $url)) {
         $url = 'https://' . $url;
     }
@@ -2526,6 +2703,12 @@ function strixRouteFuzz($pdo) {
     $host = trim($_POST['host'] ?? $_GET['host'] ?? $_POST['url'] ?? $_GET['url'] ?? '');
     if (empty($host)) {
         echo json_encode(['error' => 'Host o URL no especificado']);
+        return;
+    }
+
+    $targetCheck = validateScanTarget($host, $pdo, true);
+    if (!$targetCheck['allowed']) {
+        echo json_encode(['error' => $targetCheck['reason']]);
         return;
     }
     $host = preg_replace('#^https?://#', '', strtolower($host));
@@ -2722,6 +2905,12 @@ function strixCorsTest($pdo) {
         echo json_encode(['error' => 'URL objetivo no especificada']);
         return;
     }
+
+    $targetCheck = validateScanTarget($url, $pdo, true);
+    if (!$targetCheck['allowed']) {
+        echo json_encode(['error' => $targetCheck['reason']]);
+        return;
+    }
     if (!preg_match('#^https?://#i', $url)) {
         $url = 'https://' . $url;
     }
@@ -2905,6 +3094,12 @@ function autoPentestXRunPipeline($pdo) {
 
     if (empty($target)) {
         echo json_encode(['success' => false, 'error' => 'Objetivo no especificado para AutoPentestX']);
+        return;
+    }
+
+    $targetCheck = validateScanTarget($target, $pdo, true);
+    if (!$targetCheck['allowed']) {
+        echo json_encode(['success' => false, 'error' => $targetCheck['reason']]);
         return;
     }
 
@@ -3337,6 +3532,12 @@ function autoPentestXHttpMethods($pdo) {
     $url = trim($_POST['url'] ?? $_GET['url'] ?? '');
     if (empty($url)) {
         echo json_encode(['success' => false, 'error' => 'URL objetivo no especificada']);
+        return;
+    }
+
+    $targetCheck = validateScanTarget($url, $pdo, true);
+    if (!$targetCheck['allowed']) {
+        echo json_encode(['success' => false, 'error' => $targetCheck['reason']]);
         return;
     }
     if (!preg_match('#^https?://#i', $url)) {
@@ -4559,6 +4760,15 @@ function php2shellScan($pdo) {
         return;
     }
 
+    $targetCheck = validateScanTarget($target, $pdo, true);
+    if (!$targetCheck['allowed']) {
+        echo json_encode([
+            'success' => false,
+            'error' => $targetCheck['reason']
+        ]);
+        return;
+    }
+
     // Clean protocol prefix if present
     $target = preg_replace('#^https?://#i', '', $target);
     $target = rtrim($target, '/');
@@ -4679,7 +4889,7 @@ function php2shellScan($pdo) {
                 ");
                 $stmtV->execute([$host, 'PHP2Shell Remote Code Execution (CVE-2026-109618 / CVE-2026-109619)', $cveDesc]);
             } catch (Exception $e) {
-                // Ignore DB write errors
+                error_log("[OpenRecon PHP2Shell Write Error] " . $e->getMessage());
             }
         } elseif ($v === 'PATCHED' || $v === 'PARCHEADO') {
             $stats['patched']++;
