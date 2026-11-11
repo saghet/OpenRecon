@@ -1,22 +1,435 @@
-/* OpenRecon Enterprise Cyber Theme & Anti-FOUC Foundation Styles */
+/* ==========================================================================
+   OPENRECON ENTERPRISE - FORTINET FORTIOS 7.4.13 DESIGN SYSTEM ENGINE
+   Centralized CSS Custom Properties & High-Fidelity Theming System
+   ========================================================================== */
+
+/* 1. THEME DEFINITIONS & CSS TOKENS */
+:root,
+[data-theme="jade"],
+html[data-theme="jade"] {
+    --fg-theme-name: "Jade";
+    --fg-header-bg: #0f291e;
+    --fg-header-border: #1b3b2d;
+    --fg-sidebar-bg: #0a1c14;
+    --fg-sidebar-hover: #123326;
+    --fg-sidebar-border: #163628;
+    --fg-selection: #164332;
+    --fg-selection-text: #34d399;
+    --fg-selection-border: #10b981;
+    --fg-primary: #10b981;
+    --fg-primary-hover: #059669;
+    --fg-primary-text: #042013;
+    --fg-accent: #34d399;
+    --fg-bg-main: #060f0b;
+    --fg-card-bg: #0c1913;
+    --fg-card-header: #10221a;
+    --fg-border: #1b3b2d;
+    --fg-border-subtle: #132b20;
+    --fg-text-main: #f0fdf4;
+    --fg-text-muted: #86efac;
+    --fg-text-dim: #4ade80;
+    --fg-input-bg: #09160f;
+    --fg-input-border: #1d4030;
+    --fg-table-header-bg: #0e2118;
+    --fg-table-row-hover: #12271e;
+    --fg-table-row-alt: #0a1711;
+    --fg-crit: #ef4444;
+    --fg-crit-bg: rgba(239, 68, 68, 0.15);
+    --fg-crit-border: #b91c1c;
+    --fg-high: #f97316;
+    --fg-high-bg: rgba(249, 115, 22, 0.15);
+    --fg-high-border: #c2410c;
+    --fg-med: #10b981;
+    --fg-med-bg: rgba(16, 185, 129, 0.15);
+    --fg-med-border: #047857;
+    --fg-low: #38bdf8;
+    --fg-low-bg: rgba(56, 189, 248, 0.15);
+    --fg-low-border: #0369a1;
+    --fg-info: #94a3b8;
+    --fg-info-bg: rgba(148, 163, 184, 0.15);
+    --fg-info-border: #475569;
+}
+
+[data-theme="neutrino"],
+html[data-theme="neutrino"] {
+    --fg-theme-name: "Neutrino";
+    --fg-header-bg: #0b253a;
+    --fg-header-border: #163b5c;
+    --fg-sidebar-bg: #081a29;
+    --fg-sidebar-hover: #0f334f;
+    --fg-sidebar-border: #102c45;
+    --fg-selection: #134469;
+    --fg-selection-text: #38bdf8;
+    --fg-selection-border: #06b6d4;
+    --fg-primary: #06b6d4;
+    --fg-primary-hover: #0891b2;
+    --fg-primary-text: #021a24;
+    --fg-accent: #38bdf8;
+    --fg-bg-main: #040d14;
+    --fg-card-bg: #0a1724;
+    --fg-card-header: #0e2032;
+    --fg-border: #163b5c;
+    --fg-border-subtle: #112a42;
+    --fg-text-main: #f0f9ff;
+    --fg-text-muted: #7dd3fc;
+    --fg-text-dim: #38bdf8;
+    --fg-input-bg: #06121c;
+    --fg-input-border: #1a4369;
+    --fg-table-header-bg: #0c1e2f;
+    --fg-table-row-hover: #10273c;
+    --fg-table-row-alt: #081521;
+    --fg-crit: #ef4444;
+    --fg-crit-bg: rgba(239, 68, 68, 0.15);
+    --fg-crit-border: #b91c1c;
+    --fg-high: #f97316;
+    --fg-high-bg: rgba(249, 115, 22, 0.15);
+    --fg-high-border: #c2410c;
+    --fg-med: #06b6d4;
+    --fg-med-bg: rgba(6, 182, 212, 0.15);
+    --fg-med-border: #0e7490;
+    --fg-low: #38bdf8;
+    --fg-low-bg: rgba(56, 189, 248, 0.15);
+    --fg-low-border: #0284c7;
+    --fg-info: #94a3b8;
+    --fg-info-bg: rgba(148, 163, 184, 0.15);
+    --fg-info-border: #475569;
+}
+
+[data-theme="mariner"],
+html[data-theme="mariner"] {
+    --fg-theme-name: "Mariner";
+    --fg-header-bg: #132238;
+    --fg-header-border: #1c3353;
+    --fg-sidebar-bg: #0d1726;
+    --fg-sidebar-hover: #182c47;
+    --fg-sidebar-border: #14233a;
+    --fg-selection: #1f395c;
+    --fg-selection-text: #60a5fa;
+    --fg-selection-border: #2563eb;
+    --fg-primary: #2563eb;
+    --fg-primary-hover: #1d4ed8;
+    --fg-primary-text: #ffffff;
+    --fg-accent: #60a5fa;
+    --fg-bg-main: #070c14;
+    --fg-card-bg: #0e1828;
+    --fg-card-header: #142239;
+    --fg-border: #1c3353;
+    --fg-border-subtle: #15253b;
+    --fg-text-main: #eff6ff;
+    --fg-text-muted: #93c5fd;
+    --fg-text-dim: #60a5fa;
+    --fg-input-bg: #08101c;
+    --fg-input-border: #213c63;
+    --fg-table-header-bg: #101c2e;
+    --fg-table-row-hover: #16263e;
+    --fg-table-row-alt: #0a1321;
+    --fg-crit: #ef4444;
+    --fg-crit-bg: rgba(239, 68, 68, 0.15);
+    --fg-crit-border: #b91c1c;
+    --fg-high: #f97316;
+    --fg-high-bg: rgba(249, 115, 22, 0.15);
+    --fg-high-border: #c2410c;
+    --fg-med: #3b82f6;
+    --fg-med-bg: rgba(59, 130, 246, 0.15);
+    --fg-med-border: #1d4ed8;
+    --fg-low: #93c5fd;
+    --fg-low-bg: rgba(147, 197, 253, 0.15);
+    --fg-low-border: #2563eb;
+    --fg-info: #94a3b8;
+    --fg-info-bg: rgba(148, 163, 184, 0.15);
+    --fg-info-border: #475569;
+}
+
+[data-theme="graphite"],
+html[data-theme="graphite"] {
+    --fg-theme-name: "Graphite";
+    --fg-header-bg: #212529;
+    --fg-header-border: #343a40;
+    --fg-sidebar-bg: #181b1e;
+    --fg-sidebar-hover: #2b3035;
+    --fg-sidebar-border: #22262b;
+    --fg-selection: #343a40;
+    --fg-selection-text: #f1f5f9;
+    --fg-selection-border: #94a3b8;
+    --fg-primary: #64748b;
+    --fg-primary-hover: #475569;
+    --fg-primary-text: #ffffff;
+    --fg-accent: #94a3b8;
+    --fg-bg-main: #0f1113;
+    --fg-card-bg: #1a1d21;
+    --fg-card-header: #24282d;
+    --fg-border: #343a40;
+    --fg-border-subtle: #272b30;
+    --fg-text-main: #f8fafc;
+    --fg-text-muted: #cbd5e1;
+    --fg-text-dim: #94a3b8;
+    --fg-input-bg: #121417;
+    --fg-input-border: #3a4149;
+    --fg-table-header-bg: #1e2226;
+    --fg-table-row-hover: #272c32;
+    --fg-table-row-alt: #15181b;
+    --fg-crit: #f87171;
+    --fg-crit-bg: rgba(248, 113, 113, 0.15);
+    --fg-crit-border: #dc2626;
+    --fg-high: #fb923c;
+    --fg-high-bg: rgba(251, 146, 60, 0.15);
+    --fg-high-border: #ea580c;
+    --fg-med: #38bdf8;
+    --fg-med-bg: rgba(56, 189, 248, 0.15);
+    --fg-med-border: #0284c7;
+    --fg-low: #94a3b8;
+    --fg-low-bg: rgba(148, 163, 184, 0.15);
+    --fg-low-border: #64748b;
+    --fg-info: #64748b;
+    --fg-info-bg: rgba(100, 116, 139, 0.15);
+    --fg-info-border: #475569;
+}
+
+[data-theme="melongene"],
+html[data-theme="melongene"] {
+    --fg-theme-name: "Melongene";
+    --fg-header-bg: #2a173b;
+    --fg-header-border: #42235c;
+    --fg-sidebar-bg: #1d1029;
+    --fg-sidebar-hover: #381f4f;
+    --fg-sidebar-border: #2b173e;
+    --fg-selection: #492866;
+    --fg-selection-text: #d8b4fe;
+    --fg-selection-border: #a855f7;
+    --fg-primary: #a855f7;
+    --fg-primary-hover: #9333ea;
+    --fg-primary-text: #ffffff;
+    --fg-accent: #c084fc;
+    --fg-bg-main: #0f0717;
+    --fg-card-bg: #1a0e26;
+    --fg-card-header: #241334;
+    --fg-border: #42235c;
+    --fg-border-subtle: #2d183f;
+    --fg-text-main: #faf5ff;
+    --fg-text-muted: #d8b4fe;
+    --fg-text-dim: #c084fc;
+    --fg-input-bg: #12091c;
+    --fg-input-border: #4d286d;
+    --fg-table-header-bg: #1e102c;
+    --fg-table-row-hover: #29153c;
+    --fg-table-row-alt: #150b1f;
+    --fg-crit: #f43f5e;
+    --fg-crit-bg: rgba(244, 63, 94, 0.15);
+    --fg-crit-border: #e11d48;
+    --fg-high: #fb923c;
+    --fg-high-bg: rgba(251, 146, 60, 0.15);
+    --fg-high-border: #ea580c;
+    --fg-med: #a855f7;
+    --fg-med-bg: rgba(168, 85, 247, 0.15);
+    --fg-med-border: #7e22ce;
+    --fg-low: #38bdf8;
+    --fg-low-bg: rgba(56, 189, 248, 0.15);
+    --fg-low-border: #0369a1;
+    --fg-info: #94a3b8;
+    --fg-info-bg: rgba(148, 163, 184, 0.15);
+    --fg-info-border: #475569;
+}
+
+[data-theme="retro"],
+html[data-theme="retro"] {
+    --fg-theme-name: "Retro";
+    --fg-header-bg: #2d2013;
+    --fg-header-border: #4a331c;
+    --fg-sidebar-bg: #20160d;
+    --fg-sidebar-hover: #3d2b1a;
+    --fg-sidebar-border: #2e1f13;
+    --fg-selection: #4f3822;
+    --fg-selection-text: #fde68a;
+    --fg-selection-border: #f59e0b;
+    --fg-primary: #f59e0b;
+    --fg-primary-hover: #d97706;
+    --fg-primary-text: #261604;
+    --fg-accent: #fbbf24;
+    --fg-bg-main: #120c07;
+    --fg-card-bg: #1c130b;
+    --fg-card-header: #261a0f;
+    --fg-border: #4a331c;
+    --fg-border-subtle: #332313;
+    --fg-text-main: #fffbeb;
+    --fg-text-muted: #fcd34d;
+    --fg-text-dim: #f59e0b;
+    --fg-input-bg: #150e08;
+    --fg-input-border: #573c21;
+    --fg-table-header-bg: #22170d;
+    --fg-table-row-hover: #2e2013;
+    --fg-table-row-alt: #170f08;
+    --fg-crit: #ef4444;
+    --fg-crit-bg: rgba(239, 68, 68, 0.15);
+    --fg-crit-border: #b91c1c;
+    --fg-high: #f97316;
+    --fg-high-bg: rgba(249, 115, 22, 0.15);
+    --fg-high-border: #c2410c;
+    --fg-med: #f59e0b;
+    --fg-med-bg: rgba(245, 158, 11, 0.15);
+    --fg-med-border: #b45309;
+    --fg-low: #38bdf8;
+    --fg-low-bg: rgba(56, 189, 248, 0.15);
+    --fg-low-border: #0369a1;
+    --fg-info: #94a3b8;
+    --fg-info-bg: rgba(148, 163, 184, 0.15);
+    --fg-info-border: #475569;
+}
+
+[data-theme="darkmatter"],
+html[data-theme="darkmatter"] {
+    --fg-theme-name: "Dark Matter";
+    --fg-header-bg: #121214;
+    --fg-header-border: #222228;
+    --fg-sidebar-bg: #0a0a0c;
+    --fg-sidebar-hover: #1a1a1e;
+    --fg-sidebar-border: #151518;
+    --fg-selection: #24242a;
+    --fg-selection-text: #2dd4bf;
+    --fg-selection-border: #14b8a6;
+    --fg-primary: #14b8a6;
+    --fg-primary-hover: #0d9488;
+    --fg-primary-text: #042f2e;
+    --fg-accent: #2dd4bf;
+    --fg-bg-main: #020203;
+    --fg-card-bg: #0e0e11;
+    --fg-card-header: #141418;
+    --fg-border: #222228;
+    --fg-border-subtle: #19191d;
+    --fg-text-main: #f0fdfa;
+    --fg-text-muted: #99f6e4;
+    --fg-text-dim: #2dd4bf;
+    --fg-input-bg: #070708;
+    --fg-input-border: #2c2c34;
+    --fg-table-header-bg: #111114;
+    --fg-table-row-hover: #18181d;
+    --fg-table-row-alt: #0a0a0c;
+    --fg-crit: #f43f5e;
+    --fg-crit-bg: rgba(244, 63, 94, 0.15);
+    --fg-crit-border: #be123c;
+    --fg-high: #fb923c;
+    --fg-high-bg: rgba(251, 146, 60, 0.15);
+    --fg-high-border: #c2410c;
+    --fg-med: #14b8a6;
+    --fg-med-bg: rgba(20, 184, 166, 0.15);
+    --fg-med-border: #0f766e;
+    --fg-low: #38bdf8;
+    --fg-low-bg: rgba(56, 189, 248, 0.15);
+    --fg-low-border: #0284c7;
+    --fg-info: #94a3b8;
+    --fg-info-bg: rgba(148, 163, 184, 0.15);
+    --fg-info-border: #475569;
+}
+
+[data-theme="onyx"],
+html[data-theme="onyx"] {
+    --fg-theme-name: "Onyx";
+    --fg-header-bg: #18181b;
+    --fg-header-border: #27272a;
+    --fg-sidebar-bg: #09090b;
+    --fg-sidebar-hover: #27272a;
+    --fg-sidebar-border: #18181b;
+    --fg-selection: #3f3f46;
+    --fg-selection-text: #ffffff;
+    --fg-selection-border: #e4e4e7;
+    --fg-primary: #f4f4f5;
+    --fg-primary-hover: #e4e4e7;
+    --fg-primary-text: #09090b;
+    --fg-accent: #ffffff;
+    --fg-bg-main: #000000;
+    --fg-card-bg: #0c0c0e;
+    --fg-card-header: #141417;
+    --fg-border: #27272a;
+    --fg-border-subtle: #18181b;
+    --fg-text-main: #ffffff;
+    --fg-text-muted: #a1a1aa;
+    --fg-text-dim: #71717a;
+    --fg-input-bg: #060607;
+    --fg-input-border: #3f3f46;
+    --fg-table-header-bg: #111113;
+    --fg-table-row-hover: #1a1a1e;
+    --fg-table-row-alt: #08080a;
+    --fg-crit: #f87171;
+    --fg-crit-bg: rgba(248, 113, 113, 0.15);
+    --fg-crit-border: #b91c1c;
+    --fg-high: #fb923c;
+    --fg-high-bg: rgba(251, 146, 60, 0.15);
+    --fg-high-border: #c2410c;
+    --fg-med: #e4e4e7;
+    --fg-med-bg: rgba(228, 228, 231, 0.15);
+    --fg-med-border: #71717a;
+    --fg-low: #38bdf8;
+    --fg-low-bg: rgba(56, 189, 248, 0.15);
+    --fg-low-border: #0369a1;
+    --fg-info: #71717a;
+    --fg-info-bg: rgba(113, 113, 122, 0.15);
+    --fg-info-border: #3f3f46;
+}
+
+[data-theme="eclipse"],
+html[data-theme="eclipse"] {
+    --fg-theme-name: "Eclipse";
+    --fg-header-bg: #1a1e36;
+    --fg-header-border: #293156;
+    --fg-sidebar-bg: #121526;
+    --fg-sidebar-hover: #232949;
+    --fg-sidebar-border: #1a1e36;
+    --fg-selection: #313966;
+    --fg-selection-text: #fde047;
+    --fg-selection-border: #fbbf24;
+    --fg-primary: #fbbf24;
+    --fg-primary-hover: #f59e0b;
+    --fg-primary-text: #2d1802;
+    --fg-accent: #fde047;
+    --fg-bg-main: #0a0c17;
+    --fg-card-bg: #13172b;
+    --fg-card-header: #1c213d;
+    --fg-border: #293156;
+    --fg-border-subtle: #1e2440;
+    --fg-text-main: #fefce8;
+    --fg-text-muted: #fef08a;
+    --fg-text-dim: #fde047;
+    --fg-input-bg: #0d1020;
+    --fg-input-border: #384273;
+    --fg-table-header-bg: #171b32;
+    --fg-table-row-hover: #202644;
+    --fg-table-row-alt: #0f1222;
+    --fg-crit: #f43f5e;
+    --fg-crit-bg: rgba(244, 63, 94, 0.15);
+    --fg-crit-border: #be123c;
+    --fg-high: #fb923c;
+    --fg-high-bg: rgba(251, 146, 60, 0.15);
+    --fg-high-border: #c2410c;
+    --fg-med: #fbbf24;
+    --fg-med-bg: rgba(251, 191, 36, 0.15);
+    --fg-med-border: #d97706;
+    --fg-low: #38bdf8;
+    --fg-low-bg: rgba(56, 189, 248, 0.15);
+    --fg-low-border: #0369a1;
+    --fg-info: #94a3b8;
+    --fg-info-bg: rgba(148, 163, 184, 0.15);
+    --fg-info-border: #475569;
+}
+
+/* Backward compatibility aliases */
 :root {
-    --cyber-dark: #0a0d14;
-    --cyber-card: #111726;
-    --cyber-border: #1e293b;
-    --cyber-accent: #06b6d4;
-    --cyber-neon: #10b981;
-    --cyber-danger: #f43f5e;
-    --cyber-warning: #f59e0b;
+    --cyber-dark: var(--fg-header-bg);
+    --cyber-card: var(--fg-card-bg);
+    --cyber-border: var(--fg-border);
+    --cyber-accent: var(--fg-accent);
+    --cyber-neon: var(--fg-primary);
+    --cyber-danger: var(--fg-crit);
+    --cyber-warning: var(--fg-high);
     --cyber-purple: #a855f7;
 }
 
-/* Global Reset & Box Sizing */
+/* 2. BASE STRUCTURAL RESET */
 *, *::before, *::after {
     box-sizing: border-box;
 }
 
 html {
-    background-color: #07090e;
+    background-color: var(--fg-bg-main) !important;
+    color: var(--fg-text-main) !important;
     color-scheme: dark;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -25,54 +438,424 @@ html {
 body {
     margin: 0;
     padding: 0;
-    background-color: #07090e;
-    color: #e2e8f0;
+    background-color: var(--fg-bg-main) !important;
+    color: var(--fg-text-main) !important;
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     min-height: 100vh;
+    overflow-x: hidden;
+}
+
+/* 3. FORTINET FORTIOS LAYOUT SHELL */
+#forti-app-shell {
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
+    background-color: var(--fg-bg-main);
 }
 
-/* Base Form Controls Styling - Eliminates unstyled white inputs/buttons before Tailwind executes */
-select, input, button, textarea {
-    font-family: inherit;
-    font-size: 0.8125rem;
+/* Top Navigation Bar (Fixed 48px FortiOS Standard) */
+#forti-topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    background-color: var(--fg-header-bg);
+    border-bottom: 1px solid var(--fg-header-border);
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-select, input[type="text"], input[type="search"] {
-    background-color: #0f172a;
-    color: #f8fafc;
-    border: 1px solid #1e293b;
-    border-radius: 0.75rem;
-    padding: 0.5rem 0.75rem;
-    outline: none;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+/* Left Sidebar (240px expanded, 60px collapsed) */
+#forti-sidebar {
+    position: fixed;
+    top: 48px;
+    left: 0;
+    bottom: 0;
+    width: 240px;
+    background-color: var(--fg-sidebar-bg);
+    border-right: 1px solid var(--fg-sidebar-border);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, border-color 0.2s ease;
 }
 
-select:focus, input[type="text"]:focus, input[type="search"]:focus {
-    border-color: #06b6d4;
-    box-shadow: 0 0 0 1px #06b6d4;
+#forti-sidebar.collapsed {
+    width: 60px;
 }
 
-select option {
-    background-color: #0f172a;
-    color: #f8fafc;
+/* Sidebar scrollbar */
+#forti-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+#forti-sidebar::-webkit-scrollbar-thumb {
+    background: var(--fg-border);
+    border-radius: 2px;
 }
 
-button {
+/* Main Workspace Viewport */
+#forti-main-viewport {
+    margin-top: 48px;
+    margin-left: 240px;
+    min-height: calc(100vh - 48px);
+    background-color: var(--fg-bg-main);
+    display: flex;
+    flex-direction: column;
+    transition: margin-left 0.22s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+}
+
+#forti-sidebar.collapsed ~ #forti-main-viewport,
+body.sidebar-collapsed #forti-main-viewport {
+    margin-left: 60px;
+}
+
+/* Contextual Breadcrumb & Action Toolbar */
+#forti-context-header {
+    background-color: var(--fg-card-bg);
+    border-bottom: 1px solid var(--fg-border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    position: sticky;
+    top: 48px;
+    z-index: 30;
+}
+
+/* 4. FORTINET NAVIGATION ITEMS */
+.forti-nav-group-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--fg-text-dim);
+    padding: 12px 16px 4px 16px;
+    white-space: nowrap;
+    opacity: 0.85;
+    transition: opacity 0.2s;
+}
+
+#forti-sidebar.collapsed .forti-nav-group-title {
+    display: none;
+}
+
+.forti-nav-item {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 8px 14px;
+    color: var(--fg-text-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    border-left: 3px solid transparent;
+    background: transparent;
+    text-align: left;
     cursor: pointer;
+    transition: all 0.15s ease;
+    gap: 12px;
+    white-space: nowrap;
+}
+
+.forti-nav-item:hover {
+    background-color: var(--fg-sidebar-hover);
+    color: var(--fg-text-main);
+}
+
+.forti-nav-item.active {
+    background-color: var(--fg-selection) !important;
+    color: var(--fg-selection-text) !important;
+    border-left-color: var(--fg-selection-border) !important;
+    font-weight: 600;
+}
+
+.forti-nav-item i {
+    width: 18px;
+    text-align: center;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.forti-nav-item .nav-badge {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+}
+
+#forti-sidebar.collapsed .forti-nav-item {
+    justify-content: center;
+    padding: 10px 0;
+}
+
+#forti-sidebar.collapsed .forti-nav-item .nav-label,
+#forti-sidebar.collapsed .forti-nav-item .nav-badge,
+#forti-sidebar.collapsed .forti-nav-item .nav-chevron {
+    display: none;
+}
+
+/* 5. FORTIOS CARD & TABLE SYSTEMS */
+.forti-card {
+    background-color: var(--fg-card-bg);
+    border: 1px solid var(--fg-border);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.forti-card-header {
+    background-color: var(--fg-card-header);
+    border-bottom: 1px solid var(--fg-border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+}
+
+.forti-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 12px;
+    color: var(--fg-text-main);
+}
+
+.forti-table th {
+    background-color: var(--fg-table-header-bg);
+    color: var(--fg-text-dim);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--fg-border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.forti-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--fg-border-subtle);
+    background-color: transparent;
+    transition: background-color 0.12s;
+}
+
+.forti-table tr:hover td {
+    background-color: var(--fg-table-row-hover) !important;
+}
+
+.forti-table tr:nth-child(even) td {
+    background-color: var(--fg-table-row-alt);
+}
+
+/* High Density Mode */
+[data-density="compact"] .forti-table th,
+[data-density="compact"] .forti-table td {
+    padding: 4px 8px !important;
+    font-size: 11px !important;
+}
+[data-density="compact"] .forti-card {
+    padding: 10px !important;
+}
+
+/* 6. BUTTONS & INPUTS */
+.forti-btn-primary {
+    background-color: var(--fg-primary) !important;
+    color: var(--fg-primary-text) !important;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     border: none;
-    border-radius: 0.75rem;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
     transition: all 0.15s ease;
 }
 
-/* Cyber Theme Utility Classes */
-.bg-cyber-dark { background-color: #0a0d14 !important; }
-.bg-cyber-card { background-color: #111726 !important; }
-.border-cyber-border { border-color: #1e293b !important; }
+.forti-btn-primary:hover {
+    background-color: var(--fg-primary-hover) !important;
+    filter: brightness(1.08);
+}
 
-.font-mono {
-    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+.forti-btn-secondary {
+    background-color: var(--fg-card-header) !important;
+    color: var(--fg-text-main) !important;
+    border: 1px solid var(--fg-border) !important;
+    font-weight: 500;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.forti-btn-secondary:hover {
+    background-color: var(--fg-selection) !important;
+    border-color: var(--fg-selection-border) !important;
+    color: var(--fg-selection-text) !important;
+}
+
+.forti-input,
+select.forti-input,
+input.forti-input {
+    background-color: var(--fg-input-bg) !important;
+    border: 1px solid var(--fg-input-border) !important;
+    color: var(--fg-text-main) !important;
+    border-radius: 4px !important;
+    font-size: 12px !important;
+    padding: 5px 10px !important;
+    outline: none !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.forti-input:focus {
+    border-color: var(--fg-primary) !important;
+    box-shadow: 0 0 0 1px var(--fg-primary) !important;
+}
+
+/* 7. SEVERITY INDICATORS (FORTINET SOC STANDARD) */
+.forti-badge-crit {
+    background-color: var(--fg-crit-bg);
+    color: var(--fg-crit);
+    border: 1px solid var(--fg-crit-border);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.forti-badge-high {
+    background-color: var(--fg-high-bg);
+    color: var(--fg-high);
+    border: 1px solid var(--fg-high-border);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.forti-badge-med {
+    background-color: var(--fg-med-bg);
+    color: var(--fg-med);
+    border: 1px solid var(--fg-med-border);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.forti-badge-low {
+    background-color: var(--fg-low-bg);
+    color: var(--fg-low);
+    border: 1px solid var(--fg-low-border);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.forti-badge-info {
+    background-color: var(--fg-info-bg);
+    color: var(--fg-info);
+    border: 1px solid var(--fg-info-border);
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 8. OVERRIDE CLASSES FOR EXISTING TAILWIND CARDS TO RESPOND DYNAMICALLY */
+.bg-cyber-dark { background-color: var(--fg-bg-main) !important; }
+.bg-cyber-card { background-color: var(--fg-card-bg) !important; }
+.border-cyber-border { border-color: var(--fg-border) !important; }
+.text-cyan-400, .text-teal-400 { color: var(--fg-accent) !important; }
+.bg-slate-900 { background-color: var(--fg-card-header) !important; }
+.bg-slate-800 { background-color: var(--fg-card-bg) !important; }
+.border-slate-800, .border-slate-700 { border-color: var(--fg-border) !important; }
+
+/* Modal Backdrop & Dialog Theming */
+.modal-backdrop-forti {
+    background-color: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(2px);
+}
+
+.modal-content-forti {
+    background-color: var(--fg-card-bg) !important;
+    border: 1px solid var(--fg-border) !important;
+    color: var(--fg-text-main) !important;
+    border-radius: 6px !important;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Tooltip on collapsed sidebar */
+[data-forti-tooltip] {
+    position: relative;
+}
+#forti-sidebar.collapsed [data-forti-tooltip]:hover::after {
+    content: attr(data-forti-tooltip);
+    position: absolute;
+    left: 64px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    white-space: nowrap;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+
+/* Pulse animation for service health indicator */
+@keyframes fortiPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+}
+.forti-pulse-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    animation: fortiPulse 2s infinite ease-in-out;
 }
 
 /* Custom Scrollbars */
@@ -81,33 +864,33 @@ button {
     height: 6px;
 }
 ::-webkit-scrollbar-track {
-    background: #07090e;
+    background: var(--fg-bg-main);
 }
 ::-webkit-scrollbar-thumb {
-    background: #1e293b;
+    background: var(--fg-border);
     border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #334155;
+    background: var(--fg-selection-border);
 }
 
-/* Navigation & Header Structural Resets */
-header {
-    background-color: rgba(10, 13, 20, 0.95);
-    border-bottom: 1px solid #1e293b;
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    #forti-sidebar {
+        transform: translateX(-100%);
+    }
+    #forti-sidebar.mobile-open {
+        transform: translateX(0);
+        box-shadow: 4px 0 16px rgba(0, 0, 0, 0.6);
+    }
+    #forti-main-viewport {
+        margin-left: 0 !important;
+    }
 }
-
-/* Badges & Accents */
-.badge-crit { background-color: rgba(136, 19, 55, 0.6); color: #fda4af; border: 1px solid #e11d48; }
-.badge-high { background-color: rgba(120, 53, 15, 0.6); color: #fde68a; border: 1px solid #d97706; }
-.badge-med  { background-color: rgba(19, 78, 74, 0.6); color: #99f6e4; border: 1px solid #0d9488; }
-.badge-low  { background-color: rgba(30, 41, 59, 0.6); color: #94a3b8; border: 1px solid #475569; }
 
 /* Print Overrides */
 @media print {
-    body { background-color: #ffffff !important; color: #000000 !important; }
-    header, .no-print { display: none !important; }
-    .bg-cyber-card, .bg-slate-900 { background-color: #ffffff !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; }
-    .text-white { color: #0f172a !important; }
-    .text-slate-400, .text-slate-300 { color: #475569 !important; }
+    #forti-topbar, #forti-sidebar, .no-print { display: none !important; }
+    #forti-main-viewport { margin: 0 !important; padding: 0 !important; }
+    body { background: #ffffff !important; color: #000000 !important; }
 }

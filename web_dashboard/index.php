@@ -9,7 +9,9 @@
     <!-- Local FontAwesome 6.5.1 -->
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
     <!-- Local Tailwind Engine -->
-    <script src="assets/js/tailwindcss.min.js">
+    <!-- Local Tailwind Engine -->
+    <script src="assets/js/tailwindcss.min.js"></script>
+    <script>
         // =============================================================
         // STAGE 3 CLIENT-SIDE CONTROLLERS (Connectors, Scope, Cloud, AI)
         // =============================================================
@@ -526,62 +528,291 @@
         #network-canvas { width: 100%; height: 580px; background: radial-gradient(circle at center, #0f172a 0%, #07090e 100%); }
     </style>
 </head>
-<body class="text-slate-200 min-h-screen flex flex-col antialiased selection:bg-cyan-500 selection:text-black">
+<body class="text-slate-200 min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-black">
 
-    <!-- Top Navigation Bar -->
-    <header class="border-b border-cyber-border bg-cyber-dark/90 backdrop-blur sticky top-0 z-50 no-print">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-emerald-400 flex items-center justify-center text-black font-extrabold text-xl shadow-lg shadow-cyan-500/20">
+    <!-- Main FortiOS Shell Container -->
+    <div id="forti-app-shell">
+
+    <!-- Fortinet FortiOS 7.4.13 Top Navigation Bar -->
+    <header id="forti-topbar" class="no-print">
+        <!-- Left: Hamburger toggle + Branding -->
+        <div class="flex items-center gap-3">
+            <button onclick="toggleFortiSidebar()" class="w-8 h-8 rounded flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 transition" title="Contraer/Expandir Menú de Navegación [Ctrl+B]">
+                <i class="fa-solid fa-bars text-sm"></i>
+            </button>
+            <div class="flex items-center gap-2 cursor-pointer" onclick="switchTab('easm')">
+                <div class="w-7 h-7 rounded bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-black font-extrabold text-sm shadow">
                     <i class="fa-solid fa-shield-halved"></i>
                 </div>
-                <div>
-                    <div class="flex items-center gap-2">
-                        <span class="font-extrabold text-lg tracking-tight text-white">Open<span class="text-cyan-400">Recon</span></span>
-                        <span class="px-2 py-0.5 text-[10px] font-bold tracking-wider uppercase bg-cyan-950 text-cyan-400 border border-cyan-800/60 rounded">EASM &bull; DRP &bull; CTI</span>
+                <div class="flex flex-col">
+                    <div class="flex items-center gap-1.5 leading-none">
+                        <span class="font-extrabold text-sm tracking-tight text-white">Open<span style="color:var(--fg-accent)">Recon</span></span>
+                        <span class="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-black/40 border border-white/10 text-emerald-400 flex items-center gap-1">
+                            <span class="forti-pulse-dot"></span> v7.4.13
+                        </span>
                     </div>
-                    <p class="text-[11px] text-slate-400">Alternativa Abierta a FortiRecon, Cortex Xpanse & Recorded Future</p>
+                    <span class="text-[9px] text-slate-400 font-mono tracking-wider">ENTERPRISE EASM & DRP CONSOLE</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Center: Search + Perimeter VDOM Selector -->
+        <div class="hidden md:flex items-center gap-3">
+            <!-- Global Search -->
+            <div class="relative w-64 lg:w-80">
+                <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
+                <input id="forti-global-search" type="search" placeholder="Buscar activos, CVEs, IPs, IoCs... [Ctrl+K]" oninput="handleGlobalSearch(this.value)" class="forti-input w-full pl-8 pr-12 text-xs h-7 rounded" autocomplete="off" />
+                <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1">Ctrl+K</span>
+            </div>
+
+            <!-- Dynamic Seed Selector (VDOM Style) -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-black/30 border border-white/10 shadow-inner">
+                <i class="fa-solid fa-crosshairs text-xs" style="color:var(--fg-accent)"></i>
+                <span class="text-[11px] text-slate-400 font-semibold">Perímetro:</span>
+                <select id="active-seed-selector" onchange="onActiveSeedChange(this.value)" class="bg-transparent text-white font-mono text-xs font-bold focus:outline-none cursor-pointer">
+                    <option value="ALL" class="bg-slate-900 text-white">Cargando semillas...</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Right: Actions, Density, Theme Selector & Analyst Profile -->
+        <div class="flex items-center gap-2">
+            <!-- Quick Action: Scan -->
+            <button id="btn-scan" onclick="triggerScan()" class="forti-btn-primary h-7 text-xs px-2.5 rounded font-semibold" title="Iniciar análisis perimetral asíncrono">
+                <i id="scan-icon" class="fa-solid fa-radar text-xs"></i>
+                <span id="scan-text" class="hidden sm:inline">Escanear</span>
+            </button>
+
+            <!-- Quick Action: CTI Sync -->
+            <button onclick="syncCti()" class="forti-btn-secondary h-7 text-xs px-2 rounded" title="Sincronizar feeds de inteligencia de amenazas (CTI, CISA KEV, Ransomwatch)">
+                <i id="sync-icon" class="fa-solid fa-arrows-rotate text-xs"></i>
+                <span class="hidden xl:inline">Sync CTI</span>
+            </button>
+
+            <!-- Quick Action: Report PDF -->
+            <a id="btn-report-link" href="report.php" target="_blank" class="forti-btn-secondary h-7 text-xs px-2 rounded" title="Generar Informe Ejecutivo Formal PDF">
+                <i class="fa-solid fa-file-pdf text-rose-400 text-xs"></i>
+                <span class="hidden xl:inline">Reporte</span>
+            </a>
+
+            <!-- Quick Action: Roadmap -->
+            <button onclick="openPlanModal()" class="forti-btn-secondary h-7 text-xs px-2 rounded" title="Ver plan de trabajo y hoja de ruta">
+                <i class="fa-solid fa-list-check text-xs"></i>
+                <span class="hidden 2xl:inline">Roadmap</span>
+            </button>
+
+            <div class="h-4 w-px bg-white/10 mx-1 hidden sm:block"></div>
+
+            <!-- Density Toggle -->
+            <button onclick="toggleDensity()" id="density-btn" class="w-7 h-7 rounded flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 transition" title="Alternar Densidad de Información (Compacto/Normal)">
+                <i class="fa-solid fa-table-cells-large text-xs"></i>
+            </button>
+
+            <!-- Theme Selector Dropdown -->
+            <div class="relative inline-block text-left" id="theme-dropdown-container">
+                <button onclick="toggleThemeDropdown()" class="forti-btn-secondary h-7 text-xs px-2 rounded flex items-center gap-1.5" title="Seleccionar Tema Visual Fortinet">
+                    <i class="fa-solid fa-palette text-xs" style="color:var(--fg-accent)"></i>
+                    <span id="current-theme-label" class="hidden lg:inline font-mono text-[11px]">Jade</span>
+                    <i class="fa-solid fa-caret-down text-[10px]"></i>
+                </button>
+                <div id="theme-dropdown-menu" class="hidden absolute right-0 mt-1 w-56 rounded-md shadow-2xl border border-slate-700 bg-slate-900 z-50 text-xs py-1.5">
+                    <div class="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
+                        Temas Oficiales FortiOS
+                    </div>
+                    <button onclick="applyTheme('jade')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Jade (Fortinet Green)</span>
+                        <i id="theme-check-jade" class="fa-solid fa-check text-emerald-400 text-xs"></i>
+                    </button>
+                    <button onclick="applyTheme('neutrino')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-cyan-500 inline-block"></span> Neutrino (Electric Cyan)</span>
+                        <i id="theme-check-neutrino" class="fa-solid fa-check text-cyan-400 text-xs hidden"></i>
+                    </button>
+                    <button onclick="applyTheme('mariner')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-600 inline-block"></span> Mariner (Navy Blue)</span>
+                        <i id="theme-check-mariner" class="fa-solid fa-check text-blue-400 text-xs hidden"></i>
+                    </button>
+                    <button onclick="applyTheme('graphite')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-400 inline-block"></span> Graphite (Charcoal Steel)</span>
+                        <i id="theme-check-graphite" class="fa-solid fa-check text-slate-300 text-xs hidden"></i>
+                    </button>
+                    <button onclick="applyTheme('melongene')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-purple-500 inline-block"></span> Melongene (Aubergine)</span>
+                        <i id="theme-check-melongene" class="fa-solid fa-check text-purple-400 text-xs hidden"></i>
+                    </button>
+                    <button onclick="applyTheme('retro')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> Retro (Terminal Amber)</span>
+                        <i id="theme-check-retro" class="fa-solid fa-check text-amber-400 text-xs hidden"></i>
+                    </button>
+                    <button onclick="applyTheme('darkmatter')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-teal-400 inline-block"></span> Dark Matter (Void Teal)</span>
+                        <i id="theme-check-darkmatter" class="fa-solid fa-check text-teal-400 text-xs hidden"></i>
+                    </button>
+                    <button onclick="applyTheme('onyx')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-zinc-200 inline-block"></span> Onyx (Obsidian Platinum)</span>
+                        <i id="theme-check-onyx" class="fa-solid fa-check text-zinc-200 text-xs hidden"></i>
+                    </button>
+                    <button onclick="applyTheme('eclipse')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-yellow-400 inline-block"></span> Eclipse (Midnight Gold)</span>
+                        <i id="theme-check-eclipse" class="fa-solid fa-check text-yellow-400 text-xs hidden"></i>
+                    </button>
+                    <div class="border-t border-slate-800 my-1"></div>
+                    <button onclick="openThemeCustomizer()" class="w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-slate-800 text-teal-300 font-semibold">
+                        <i class="fa-solid fa-sliders text-xs"></i>
+                        <span>Personalizar Colores...</span>
+                    </button>
                 </div>
             </div>
 
-            <!-- Actions & Seed Selector -->
-            <div class="flex items-center gap-3">
-                
-                <!-- Dynamic Seed Switcher -->
-                <div class="flex items-center gap-1.5 bg-slate-900/90 border border-cyan-700/60 px-3 py-1.5 rounded-xl shadow-sm">
-                    <i class="fa-solid fa-crosshairs text-cyan-400 text-xs"></i>
-                    <span class="text-[11px] text-slate-400 font-semibold hidden sm:inline">Perímetro:</span>
-                    <select id="active-seed-selector" onchange="onActiveSeedChange(this.value)" class="bg-transparent text-white font-mono text-xs font-bold focus:outline-none cursor-pointer">
-                        <option value="ALL" class="bg-slate-900 text-white">Cargando semillas...</option>
-                    </select>
+            <!-- Analyst Profile Pill -->
+            <div class="flex items-center gap-2 pl-2 border-l border-white/10">
+                <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-slate-700 to-slate-900 border border-slate-600 flex items-center justify-center text-slate-200 font-bold text-xs" title="Analista SOC en Sesión">
+                    <i class="fa-solid fa-user-shield text-[11px]"></i>
                 </div>
-
-                <button onclick="openPlanModal()" class="px-3 py-1.5 rounded-xl bg-blue-950/70 hover:bg-blue-900/70 text-blue-300 font-semibold text-xs border border-blue-800/60 transition flex items-center gap-1.5" title="Ver plan de trabajo y hoja de ruta">
-                    <i class="fa-solid fa-list-check text-blue-400"></i>
-                    <span class="hidden md:inline">Plan de Trabajo</span>
-                </button>
-
-                <button onclick="syncCti()" class="px-3 py-1.5 rounded-xl bg-purple-950/60 hover:bg-purple-900/60 text-purple-300 font-medium text-xs border border-purple-800/50 transition flex items-center gap-1.5" title="Sincronizar feeds de Dark Web y C2 Botnets">
-                    <i id="sync-icon" class="fa-solid fa-arrows-rotate text-purple-400"></i>
-                    <span class="hidden md:inline">Sincronizar CTI</span>
-                </button>
-
-                <a id="btn-report-link" href="report.php" target="_blank" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs border border-cyber-border transition flex items-center gap-1.5" title="Abrir Reporte Ejecutivo Formal para Dirección/CISO">
-                    <i class="fa-solid fa-file-pdf text-rose-400"></i>
-                    <span class="hidden sm:inline">Reporte</span>
-                </a>
-
-                <button id="btn-scan" onclick="triggerScan()" class="relative group px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold text-xs shadow-lg shadow-cyan-500/25 hover:from-cyan-400 hover:to-blue-500 transition-all flex items-center gap-2 cursor-pointer">
-                    <i id="scan-icon" class="fa-solid fa-radar text-black group-hover:rotate-45 transition-transform"></i>
-                    <span id="scan-text">Escanear</span>
-                </button>
+                <div class="hidden xl:flex flex-col text-left leading-tight">
+                    <span id="analyst-name" class="font-bold text-xs text-white">admin</span>
+                    <span class="text-[9px] text-emerald-400 font-mono">SecOps_Lead</span>
+                </div>
             </div>
         </div>
     </header>
 
-    <!-- Main Container -->
-    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
+    <!-- Fortinet FortiOS 7.4.13 Left Navigation Tree -->
+    <aside id="forti-sidebar" class="no-print">
+        <div class="py-2 flex-1 overflow-y-auto">
+
+            <!-- Category: DASHBOARD -->
+            <div class="forti-nav-group-title">Dashboard & Topología</div>
+            <button onclick="switchTab('easm')" id="tab-btn-easm" class="forti-nav-item active" data-forti-tooltip="Estado Ejecutivo y Activos EASM">
+                <i class="fa-solid fa-server" style="color:var(--fg-accent)"></i>
+                <span class="nav-label">Inventario Activos</span>
+                <span id="nav-badge-assets" class="nav-badge bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono">147</span>
+            </button>
+            <button onclick="switchTab('graph')" id="tab-btn-graph" class="forti-nav-item" data-forti-tooltip="Attack Surface Knowledge Graph">
+                <i class="fa-solid fa-circle-nodes text-indigo-400"></i>
+                <span class="nav-label">Grafo de Amenazas</span>
+                <span class="nav-badge bg-indigo-950 text-indigo-300 border border-indigo-800 font-mono">Vis</span>
+            </button>
+
+            <!-- Category: ATTACK SURFACE (EASM) -->
+            <div class="forti-nav-group-title">Superficie Externa (EASM)</div>
+            <button onclick="switchTab('cloud')" id="tab-btn-cloud" class="forti-nav-item" data-forti-tooltip="Auditoría Cloud & Buckets Públicos">
+                <i class="fa-solid fa-cloud text-blue-400"></i>
+                <span class="nav-label">Exposición Cloud</span>
+                <span id="nav-badge-cloud" class="nav-badge bg-blue-950 text-blue-300 border border-blue-800 font-mono">S3/GCS</span>
+            </button>
+            <button onclick="switchTab('seeds')" id="tab-btn-seeds" class="forti-nav-item" data-forti-tooltip="Semillas y Perímetro Corporativo">
+                <i class="fa-solid fa-crosshairs text-cyan-400"></i>
+                <span class="nav-label">Semillas / Perímetro</span>
+                <span id="nav-badge-seeds" class="nav-badge bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">100</span>
+            </button>
+
+            <!-- Category: VULNERABILITIES -->
+            <div class="forti-nav-group-title">Vulnerabilidades & CTEM</div>
+            <button onclick="switchTab('vulns')" id="tab-btn-vulns" class="forti-nav-item" data-forti-tooltip="Centro de Vulnerabilidades & CISA KEV">
+                <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+                <span class="nav-label">Vulnerabilidades</span>
+                <span id="nav-badge-vulns" class="nav-badge bg-rose-950 text-rose-400 border border-rose-800 font-mono">74</span>
+            </button>
+            <button onclick="switchTab('php2shell')" id="tab-btn-php2shell" class="forti-nav-item" data-forti-tooltip="Escáner PHP2Shell (CVE-2026-109618/19)">
+                <i class="fa-brands fa-php text-purple-400"></i>
+                <span class="nav-label">PHP2Shell Scanner</span>
+                <span class="nav-badge bg-rose-950 text-rose-300 border border-rose-800 font-mono text-[9px]">CVE-2026</span>
+            </button>
+
+            <!-- Category: THREAT INTEL & DRP -->
+            <div class="forti-nav-group-title">Threat Intelligence & DRP</div>
+            <button onclick="switchTab('drp')" id="tab-btn-drp" class="forti-nav-item" data-forti-tooltip="Protección de Marca & Phishing (DRP)">
+                <i class="fa-solid fa-masks-theater text-amber-400"></i>
+                <span class="nav-label">Protección DRP</span>
+                <span id="nav-badge-drp" class="nav-badge bg-amber-950 text-amber-300 border border-amber-800 font-mono">2</span>
+            </button>
+            <button onclick="switchTab('leaks')" id="tab-btn-leaks" class="forti-nav-item" data-forti-tooltip="Fugas de Credenciales y Secretos">
+                <i class="fa-solid fa-key text-yellow-400"></i>
+                <span class="nav-label">Fugas & Secretos</span>
+                <span class="nav-badge bg-slate-900 text-slate-400 border border-slate-700 font-mono">0</span>
+            </button>
+            <button onclick="switchTab('cti')" id="tab-btn-cti" class="forti-nav-item" data-forti-tooltip="Feeds CTI, Ransomware y Actores">
+                <i class="fa-solid fa-user-ninja text-purple-400"></i>
+                <span class="nav-label">Inteligencia CTI</span>
+                <span id="nav-badge-cti" class="nav-badge bg-purple-950 text-purple-300 border border-purple-800 font-mono">163</span>
+            </button>
+
+            <!-- Category: OFFENSIVE OPERATIONS -->
+            <div class="forti-nav-group-title">Operaciones Ofensivas</div>
+            <button onclick="switchTab('strix')" id="tab-btn-strix" class="forti-nav-item" data-forti-tooltip="Sackmesser Suite (Strix & AutoPentestX)">
+                <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+                <span class="nav-label">Sackmesser Pentest</span>
+                <span class="nav-badge bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">PoC</span>
+            </button>
+            <button onclick="switchTab('loginrecon')" id="tab-btn-loginrecon" class="forti-nav-item" data-forti-tooltip="LoginRecon & OSINT de Identidades">
+                <i class="fa-solid fa-id-badge text-sky-400"></i>
+                <span class="nav-label">LoginRecon OSINT</span>
+                <span class="nav-badge bg-sky-950 text-sky-300 border border-sky-800 font-mono">ID</span>
+            </button>
+
+            <!-- Category: FABRIC & AI -->
+            <div class="forti-nav-group-title">Security Fabric & IA</div>
+            <button onclick="switchTab('ai')" id="tab-btn-ai" class="forti-nav-item" data-forti-tooltip="Correlación Asistida por Inteligencia Artificial">
+                <i class="fa-solid fa-brain text-purple-400"></i>
+                <span class="nav-label">Correlación IA</span>
+                <span class="nav-badge bg-purple-950 text-purple-300 border border-purple-800 font-mono">MITRE</span>
+            </button>
+            <button onclick="switchTab('connectors')" id="tab-btn-connectors" class="forti-nav-item" data-forti-tooltip="Conectores OSINT y Proveedores de Inteligencia">
+                <i class="fa-solid fa-plug text-teal-400"></i>
+                <span class="nav-label">Conectores OSINT</span>
+                <span id="nav-badge-connectors" class="nav-badge bg-teal-950 text-teal-300 border border-teal-800 font-mono">16</span>
+            </button>
+
+            <!-- Category: POLICY & OBJECTS -->
+            <div class="forti-nav-group-title">Políticas & Control</div>
+            <button onclick="switchTab('scope')" id="tab-btn-scope" class="forti-nav-item" data-forti-tooltip="Alcance Autorizado & Protección Anti-SSRF">
+                <i class="fa-solid fa-shield-halved text-cyan-400"></i>
+                <span class="nav-label">Alcance & RoE</span>
+                <span id="nav-badge-scope" class="nav-badge bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">198</span>
+            </button>
+
+        </div>
+
+        <!-- Sidebar Footer Toggle -->
+        <div class="p-2 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+            <button onclick="toggleFortiSidebar()" class="w-full py-1.5 rounded flex items-center justify-center gap-2 hover:bg-white/10 hover:text-white transition" title="Alternar Barra Lateral [Ctrl+B]">
+                <i id="sidebar-toggle-icon" class="fa-solid fa-angles-left"></i>
+                <span class="nav-label font-mono text-[11px]">Contraer Menú</span>
+            </button>
+        </div>
+    </aside>
+
+        <!-- Main Workspace Viewport -->
+        <div id="forti-main-viewport">
+
+        <!-- Contextual Breadcrumb & Status Bar -->
+        <div id="forti-context-header" class="no-print">
+            <div class="flex items-center gap-2 text-xs">
+                <span class="text-slate-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-cubes text-slate-500"></i>
+                    <span>OpenRecon</span>
+                </span>
+                <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+                <span id="bc-category" class="text-slate-400 font-medium">Dashboard & Topología</span>
+                <i class="fa-solid fa-chevron-right text-[10px] text-slate-500"></i>
+                <span id="bc-module" class="font-bold" style="color:var(--fg-accent)">Inventario Activos</span>
+            </div>
+
+            <div class="flex items-center gap-3 text-xs">
+                <div class="flex items-center gap-1 text-[11px] text-slate-400">
+                    <i class="fa-solid fa-circle-check text-emerald-400 text-[10px]"></i>
+                    <span>Estado: <strong>Operacional</strong></span>
+                </div>
+                <div class="h-3 w-px bg-slate-700"></div>
+                <button onclick="refreshAllData()" class="text-slate-400 hover:text-white flex items-center gap-1 text-[11px] transition">
+                    <i class="fa-solid fa-arrow-rotate-right text-[10px]"></i>
+                    <span>Actualizar</span>
+                </button>
+            </div>
+        </div>
+
+            <main class="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         <!-- Top Banner: Executive Posture & KPIs -->
         <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
@@ -674,68 +905,7 @@
             </div>
         </section>
 
-        <!-- Navigation Tabs -->
-        <div class="flex items-center gap-2 border-b border-cyber-border overflow-x-auto pb-1 text-sm font-medium no-print">
-            <button onclick="switchTab('easm')" id="tab-btn-easm" class="tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition">
-                <i class="fa-solid fa-globe"></i>
-                Superficie de Ataque (EASM)
-            </button>
-            <button onclick="switchTab('graph')" id="tab-btn-graph" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
-                <i class="fa-solid fa-diagram-project"></i>
-                Topología de Ataque (Grafo)
-            </button>
-            <button onclick="switchTab('vulns')" id="tab-btn-vulns" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
-                <i class="fa-solid fa-shield-virus"></i>
-                Exposición y Remediación
-            </button>
-            <button onclick="switchTab('drp')" id="tab-btn-drp" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
-                <i class="fa-solid fa-masks-theater"></i>
-                Protección Digital (DRP)
-            </button>
-            <button onclick="switchTab('leaks')" id="tab-btn-leaks" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
-                <i class="fa-solid fa-key text-amber-400"></i>
-                Fugas y Secretos
-            </button>
-            <button onclick="switchTab('cti')" id="tab-btn-cti" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
-                <i class="fa-solid fa-user-ninja text-purple-400"></i>
-                Inteligencia de Amenazas (CTI)
-            </button>
-            <button onclick="switchTab('seeds')" id="tab-btn-seeds" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition">
-                <i class="fa-solid fa-crosshairs"></i>
-                Semillas / Dominios
-            </button>
-            <button onclick="switchTab('strix')" id="tab-btn-strix" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Suite de pentesting interactivo, PoCs reproducibles y herramientas ofensivas (Strix & AutoPentestX)">
-                <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
-                Sackmesser (Strix & AutoPentestX)
-            </button>
-            <button onclick="switchTab('loginrecon')" id="tab-btn-loginrecon" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Reconocimiento OSINT de identidades, usuarios y huella digital multiplataforma (UserRecon)">
-                <i class="fa-solid fa-id-badge text-sky-400"></i>
-                LoginRecon
-            </button>
-            <button onclick="switchTab('php2shell')" id="tab-btn-php2shell" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Escáner pasivo y verificación de vulnerabilidad PHP2Shell (CVE-2026-109618 / CVE-2026-109619)">
-                <i class="fa-brands fa-php text-indigo-400 text-lg"></i>
-                <span>PHP2Shell Scanner</span>
-                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-950 text-rose-300 border border-rose-800/80 animate-pulse">CVE-2026</span>
-            </button>
-            <button onclick="switchTab('connectors')" id="tab-btn-connectors" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Centro de gestión de conectores OSINT, CTI y proveedores de inteligencia">
-                <i class="fa-solid fa-plug text-teal-400"></i>
-                <span>Conectores OSINT</span>
-            </button>
-            <button onclick="switchTab('scope')" id="tab-btn-scope" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Control de alcance autorizado y protección perimetral Anti-SSRF">
-                <i class="fa-solid fa-shield-halved text-cyan-400"></i>
-                <span>Alcance & RoE</span>
-            </button>
-            <button onclick="switchTab('cloud')" id="tab-btn-cloud" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Auditoría de buckets públicos en AWS S3, Azure Blob y GCP Storage">
-                <i class="fa-solid fa-cloud text-blue-400"></i>
-                <span>Exposición Cloud</span>
-            </button>
-            <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Correlación ejecutiva asistida por IA con citas de evidencia verificables y MITRE ATT&CK">
-                <i class="fa-solid fa-brain text-purple-400"></i>
-                <span>Correlación IA</span>
-            </button>
-        </div>
 
-        <!-- TAB CONTENT: EASM (Assets) -->
         <section id="tab-content-easm" class="space-y-4">
             <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div>
@@ -840,26 +1010,59 @@
                     </h3>
                     <p class="text-xs text-slate-400">Gestiona y mitiga los hallazgos perimetrales. Al marcar un hallazgo como "Mitigado", se recupera la puntuación de exposición.</p>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2 flex-wrap">
                     <button onclick="exportVulnsCsv()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-cyber-border text-xs font-semibold flex items-center gap-1.5 transition">
                         <i class="fa-solid fa-file-csv text-emerald-400"></i>
                         <span>Exportar CSV</span>
                     </button>
-                    <button onclick="runVulnerabilityScan()" class="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-900/40 flex items-center gap-1.5 transition">
+                    <button onclick="runBatchPerimeterValidation()" id="btn-batch-validate" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-900/40 flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                        <span>Validar Perímetro (Batch)</span>
+                    </button>
+                    <button onclick="runVulnerabilityScan()" class="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-900/40 flex items-center gap-1.5 transition">
                         <i class="fa-solid fa-shield-virus"></i>
                         <span>Re-escanear Perímetro</span>
                     </button>
                 </div>
             </div>
 
+            <!-- VulnValidator Real-Time Metrics Bar -->
+            <div id="vuln-validator-metrics-bar" class="grid grid-cols-2 sm:grid-cols-5 gap-3 p-3 bg-cyber-card border border-cyber-border rounded-xl">
+                <div class="p-2.5 bg-slate-900/60 rounded-lg border border-slate-800/80">
+                    <span class="text-[10px] text-slate-400 font-medium block">Total Hallazgos</span>
+                    <span id="vmb-total" class="text-base font-bold text-white font-mono">0</span>
+                </div>
+                <div class="p-2.5 bg-rose-950/30 rounded-lg border border-rose-800/40">
+                    <span class="text-[10px] text-rose-300 font-medium block">Confirmadas</span>
+                    <span id="vmb-confirmed" class="text-base font-bold text-rose-400 font-mono">0</span>
+                </div>
+                <div class="p-2.5 bg-slate-900/80 rounded-lg border border-slate-700/60">
+                    <span class="text-[10px] text-slate-300 font-medium block">Falsos Positivos</span>
+                    <div class="flex items-baseline gap-1.5">
+                        <span id="vmb-fp" class="text-base font-bold text-slate-200 font-mono">0</span>
+                        <span id="vmb-fp-pct" class="text-[10px] text-cyan-400 font-mono font-bold">(0%)</span>
+                    </div>
+                </div>
+                <div class="p-2.5 bg-cyan-950/30 rounded-lg border border-cyan-800/40">
+                    <span class="text-[10px] text-cyan-300 font-medium block">Mitigadas</span>
+                    <span id="vmb-mitigated" class="text-base font-bold text-cyan-400 font-mono">0</span>
+                </div>
+                <div class="p-2.5 bg-emerald-950/30 rounded-lg border border-emerald-800/40">
+                    <span class="text-[10px] text-emerald-300 font-medium block">Certeza Promedio</span>
+                    <span id="vmb-avg-conf" class="text-base font-bold text-emerald-400 font-mono">--%</span>
+                </div>
+            </div>
+
             <!-- Filter and Search Toolbar -->
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-cyber-card border border-cyber-border rounded-xl p-3">
                 <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="vuln-severity-filters">
-                    <button onclick="filterVulnsBySeverity('ALL')" id="vuln-filter-ALL" class="px-3 py-1 rounded-lg text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 transition">Todas (<span id="count-vuln-all">0</span>)</button>
-                    <button onclick="filterVulnsBySeverity('HIGH')" id="vuln-filter-HIGH" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Altas (<span id="count-vuln-high">0</span>)</button>
-                    <button onclick="filterVulnsBySeverity('MEDIUM')" id="vuln-filter-MEDIUM" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Medias (<span id="count-vuln-med">0</span>)</button>
-                    <button onclick="filterVulnsBySeverity('LOW')" id="vuln-filter-LOW" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Bajas (<span id="count-vuln-low">0</span>)</button>
-                    <button onclick="filterVulnsBySeverity('RESOLVED')" id="vuln-filter-RESOLVED" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Mitigadas (<span id="count-vuln-res">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('ALL')" id="vuln-filter-ALL" class="px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 transition">Todas (<span id="count-vuln-all">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('HIGH')" id="vuln-filter-HIGH" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Altas (<span id="count-vuln-high">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('MEDIUM')" id="vuln-filter-MEDIUM" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Medias (<span id="count-vuln-med">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('LOW')" id="vuln-filter-LOW" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Bajas (<span id="count-vuln-low">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('CONFIRMADA')" id="vuln-filter-CONFIRMADA" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-emerald-400 hover:text-emerald-300 border border-transparent hover:border-emerald-800/60 transition">Confirmadas (<span id="count-vuln-confirmed">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('FALSO_POSITIVO')" id="vuln-filter-FALSO_POSITIVO" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 border border-transparent hover:border-slate-700 transition">Falsos Positivos (<span id="count-vuln-fp">0</span>)</button>
+                    <button onclick="filterVulnsBySeverity('RESOLVED')" id="vuln-filter-RESOLVED" class="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition">Mitigadas (<span id="count-vuln-res">0</span>)</button>
                 </div>
 
                 <div class="relative w-full sm:w-64">
@@ -2283,23 +2486,31 @@
 
                 <form onsubmit="runPhp2shellScan(event); return false;" class="space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
-                        <!-- Target Input -->
+                        <!-- Target Selection (Only Preloaded Seeds) -->
                         <div class="md:col-span-6 space-y-1.5">
                             <label class="text-xs font-semibold text-slate-300 flex items-center justify-between">
-                                <span>Objetivo a Auditar (IP, Dominio o Red):</span>
-                                <span class="text-[10px] text-slate-400">Ej: vulnweb.com, 127.0.0.1, 10.0.0.0/24</span>
+                                <span class="flex items-center gap-1.5">
+                                    <i class="fa-solid fa-crosshairs text-indigo-400"></i>
+                                    <span>Objetivo a Auditar (Semilla Precargada):</span>
+                                </span>
+                                <span class="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                                    <i class="fa-solid fa-shield-halved text-[9px]"></i>
+                                    <span>Alcance Autorizado Exclusivo</span>
+                                </span>
                             </label>
                             <div class="relative">
-                                <i class="fa-solid fa-crosshairs absolute left-3.5 top-3 text-slate-400 text-xs"></i>
-                                <input type="text" id="php2shell-target-input" required placeholder="Ingresa dominio, IP o CIDR (ej: 127.0.0.1)"
-                                    class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition font-mono">
+                                <i class="fa-solid fa-server absolute left-3.5 top-3.5 text-indigo-400 text-xs"></i>
+                                <select id="php2shell-target-select" onchange="onPhp2shellSeedSelect(this.value)"
+                                    class="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900 border border-cyber-border text-xs text-white focus:outline-none focus:border-indigo-500 transition font-mono cursor-pointer font-bold">
+                                    <option value="" class="bg-slate-900 text-slate-400">Cargando semillas precargadas del perímetro...</option>
+                                </select>
+                                <input type="hidden" id="php2shell-target-input" value="">
                             </div>
                             <div class="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
-                                <span class="text-slate-400">Accesos rápidos:</span>
-                                <button type="button" onclick="setPhp2shellTarget('127.0.0.1')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono border border-slate-700 transition">127.0.0.1</button>
-                                <button type="button" onclick="setPhp2shellTarget('testphp.vulnweb.com')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono border border-slate-700 transition">testphp.vulnweb.com</button>
-                                <button type="button" onclick="setPhp2shellTarget('vulnweb.com')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-indigo-300 font-mono border border-slate-700 transition">vulnweb.com</button>
-                                <button type="button" onclick="setPhp2shellTarget('currentSeed')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono border border-slate-700 transition">Semilla Activa</button>
+                                <span class="text-slate-400 font-semibold">Semillas precargadas autorizadas:</span>
+                                <div id="php2shell-quick-seeds" class="flex flex-wrap items-center gap-1.5">
+                                    <span class="text-slate-500 italic text-[10px]">Cargando semillas...</span>
+                                </div>
                             </div>
                         </div>
 
@@ -2696,6 +2907,228 @@
             </div>
         </section>
     </main>
+
+            </main>
+        </div>
+    </div>
+
+
+    <!-- Custom Theme Editor Modal (Fortinet Theme Customizer) -->
+    <div id="theme-customizer-modal" class="fixed inset-0 modal-backdrop-forti z-50 flex items-center justify-center p-4 hidden">
+        <div class="modal-content-forti max-w-4xl w-full p-6 shadow-2xl relative max-h-[92vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between pb-3 border-b border-cyber-border">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-black font-bold">
+                        <i class="fa-solid fa-palette text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-base">Editor de Temas Personalizados FortiRecon</h3>
+                        <p class="text-xs text-slate-400">Diseña, personaliza y guarda paletas corporativas exclusivas para tu cuenta de analista.</p>
+                    </div>
+                </div>
+                <button onclick="closeThemeCustomizer()" class="text-slate-400 hover:text-white p-1 rounded">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="py-4 overflow-y-auto flex-1 space-y-5 text-xs">
+                <!-- Theme Name & Base Preset Selection -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-black/20 p-4 rounded-lg border border-cyber-border">
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Nombre del Tema Personalizado</label>
+                        <input type="text" id="custom-theme-name" value="Mi Tema Corporativo" class="forti-input w-full" placeholder="Ej. CyberSec SOC Alpha" />
+                    </div>
+                    <div>
+                        <label class="block text-slate-300 font-semibold mb-1">Cargar Plantilla Base</label>
+                        <select id="custom-theme-base-preset" onchange="loadPresetIntoCustomizer(this.value)" class="forti-input w-full">
+                            <option value="jade">Jade (Verde Fortinet Clásico)</option>
+                            <option value="neutrino">Neutrino (Cian Tecnológico)</option>
+                            <option value="mariner">Mariner (Azul Marino Corporativo)</option>
+                            <option value="graphite">Graphite (Gris Carbón Neutro)</option>
+                            <option value="melongene">Melongene (Púrpura Berenjena)</option>
+                            <option value="retro">Retro (Ámbar Industrial)</option>
+                            <option value="darkmatter">Dark Matter (Negro Profundo & Teal)</option>
+                            <option value="onyx">Onyx (Negro Ónice & Platino)</option>
+                            <option value="eclipse">Eclipse (Azul Noche & Oro)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Color Pickers Grid (12 Tokens) -->
+                <div>
+                    <h4 class="font-bold text-slate-200 uppercase tracking-wider text-[11px] mb-3 flex items-center gap-1.5">
+                        <i class="fa-solid fa-eye-dropper text-teal-400"></i>
+                        <span>Paleta de 12 Tokens de Diseño FortiOS</span>
+                    </h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Barra Superior (Header)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-header-bg" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-header-bg" oninput="syncColorInput('header-bg')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Menú Lateral (Sidebar)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-sidebar-bg" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-sidebar-bg" oninput="syncColorInput('sidebar-bg')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Hover en Menú</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-sidebar-hover" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-sidebar-hover" oninput="syncColorInput('sidebar-hover')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Elemento Activo (Selección)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-selection" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-selection" oninput="syncColorInput('selection')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Botón Primario</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-primary" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-primary" oninput="syncColorInput('primary')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Color de Acento</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-accent" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-accent" oninput="syncColorInput('accent')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Fondo Principal</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-bg-main" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-bg-main" oninput="syncColorInput('bg-main')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Tarjetas & Paneles</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-card-bg" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-card-bg" oninput="syncColorInput('card-bg')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Cabecera de Tarjeta</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-card-header" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-card-header" oninput="syncColorInput('card-header')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Bordes & Separadores</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-border" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-border" oninput="syncColorInput('border')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Texto Principal</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-text-main" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-text-main" oninput="syncColorInput('text-main')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+
+                        <div class="bg-black/30 p-2.5 rounded border border-cyber-border">
+                            <label class="block text-[11px] text-slate-400 mb-1">Texto Secundario</label>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="picker-text-muted" onchange="updateThemePreview()" class="w-8 h-8 rounded cursor-pointer border-0 bg-transparent" />
+                                <input type="text" id="text-text-muted" oninput="syncColorInput('text-muted')" class="forti-input w-20 font-mono text-[11px]" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Real-time Live Interactive Preview -->
+                <div>
+                    <h4 class="font-bold text-slate-200 uppercase tracking-wider text-[11px] mb-2 flex items-center gap-1.5">
+                        <i class="fa-solid fa-desktop text-teal-400"></i>
+                        <span>Previsualización Dinámica en Tiempo Real</span>
+                    </h4>
+                    <div id="theme-preview-box" class="p-4 rounded-lg border overflow-hidden transition-all duration-150 space-y-3">
+                        <!-- Mock Topbar -->
+                        <div id="prev-header" class="p-2.5 rounded flex items-center justify-between border">
+                            <div class="flex items-center gap-2">
+                                <i class="fa-solid fa-shield-halved text-sm" id="prev-accent-icon"></i>
+                                <strong id="prev-header-title">OpenRecon Mockup</strong>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button id="prev-btn-primary" class="px-2.5 py-1 rounded text-xs font-bold">Botón Primario</button>
+                                <span id="prev-badge-crit" class="px-2 py-0.5 rounded text-[10px] font-bold">Crítico</span>
+                            </div>
+                        </div>
+
+                        <!-- Mock Layout: Sidebar + Table -->
+                        <div class="grid grid-cols-12 gap-3">
+                            <div id="prev-sidebar" class="col-span-4 p-2 rounded border space-y-1">
+                                <div class="text-[9px] uppercase font-bold text-slate-400 px-1">Navegación</div>
+                                <div id="prev-nav-active" class="p-1.5 rounded text-xs font-bold flex items-center gap-1.5 border-l-2">
+                                    <i class="fa-solid fa-server text-[10px]"></i>
+                                    <span>Activo Seleccionado</span>
+                                </div>
+                                <div id="prev-nav-normal" class="p-1.5 rounded text-xs text-slate-400 flex items-center gap-1.5">
+                                    <i class="fa-solid fa-crosshairs text-[10px]"></i>
+                                    <span>Elemento Inactivo</span>
+                                </div>
+                            </div>
+
+                            <div id="prev-card" class="col-span-8 p-3 rounded border space-y-2">
+                                <div id="prev-card-hdr" class="font-bold text-xs pb-1 border-b">Panel Administrativo</div>
+                                <div class="text-[11px] leading-relaxed" id="prev-text-sample">
+                                    Previsualización de contraste para analistas SOC. Legibilidad verificada según norma WCAG 2.1 AA.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer Actions -->
+            <div class="pt-3 border-t border-cyber-border flex items-center justify-between flex-wrap gap-2">
+                <div class="flex items-center gap-2">
+                    <button onclick="resetToDefaultTheme()" class="forti-btn-secondary text-xs">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>Restablecer a Jade</span>
+                    </button>
+                    <button onclick="duplicateCustomTheme()" class="forti-btn-secondary text-xs">
+                        <i class="fa-solid fa-clone"></i>
+                        <span>Duplicar Tema</span>
+                    </button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="closeThemeCustomizer()" class="forti-btn-secondary text-xs">
+                        <span>Cancelar</span>
+                    </button>
+                    <button onclick="saveAndApplyCustomTheme()" class="forti-btn-primary text-xs font-bold">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        <span>Guardar y Aplicar</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Work Plan & Roadmap Modal -->
     <div id="plan-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
@@ -3127,6 +3560,83 @@
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- MODAL: EVIDENCIA DE VALIDACIÓN & cURL POc -->
+    <!-- ========================================== -->
+    <div id="vuln-evidence-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+        <div class="bg-cyber-card border border-cyber-border rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-cyber-border flex items-center justify-between bg-slate-900/60">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400">
+                        <i class="fa-solid fa-file-shield text-sm"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-sm" id="ve-title">Evidencia Técnica de Validación</h3>
+                        <p class="text-[11px] text-slate-400 font-mono" id="ve-asset">activo.fdn.com.co</p>
+                    </div>
+                </div>
+                <button onclick="closeVulnEvidenceModal()" class="text-slate-400 hover:text-white transition text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4 text-xs">
+                <!-- Header Status & Confidence -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-cyber-border">
+                        <span class="text-[10px] text-slate-500 uppercase font-bold block mb-1">Estado de Validación</span>
+                        <span id="ve-badge-state" class="px-2 py-0.5 rounded text-xs font-bold font-mono">--</span>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-cyber-border">
+                        <span class="text-[10px] text-slate-500 uppercase font-bold block mb-1">Índice de Certeza</span>
+                        <span id="ve-confidence" class="text-sm font-bold text-cyan-400 font-mono">--%</span>
+                    </div>
+                    <div class="bg-slate-900/80 p-3 rounded-xl border border-cyber-border">
+                        <span class="text-[10px] text-slate-500 uppercase font-bold block mb-1">Método de Comprobación</span>
+                        <span id="ve-method" class="text-xs font-bold text-slate-300 font-mono">--</span>
+                    </div>
+                </div>
+
+                <!-- Justification Verdict -->
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-cyber-border space-y-1.5">
+                    <div class="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                        <i class="fa-solid fa-quote-left text-cyan-400"></i>
+                        <span>Diagnóstico Forense / Justificación:</span>
+                    </div>
+                    <p id="ve-justification" class="text-xs text-slate-300 leading-relaxed font-sans"></p>
+                </div>
+
+                <!-- Reproduction cURL -->
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                            <i class="fa-solid fa-terminal text-emerald-400"></i> Comando cURL Reproducible:
+                        </span>
+                        <button onclick="copyVeCurl()" class="text-[11px] text-emerald-400 hover:text-emerald-300 font-semibold flex items-center gap-1">
+                            <i class="fa-solid fa-copy"></i> Copiar cURL
+                        </button>
+                    </div>
+                    <pre id="ve-curl" class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-emerald-300 font-mono text-[11px] overflow-x-auto whitespace-pre-wrap"></pre>
+                </div>
+
+                <!-- Technical Evidence JSON / Headers -->
+                <div class="space-y-1.5">
+                    <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <i class="fa-solid fa-receipt text-cyan-400"></i> Evidencias Técnicas & Cabeceras Inspeccionadas:
+                    </span>
+                    <pre id="ve-evidence-json" class="bg-slate-950 p-3 rounded-xl border border-slate-800 text-slate-300 font-mono text-[11px] max-h-48 overflow-y-auto whitespace-pre-wrap"></pre>
+                </div>
+            </div>
+
+            <div class="px-6 py-3 border-t border-cyber-border bg-slate-900/60 flex items-center justify-between">
+                <span class="text-[10px] text-slate-500 font-mono" id="ve-timestamp">Validado: --</span>
+                <button onclick="closeVulnEvidenceModal()" class="px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="border-t border-cyber-border py-6 text-center text-xs text-slate-500 no-print">
         <p>OpenRecon &copy; 2026 - Plataforma Libre de Ciberseguridad Defensiva y Exposición Perimetral.</p>
@@ -3182,6 +3692,9 @@
             }
 
             showToast(`Cambiando perímetro a: ${(activeSeed && activeSeed !== 'ALL') ? activeSeed : 'Todas las semillas'}`);
+            if (typeof updatePhp2shellSelectedSeed === 'function') {
+                updatePhp2shellSelectedSeed(activeSeed);
+            }
             populateStrixAssetDropdown();
             refreshAllData();
         }
@@ -3450,24 +3963,35 @@
             const lowCount = rawVulnsList.filter(v => v.severity === 'LOW' && v.status !== 'RESOLVED').length;
             const resCount = rawVulnsList.filter(v => v.status === 'RESOLVED').length;
 
+            const confirmedCount = rawVulnsList.filter(v => (v.validation_state === 'CONFIRMADA' || v.validation_state === 'VALIDADA')).length;
+            const fpCount = rawVulnsList.filter(v => v.validation_state === 'FALSO_POSITIVO').length;
+
             const setElem = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
             setElem('count-vuln-all', allCount);
             setElem('count-vuln-high', highCount);
             setElem('count-vuln-med', medCount);
             setElem('count-vuln-low', lowCount);
             setElem('count-vuln-res', resCount);
+            setElem('count-vuln-confirmed', confirmedCount);
+            setElem('count-vuln-fp', fpCount);
+
+            // Sincronización Dinámica del Menú Lateral Izquierdo (FortiOS 7.4.13)
+            const navBadge = document.getElementById('nav-badge-vulns');
+            if (navBadge) navBadge.innerText = allCount;
+
+            fetchValidationMetrics();
         }
 
         function filterVulnsBySeverity(sev) {
             currentVulnFilter = sev;
-            const buttons = ['ALL', 'HIGH', 'MEDIUM', 'LOW', 'RESOLVED'];
+            const buttons = ['ALL', 'HIGH', 'MEDIUM', 'LOW', 'CONFIRMADA', 'FALSO_POSITIVO', 'RESOLVED'];
             buttons.forEach(b => {
                 const el = document.getElementById(`vuln-filter-${b}`);
                 if (el) {
                     if (b === sev) {
-                        el.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 transition';
+                        el.className = 'px-2.5 py-1 rounded-lg text-xs font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 transition';
                     } else {
-                        el.className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition';
+                        el.className = 'px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-white border border-transparent hover:border-cyber-border transition';
                     }
                 }
             });
@@ -3479,9 +4003,15 @@
             const q = searchInput ? searchInput.value.toLowerCase().trim() : '';
 
             let filtered = rawVulnsList.filter(v => {
-                // Severity / Status filter
+                const valState = (v.validation_state || 'POTENCIAL').toUpperCase();
+                
+                // Severity / Validation Status filter
                 if (currentVulnFilter === 'RESOLVED') {
                     if (v.status !== 'RESOLVED') return false;
+                } else if (currentVulnFilter === 'CONFIRMADA') {
+                    if (valState !== 'CONFIRMADA' && valState !== 'VALIDADA') return false;
+                } else if (currentVulnFilter === 'FALSO_POSITIVO') {
+                    if (valState !== 'FALSO_POSITIVO') return false;
                 } else if (currentVulnFilter !== 'ALL') {
                     if (v.severity !== currentVulnFilter || v.status === 'RESOLVED') return false;
                 }
@@ -3495,6 +4025,165 @@
             });
 
             renderVulnsList(filtered);
+        }
+
+        // ====================================================
+        // VULNVALIDATOR ENGINE - INTERFAZ Y CONTROLADORES
+        // ====================================================
+
+        async function fetchValidationMetrics() {
+            try {
+                const res = await fetch(`${API_URL}?action=get_validation_metrics${getSeedQueryParam()}`);
+                const data = await res.json();
+                if (data && data.success && data.metrics) {
+                    const m = data.metrics;
+                    const setM = (id, val) => { const el = document.getElementById(id); if (el) el.innerText = val; };
+                    setM('vmb-total', m.total || 0);
+                    setM('vmb-confirmed', m.confirmed || 0);
+                    setM('vmb-fp', m.false_positives || 0);
+                    setM('vmb-fp-pct', `(${m.fp_percentage || 0}%)`);
+                    setM('vmb-mitigated', m.mitigated || 0);
+                    setM('vmb-avg-conf', `${m.avg_confidence || 50}%`);
+                }
+            } catch (e) {
+                console.error("Error al obtener métricas de validación:", e);
+            }
+        }
+
+        async function triggerVulnValidation(vulnId) {
+            const btn = document.getElementById(`btn-val-${vulnId}`);
+            const btnText = document.getElementById(`btn-val-text-${vulnId}`);
+            if (btn) btn.disabled = true;
+            if (btnText) btnText.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Validando...';
+
+            try {
+                const formData = new FormData();
+                formData.append('id', vulnId);
+                const res = await fetch(`${API_URL}?action=validate_vulnerability`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data && data.success) {
+                    showToast(`Hallazgo Validado: ${data.validation_state} (Certeza: ${data.confidence_score}%)`);
+                    
+                    // Actualizar objeto en rawVulnsList
+                    const idx = rawVulnsList.findIndex(x => x.id == vulnId);
+                    if (idx !== -1) {
+                        rawVulnsList[idx].validation_state = data.validation_state;
+                        rawVulnsList[idx].confidence_score = data.confidence_score;
+                        rawVulnsList[idx].validation_method = data.validation_method;
+                        rawVulnsList[idx].validation_justification = data.justification;
+                        rawVulnsList[idx].reproduction_curl = data.reproduction_curl;
+                        rawVulnsList[idx].validation_evidence = JSON.stringify(data.evidence);
+                        rawVulnsList[idx].last_validated_at = data.validated_at;
+                    }
+                    updateVulnCounts();
+                    applyVulnFilters();
+                } else {
+                    showToast(data.error || 'No se pudo completar la validación', true);
+                }
+            } catch (err) {
+                showToast('Error de red al conectar con el motor de validación', true);
+            } finally {
+                if (btn) btn.disabled = false;
+                if (btnText) btnText.innerText = 'Validar Hallazgo';
+            }
+        }
+
+        async function runBatchPerimeterValidation() {
+            const btn = document.getElementById('btn-batch-validate');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i> Validando Perímetro...';
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('seed', activeSeed || '');
+                formData.append('limit', 30);
+                const res = await fetch(`${API_URL}?action=batch_validate_vulnerabilities`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await res.json();
+
+                if (data && data.success && data.stats) {
+                    const s = data.stats;
+                    showToast(`Auditoría Finalizada: ${s.false_positives} Falsos Positivos, ${s.confirmed} Confirmadas, ${s.mitigated} Mitigadas.`);
+                    await fetchVulnerabilities();
+                } else {
+                    showToast(data.error || 'Error al ejecutar validación masiva', true);
+                }
+            } catch (e) {
+                showToast('Error de conexión durante la validación masiva', true);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> <span>Validar Perímetro (Batch)</span>';
+                }
+            }
+        }
+
+        let currentEvidenceCurl = '';
+
+        function openVulnEvidenceModal(vulnId) {
+            const v = (rawVulnsList || []).find(x => x.id == vulnId);
+            if (!v) {
+                showToast('No se encontró el registro de evidencia', true);
+                return;
+            }
+
+            document.getElementById('ve-title').innerText = v.title || 'Hallazgo Evaluado';
+            document.getElementById('ve-asset').innerText = v.asset_subdomain || 'host';
+            
+            const badgeEl = document.getElementById('ve-badge-state');
+            const state = (v.validation_state || 'POTENCIAL').toUpperCase();
+            badgeEl.innerText = state;
+            if (state === 'CONFIRMADA' || state === 'VALIDADA') {
+                badgeEl.className = 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-emerald-950 text-emerald-300 border border-emerald-800';
+            } else if (state === 'FALSO_POSITIVO') {
+                badgeEl.className = 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-slate-900 text-slate-300 border border-slate-700';
+            } else if (state === 'MITIGADA') {
+                badgeEl.className = 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-cyan-950 text-cyan-300 border border-cyan-800';
+            } else {
+                badgeEl.className = 'px-2 py-0.5 rounded text-xs font-bold font-mono bg-amber-950 text-amber-300 border border-amber-800';
+            }
+
+            document.getElementById('ve-confidence').innerText = `${v.confidence_score !== undefined ? v.confidence_score : 50}%`;
+            document.getElementById('ve-method').innerText = v.validation_method || 'HEURISTIC_DAST_REVIEW';
+            document.getElementById('ve-justification').innerText = v.validation_justification || v.description || 'Evaluación técnica completada sin anomalías de explotación.';
+            
+            currentEvidenceCurl = v.reproduction_curl || `curl -ILs "https://${v.asset_subdomain}/"`;
+            document.getElementById('ve-curl').innerText = currentEvidenceCurl;
+
+            let evJson = v.validation_evidence || '{}';
+            try {
+                const parsed = JSON.parse(evJson);
+                document.getElementById('ve-evidence-json').innerText = JSON.stringify(parsed, null, 2);
+            } catch (e) {
+                document.getElementById('ve-evidence-json').innerText = evJson;
+            }
+
+            document.getElementById('ve-timestamp').innerText = `Última validación técnica: ${v.last_validated_at || 'Reciente'}`;
+
+            const modal = document.getElementById('vuln-evidence-modal');
+            if (modal) modal.classList.remove('hidden');
+        }
+
+        function closeVulnEvidenceModal() {
+            const modal = document.getElementById('vuln-evidence-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function copyVeCurl() {
+            if (!currentEvidenceCurl) return;
+            navigator.clipboard.writeText(currentEvidenceCurl).then(() => {
+                showToast('Comando cURL copiado al portapapeles');
+            }).catch(() => {
+                showToast('No se pudo copiar automáticamente', true);
+            });
         }
 
         function getVulnStandardTags(v) {
@@ -3621,11 +4310,24 @@
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${badgeColor}">${v.severity}</span>
                                 ${(() => {
                                     const vState = (v.validation_state || 'POTENCIAL').toUpperCase();
-                                    if (vState === 'VALIDADA') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-900 text-rose-200 border border-rose-700 flex items-center gap-1"><i class="fa-solid fa-circle-check"></i>VALIDADA</span>';
-                                    if (vState === 'PROBABLE') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-900 text-amber-200 border border-amber-700 flex items-center gap-1"><i class="fa-solid fa-triangle-exclamation"></i>PROBABLE</span>';
-                                    if (vState === 'FALSO_POSITIVO') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 line-through">FALSO POSITIVO</span>';
-                                    if (vState === 'INFO_INSUFICIENTE') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-800">INFO INSUFICIENTE</span>';
-                                    return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-950 text-yellow-300 border border-yellow-800 flex items-center gap-1"><i class="fa-solid fa-lightbulb"></i>POTENCIAL</span>';
+                                    let b = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-950 text-yellow-300 border border-yellow-800 flex items-center gap-1"><i class="fa-solid fa-lightbulb"></i>POTENCIAL</span>';
+                                    if (vState === 'VALIDADA' || vState === 'CONFIRMADA') {
+                                        b = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1"><i class="fa-solid fa-circle-check"></i>CONFIRMADA</span>';
+                                    } else if (vState === 'FALSO_POSITIVO') {
+                                        b = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-300 border border-slate-700 flex items-center gap-1"><i class="fa-solid fa-ban text-rose-400"></i>FALSO POSITIVO</span>';
+                                    } else if (vState === 'MITIGADA') {
+                                        b = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-800 flex items-center gap-1"><i class="fa-solid fa-shield-check"></i>MITIGADA</span>';
+                                    } else if (vState === 'RIESGO_ACEPTADO') {
+                                        b = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800 flex items-center gap-1"><i class="fa-solid fa-handshake"></i>RIESGO ACEPTADO</span>';
+                                    } else if (vState === 'PROBABLE') {
+                                        b = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-900 text-amber-200 border border-amber-700 flex items-center gap-1"><i class="fa-solid fa-triangle-exclamation"></i>PROBABLE</span>';
+                                    } else if (vState === 'INFO_INSUFICIENTE' || vState === 'INCONCLUSO') {
+                                        b = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-800 flex items-center gap-1"><i class="fa-solid fa-circle-question"></i>INCONCLUSO</span>';
+                                    }
+                                    
+                                    const conf = (v.confidence_score !== undefined && v.confidence_score !== null) ? v.confidence_score : 50;
+                                    const confBadge = `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${conf >= 80 ? 'bg-cyan-950 text-cyan-300 border border-cyan-800' : 'bg-slate-900 text-slate-400 border border-slate-800'}" title="Índice de Certeza Técnica (${conf}%)"><i class="fa-solid fa-gauge text-[9px] mr-0.5"></i>${conf}%</span>`;
+                                    return b + ' ' + confBadge;
                                 })()}
                                 ${parseInt(v.cisa_kev) === 1 ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-300 border border-red-700 animate-pulse flex items-center gap-1"><i class="fa-solid fa-radiation"></i>CISA KEV</span>' : ''}
                                 ${parseFloat(v.epss_score) > 0 ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950 text-purple-300 border border-purple-800">EPSS: ${(parseFloat(v.epss_score) * 100).toFixed(1)}%</span>` : ''}
@@ -3673,15 +4375,20 @@
                         </div>
 
                         <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
-                            <div class="flex items-center gap-2">
-                                <button onclick="openVulnPlaybookModal(${v.id})" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 transition shadow-sm">
-                                    <i class="fa-solid fa-code"></i> Playbook & Guía de Hardening
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <button onclick="openVulnPlaybookModal(${v.id})" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-950/80 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 transition shadow-sm">
+                                    <i class="fa-solid fa-code"></i> Playbook & Hardening
                                 </button>
-                                <button onclick="launchStrixForUrl('${v.asset_subdomain ? (v.asset_subdomain.startsWith('http') ? v.asset_subdomain : 'https://' + v.asset_subdomain) : ''}', '${(v.title || '').replace(/'/g, "\\'")}')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 transition shadow-sm" title="Ejecutar validación de evidencia y Raw HTTP en Sackmesser Strix">
-                                    <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> Validar con Strix
+                                <button onclick="triggerVulnValidation(${v.id})" id="btn-val-${v.id}" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/70 transition shadow-sm" title="Ejecutar comprobación técnica no destructiva y recolectar evidencia">
+                                    <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i> <span id="btn-val-text-${v.id}">Validar Hallazgo</span>
                                 </button>
+                                ${v.validation_evidence || v.reproduction_curl ? `
+                                <button onclick="openVulnEvidenceModal(${v.id})" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-800/60 transition shadow-sm" title="Ver evidencia forense y comando cURL reproducible">
+                                    <i class="fa-solid fa-terminal text-cyan-400"></i> <span>Ver Evidencia & cURL</span>
+                                </button>` : ''}
                             </div>
                             <span class="text-[11px] text-slate-500 font-mono">
+                                ${v.last_validated_at ? `<span class="text-cyan-400 font-semibold mr-1">Validado: ${v.last_validated_at.slice(0, 16)}</span> &bull; ` : ''}
                                 Detectado: ${(v.created_at || '').slice(0, 16)}
                             </span>
                         </div>
@@ -4563,6 +5270,9 @@ function closeTakedownModal() {
                 const seeds = await res.json();
                 globalSeeds = Array.isArray(seeds) ? seeds : [];
                 document.getElementById('seeds-count').innerText = `${globalSeeds.length} semillas`;
+                if (typeof populatePhp2shellPreloadedSeeds === 'function') {
+                    populatePhp2shellPreloadedSeeds(globalSeeds);
+                }
 
                 // Populate Topbar Switcher
                 const selector = document.getElementById('active-seed-selector');
@@ -6441,14 +7151,87 @@ function closeTakedownModal() {
         let php2shellLastResults = [];
 
         function setPhp2shellTarget(val) {
-            const input = document.getElementById('php2shell-target-input');
-            if (!input) return;
             if (val === 'currentSeed') {
-                input.value = (typeof currentSeed !== 'undefined' && currentSeed && currentSeed !== 'ALL') ? currentSeed : 'vulnweb.com';
+                const seed = (typeof activeSeed !== 'undefined' && activeSeed && activeSeed !== 'ALL') ? activeSeed : (globalSeeds[0]?.domain || '');
+                onPhp2shellSeedSelect(seed);
             } else {
-                input.value = val;
+                onPhp2shellSeedSelect(val);
             }
         }
+
+        // =============================================================
+        // PHP2SHELL PRELOADED SEEDS CONTROLLER
+        // =============================================================
+        function populatePhp2shellPreloadedSeeds(seeds) {
+            const select = document.getElementById('php2shell-target-select');
+            const input = document.getElementById('php2shell-target-input');
+            const quickContainer = document.getElementById('php2shell-quick-seeds');
+            if (!select) return;
+
+            const validSeeds = (seeds || []).filter(s => s && s.domain);
+            if (validSeeds.length === 0) {
+                select.innerHTML = '<option value="">(No hay semillas precargadas en el perímetro)</option>';
+                if (input) input.value = '';
+                if (quickContainer) quickContainer.innerHTML = '<span class="text-rose-400 font-mono text-[10px]">Sin semillas registradas</span>';
+                return;
+            }
+
+            // Determine currently active seed
+            let current = (typeof activeSeed !== 'undefined' && activeSeed && activeSeed !== 'ALL') ? activeSeed : validSeeds[0].domain;
+
+            select.innerHTML = validSeeds.map(s => `
+                <option value="${s.domain}" ${s.domain === current ? 'selected' : ''} class="bg-slate-900 text-white font-mono">
+                    🎯 ${s.domain}
+                </option>
+            `).join('');
+
+            if (input) input.value = current;
+
+            // Render dynamic quick seed buttons exclusively for preloaded seeds
+            if (quickContainer) {
+                quickContainer.innerHTML = validSeeds.map(s => {
+                    const isSelected = s.domain === current;
+                    const activeClass = isSelected 
+                        ? 'bg-indigo-900/90 text-indigo-200 border-indigo-500 font-bold shadow-sm' 
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700';
+                    return `<button type="button" onclick="onPhp2shellSeedSelect('${s.domain}')" class="px-2 py-0.5 rounded font-mono border text-[10px] transition ${activeClass}">
+                        <i class="fa-solid fa-bullseye text-[9px] mr-1 text-indigo-400"></i>${s.domain}
+                    </button>`;
+                }).join('');
+            }
+        }
+
+        function onPhp2shellSeedSelect(domain) {
+            if (!domain) return;
+            const select = document.getElementById('php2shell-target-select');
+            const input = document.getElementById('php2shell-target-input');
+            if (select) select.value = domain;
+            if (input) input.value = domain;
+
+            // Update active state on seed pills
+            const quickContainer = document.getElementById('php2shell-quick-seeds');
+            if (quickContainer) {
+                quickContainer.querySelectorAll('button').forEach(btn => {
+                    if (btn.innerText.includes(domain)) {
+                        btn.className = 'px-2 py-0.5 rounded font-mono border text-[10px] transition bg-indigo-900/90 text-indigo-200 border-indigo-500 font-bold shadow-sm';
+                    } else {
+                        btn.className = 'px-2 py-0.5 rounded font-mono border text-[10px] transition bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700';
+                    }
+                });
+            }
+        }
+
+        function updatePhp2shellSelectedSeed(seed) {
+            if (!seed || seed === 'ALL') {
+                const select = document.getElementById('php2shell-target-select');
+                if (select && select.value) {
+                    onPhp2shellSeedSelect(select.value);
+                }
+                return;
+            }
+            onPhp2shellSeedSelect(seed);
+        }
+
 
         async function runPhp2shellScan(e) {
             if (e) {
@@ -6723,3 +7506,643 @@ function closeTakedownModal() {
     </div>
 </body>
 </html>
+
+
+    <!-- Fortinet FortiOS 7.4.13 Theme Engine & UI Controller -->
+    <script>
+    // =========================================================================
+    // FORTINET THEMES DATA DICTIONARY & PERSISTENCE ENGINE
+    // =========================================================================
+    const FORTI_THEMES = {
+        jade: {
+            name: "Jade",
+            header_bg: "#0f291e",
+            sidebar_bg: "#0a1c14",
+            sidebar_hover: "#123326",
+            selection: "#164332",
+            selection_text: "#34d399",
+            selection_border: "#10b981",
+            primary: "#10b981",
+            primary_hover: "#059669",
+            primary_text: "#042013",
+            accent: "#34d399",
+            bg_main: "#060f0b",
+            card_bg: "#0c1913",
+            card_header: "#10221a",
+            border: "#1b3b2d",
+            text_main: "#f0fdf4",
+            text_muted: "#86efac"
+        },
+        neutrino: {
+            name: "Neutrino",
+            header_bg: "#0b253a",
+            sidebar_bg: "#081a29",
+            sidebar_hover: "#0f334f",
+            selection: "#134469",
+            selection_text: "#38bdf8",
+            selection_border: "#06b6d4",
+            primary: "#06b6d4",
+            primary_hover: "#0891b2",
+            primary_text: "#021a24",
+            accent: "#38bdf8",
+            bg_main: "#040d14",
+            card_bg: "#0a1724",
+            card_header: "#0e2032",
+            border: "#163b5c",
+            text_main: "#f0f9ff",
+            text_muted: "#7dd3fc"
+        },
+        mariner: {
+            name: "Mariner",
+            header_bg: "#132238",
+            sidebar_bg: "#0d1726",
+            sidebar_hover: "#182c47",
+            selection: "#1f395c",
+            selection_text: "#60a5fa",
+            selection_border: "#2563eb",
+            primary: "#2563eb",
+            primary_hover: "#1d4ed8",
+            primary_text: "#ffffff",
+            accent: "#60a5fa",
+            bg_main: "#070c14",
+            card_bg: "#0e1828",
+            card_header: "#142239",
+            border: "#1c3353",
+            text_main: "#eff6ff",
+            text_muted: "#93c5fd"
+        },
+        graphite: {
+            name: "Graphite",
+            header_bg: "#212529",
+            sidebar_bg: "#181b1e",
+            sidebar_hover: "#2b3035",
+            selection: "#343a40",
+            selection_text: "#f1f5f9",
+            selection_border: "#94a3b8",
+            primary: "#64748b",
+            primary_hover: "#475569",
+            primary_text: "#ffffff",
+            accent: "#94a3b8",
+            bg_main: "#0f1113",
+            card_bg: "#1a1d21",
+            card_header: "#24282d",
+            border: "#343a40",
+            text_main: "#f8fafc",
+            text_muted: "#cbd5e1"
+        },
+        melongene: {
+            name: "Melongene",
+            header_bg: "#2a173b",
+            sidebar_bg: "#1d1029",
+            sidebar_hover: "#381f4f",
+            selection: "#492866",
+            selection_text: "#d8b4fe",
+            selection_border: "#a855f7",
+            primary: "#a855f7",
+            primary_hover: "#9333ea",
+            primary_text: "#ffffff",
+            accent: "#c084fc",
+            bg_main: "#0f0717",
+            card_bg: "#1a0e26",
+            card_header: "#241334",
+            border: "#42235c",
+            text_main: "#faf5ff",
+            text_muted: "#d8b4fe"
+        },
+        retro: {
+            name: "Retro",
+            header_bg: "#2d2013",
+            sidebar_bg: "#20160d",
+            sidebar_hover: "#3d2b1a",
+            selection: "#4f3822",
+            selection_text: "#fde68a",
+            selection_border: "#f59e0b",
+            primary: "#f59e0b",
+            primary_hover: "#d97706",
+            primary_text: "#261604",
+            accent: "#fbbf24",
+            bg_main: "#120c07",
+            card_bg: "#1c130b",
+            card_header: "#261a0f",
+            border: "#4a331c",
+            text_main: "#fffbeb",
+            text_muted: "#fcd34d"
+        },
+        darkmatter: {
+            name: "Dark Matter",
+            header_bg: "#121214",
+            sidebar_bg: "#0a0a0c",
+            sidebar_hover: "#1a1a1e",
+            selection: "#24242a",
+            selection_text: "#2dd4bf",
+            selection_border: "#14b8a6",
+            primary: "#14b8a6",
+            primary_hover: "#0d9488",
+            primary_text: "#042f2e",
+            accent: "#2dd4bf",
+            bg_main: "#020203",
+            card_bg: "#0e0e11",
+            card_header: "#141418",
+            border: "#222228",
+            text_main: "#f0fdfa",
+            text_muted: "#99f6e4"
+        },
+        onyx: {
+            name: "Onyx",
+            header_bg: "#18181b",
+            sidebar_bg: "#09090b",
+            sidebar_hover: "#27272a",
+            selection: "#3f3f46",
+            selection_text: "#ffffff",
+            selection_border: "#e4e4e7",
+            primary: "#f4f4f5",
+            primary_hover: "#e4e4e7",
+            primary_text: "#09090b",
+            accent: "#ffffff",
+            bg_main: "#000000",
+            card_bg: "#0c0c0e",
+            card_header: "#141417",
+            border: "#27272a",
+            text_main: "#ffffff",
+            text_muted: "#a1a1aa"
+        },
+        eclipse: {
+            name: "Eclipse",
+            header_bg: "#1a1e36",
+            sidebar_bg: "#121526",
+            sidebar_hover: "#232949",
+            selection: "#313966",
+            selection_text: "#fde047",
+            selection_border: "#fbbf24",
+            primary: "#fbbf24",
+            primary_hover: "#f59e0b",
+            primary_text: "#2d1802",
+            accent: "#fde047",
+            bg_main: "#0a0c17",
+            card_bg: "#13172b",
+            card_header: "#1c213d",
+            border: "#293156",
+            text_main: "#fefce8",
+            text_muted: "#fef08a"
+        }
+    };
+
+    function getCurrentAnalyst() {
+        return 'admin';
+    }
+
+    function applyTheme(themeId, customObj = null, persist = true) {
+        const root = document.documentElement;
+        let themeData = null;
+
+        if (customObj) {
+            themeData = customObj;
+            root.setAttribute('data-theme', 'custom');
+            // Inject Custom CSS Variables
+            root.style.setProperty('--fg-header-bg', themeData.header_bg);
+            root.style.setProperty('--fg-header-border', themeData.border);
+            root.style.setProperty('--fg-sidebar-bg', themeData.sidebar_bg);
+            root.style.setProperty('--fg-sidebar-hover', themeData.sidebar_hover);
+            root.style.setProperty('--fg-selection', themeData.selection);
+            root.style.setProperty('--fg-selection-text', themeData.selection_text);
+            root.style.setProperty('--fg-selection-border', themeData.selection_border || themeData.accent);
+            root.style.setProperty('--fg-primary', themeData.primary);
+            root.style.setProperty('--fg-primary-hover', themeData.primary_hover || themeData.primary);
+            root.style.setProperty('--fg-accent', themeData.accent);
+            root.style.setProperty('--fg-bg-main', themeData.bg_main);
+            root.style.setProperty('--fg-card-bg', themeData.card_bg);
+            root.style.setProperty('--fg-card-header', themeData.card_header);
+            root.style.setProperty('--fg-border', themeData.border);
+            root.style.setProperty('--fg-text-main', themeData.text_main);
+            root.style.setProperty('--fg-text-muted', themeData.text_muted);
+            root.style.setProperty('--fg-input-bg', themeData.bg_main);
+            root.style.setProperty('--fg-input-border', themeData.border);
+            root.style.setProperty('--fg-table-header-bg', themeData.card_header);
+        } else {
+            themeData = FORTI_THEMES[themeId] || FORTI_THEMES.jade;
+            root.setAttribute('data-theme', themeId);
+            // Clear custom inline styles so CSS takes precedence
+            [
+                '--fg-header-bg', '--fg-header-border', '--fg-sidebar-bg', '--fg-sidebar-hover',
+                '--fg-selection', '--fg-selection-text', '--fg-selection-border', '--fg-primary',
+                '--fg-primary-hover', '--fg-accent', '--fg-bg-main', '--fg-card-bg',
+                '--fg-card-header', '--fg-border', '--fg-text-main', '--fg-text-muted',
+                '--fg-input-bg', '--fg-input-border', '--fg-table-header-bg'
+            ].forEach(prop => root.style.removeProperty(prop));
+        }
+
+        // Update Theme Dropdown Label & Checkmarks
+        const label = document.getElementById('current-theme-label');
+        if (label) label.innerText = themeData.name || themeId;
+
+        Object.keys(FORTI_THEMES).forEach(k => {
+            const chk = document.getElementById(`theme-check-${k}`);
+            if (chk) {
+                if (k === themeId && !customObj) {
+                    chk.classList.remove('hidden');
+                } else {
+                    chk.classList.add('hidden');
+                }
+            }
+        });
+
+        // Close dropdown
+        const menu = document.getElementById('theme-dropdown-menu');
+        if (menu) menu.classList.add('hidden');
+
+        // Update Chart.js if active
+        if (typeof Chart !== 'undefined' && Chart.instances) {
+            Object.values(Chart.instances).forEach(inst => {
+                try { inst.update(); } catch(e) {}
+            });
+        }
+
+        // Update Vis-Network background if active
+        const canvas = document.getElementById('network-canvas');
+        if (canvas) {
+            canvas.style.backgroundColor = themeData.bg_main;
+        }
+
+        // Save preference per-analyst
+        if (persist) {
+            const user = getCurrentAnalyst();
+            localStorage.setItem(`openrecon_theme_${user}`, customObj ? 'custom' : themeId);
+            if (customObj) {
+                localStorage.setItem(`openrecon_custom_data_${user}`, JSON.stringify(customObj));
+            }
+        }
+    }
+
+    function toggleThemeDropdown() {
+        const menu = document.getElementById('theme-dropdown-menu');
+        if (menu) menu.classList.toggle('hidden');
+    }
+
+    document.addEventListener('click', function(e) {
+        const container = document.getElementById('theme-dropdown-container');
+        const menu = document.getElementById('theme-dropdown-menu');
+        if (container && menu && !container.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    // Sidebar Collapse/Expand Logic
+    function toggleFortiSidebar() {
+        const sb = document.getElementById('forti-sidebar');
+        const icon = document.getElementById('sidebar-toggle-icon');
+        if (!sb) return;
+
+        sb.classList.toggle('collapsed');
+        const isCollapsed = sb.classList.contains('collapsed');
+        document.body.classList.toggle('sidebar-collapsed', isCollapsed);
+
+        if (icon) {
+            icon.className = isCollapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left';
+        }
+
+        localStorage.setItem('openrecon_sidebar_collapsed', isCollapsed ? '1' : '0');
+        if (typeof networkInstance !== 'undefined' && networkInstance) {
+            setTimeout(() => networkInstance.fit(), 250);
+        }
+    }
+
+    // High Density Toggle
+    function toggleDensity() {
+        const isCompact = document.documentElement.getAttribute('data-density') === 'compact';
+        if (isCompact) {
+            document.documentElement.removeAttribute('data-density');
+            localStorage.setItem('openrecon_density', 'normal');
+            showToast('Densidad de visualización: Estándar');
+        } else {
+            document.documentElement.setAttribute('data-density', 'compact');
+            localStorage.setItem('openrecon_density', 'compact');
+            showToast('Densidad de visualización: Alta Densidad (SOC Compacto)');
+        }
+    }
+
+    // Global Search Filter Handler (Ctrl+K)
+    function handleGlobalSearch(term) {
+        term = (term || '').trim().toLowerCase();
+        if (!term) return;
+
+        // Search in active view
+        const currentActive = document.querySelector('.forti-nav-item.active');
+        const currentTab = currentActive ? currentActive.id.replace('tab-btn-', '') : 'easm';
+
+        if (currentTab === 'easm') {
+            const input = document.getElementById('asset-search');
+            if (input) { input.value = term; renderAssetsTable(); }
+        } else if (currentTab === 'vulns') {
+            const input = document.getElementById('vuln-search');
+            if (input) { input.value = term; applyVulnFilters(); }
+        } else if (currentTab === 'seeds') {
+            const input = document.getElementById('seed-search');
+            if (input) { input.value = term; filterSeedsTable(); }
+        } else if (currentTab === 'connectors') {
+            renderConnectorsGrid();
+        }
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            const searchInput = document.getElementById('forti-global-search');
+            if (searchInput) { searchInput.focus(); searchInput.select(); }
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+            e.preventDefault();
+            toggleFortiSidebar();
+        }
+    });
+
+    // Theme Customizer Modal Functions
+    function openThemeCustomizer() {
+        const menu = document.getElementById('theme-dropdown-menu');
+        if (menu) menu.classList.add('hidden');
+
+        // Load current active theme into customizer inputs
+        const currentThemeId = document.documentElement.getAttribute('data-theme') || 'jade';
+        loadPresetIntoCustomizer(currentThemeId === 'custom' ? 'jade' : currentThemeId);
+
+        document.getElementById('theme-customizer-modal').classList.remove('hidden');
+        updateThemePreview();
+    }
+
+    function closeThemeCustomizer() {
+        document.getElementById('theme-customizer-modal').classList.add('hidden');
+    }
+
+    function loadPresetIntoCustomizer(presetKey) {
+        const t = FORTI_THEMES[presetKey] || FORTI_THEMES.jade;
+        document.getElementById('custom-theme-name').value = `Personalizado (${t.name})`;
+        document.getElementById('custom-theme-base-preset').value = presetKey;
+
+        const mapping = {
+            'header-bg': t.header_bg,
+            'sidebar-bg': t.sidebar_bg,
+            'sidebar-hover': t.sidebar_hover,
+            'selection': t.selection,
+            'primary': t.primary,
+            'accent': t.accent,
+            'bg-main': t.bg_main,
+            'card-bg': t.card_bg,
+            'card-header': t.card_header,
+            'border': t.border,
+            'text-main': t.text_main,
+            'text-muted': t.text_muted
+        };
+
+        Object.entries(mapping).forEach(([key, val]) => {
+            const picker = document.getElementById(`picker-${key}`);
+            const txt = document.getElementById(`text-${key}`);
+            if (picker) picker.value = val;
+            if (txt) txt.value = val;
+        });
+
+        updateThemePreview();
+    }
+
+    function syncColorInput(key) {
+        const txt = document.getElementById(`text-${key}`);
+        const picker = document.getElementById(`picker-${key}`);
+        if (txt && picker && /^#[0-9A-Fa-f]{6}$/.test(txt.value)) {
+            picker.value = txt.value;
+            updateThemePreview();
+        }
+    }
+
+    function updateThemePreview() {
+        const getVal = (k) => {
+            const picker = document.getElementById(`picker-${k}`);
+            return picker ? picker.value : '#000000';
+        };
+
+        const colHeader = getVal('header-bg');
+        const colSidebar = getVal('sidebar-bg');
+        const colHover = getVal('sidebar-hover');
+        const colSelection = getVal('selection');
+        const colPrimary = getVal('primary');
+        const colAccent = getVal('accent');
+        const colBgMain = getVal('bg-main');
+        const colCard = getVal('card-bg');
+        const colCardHdr = getVal('card-header');
+        const colBorder = getVal('border');
+        const colTextMain = getVal('text-main');
+        const colTextMuted = getVal('text-muted');
+
+        // Sync text inputs with picker
+        [
+            'header-bg', 'sidebar-bg', 'sidebar-hover', 'selection',
+            'primary', 'accent', 'bg-main', 'card-bg', 'card-header',
+            'border', 'text-main', 'text-muted'
+        ].forEach(k => {
+            const picker = document.getElementById(`picker-${k}`);
+            const txt = document.getElementById(`text-${k}`);
+            if (picker && txt && document.activeElement !== txt) {
+                txt.value = picker.value;
+            }
+        });
+
+        // Update preview elements
+        const previewBox = document.getElementById('theme-preview-box');
+        if (previewBox) {
+            previewBox.style.backgroundColor = colBgMain;
+            previewBox.style.borderColor = colBorder;
+        }
+
+        const prevHdr = document.getElementById('prev-header');
+        if (prevHdr) {
+            prevHdr.style.backgroundColor = colHeader;
+            prevHdr.style.borderColor = colBorder;
+            prevHdr.style.color = colTextMain;
+        }
+
+        const prevIcon = document.getElementById('prev-accent-icon');
+        if (prevIcon) prevIcon.style.color = colAccent;
+
+        const prevBtn = document.getElementById('prev-btn-primary');
+        if (prevBtn) {
+            prevBtn.style.backgroundColor = colPrimary;
+            prevBtn.style.color = '#ffffff';
+        }
+
+        const prevBadge = document.getElementById('prev-badge-crit');
+        if (prevBadge) {
+            prevBadge.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+            prevBadge.style.color = '#ef4444';
+            prevBadge.style.border = '1px solid #b91c1c';
+        }
+
+        const prevSb = document.getElementById('prev-sidebar');
+        if (prevSb) {
+            prevSb.style.backgroundColor = colSidebar;
+            prevSb.style.borderColor = colBorder;
+        }
+
+        const prevActive = document.getElementById('prev-nav-active');
+        if (prevActive) {
+            prevActive.style.backgroundColor = colSelection;
+            prevActive.style.color = colAccent;
+            prevActive.style.borderLeftColor = colPrimary;
+        }
+
+        const prevCard = document.getElementById('prev-card');
+        if (prevCard) {
+            prevCard.style.backgroundColor = colCard;
+            prevCard.style.borderColor = colBorder;
+            prevCard.style.color = colTextMain;
+        }
+
+        const prevCardHdr = document.getElementById('prev-card-hdr');
+        if (prevCardHdr) {
+            prevCardHdr.style.backgroundColor = colCardHdr;
+            prevCardHdr.style.borderColor = colBorder;
+        }
+
+        const prevTextSample = document.getElementById('prev-text-sample');
+        if (prevTextSample) prevTextSample.style.color = colTextMuted;
+    }
+
+    function saveAndApplyCustomTheme() {
+        const getVal = (k) => document.getElementById(`picker-${k}`).value;
+        const name = (document.getElementById('custom-theme-name').value || 'Tema Personalizado').trim();
+
+        const customTheme = {
+            name: name,
+            header_bg: getVal('header-bg'),
+            sidebar_bg: getVal('sidebar-bg'),
+            sidebar_hover: getVal('sidebar-hover'),
+            selection: getVal('selection'),
+            selection_text: getVal('accent'),
+            selection_border: getVal('primary'),
+            primary: getVal('primary'),
+            primary_hover: getVal('primary'),
+            accent: getVal('accent'),
+            bg_main: getVal('bg-main'),
+            card_bg: getVal('card-bg'),
+            card_header: getVal('card-header'),
+            border: getVal('border'),
+            text_main: getVal('text-main'),
+            text_muted: getVal('text-muted')
+        };
+
+        applyTheme('custom', customTheme, true);
+        closeThemeCustomizer();
+        showToast(`Tema personalizado guardado: "${name}"`);
+    }
+
+    function duplicateCustomTheme() {
+        const nameInput = document.getElementById('custom-theme-name');
+        nameInput.value = `${nameInput.value} (Copia)`;
+        showToast('Tema duplicado en el editor. Haz clic en "Guardar y Aplicar" para conservarlo.');
+    }
+
+    function resetToDefaultTheme() {
+        const user = getCurrentAnalyst();
+        localStorage.removeItem(`openrecon_theme_${user}`);
+        localStorage.removeItem(`openrecon_custom_data_${user}`);
+        applyTheme('jade', null, true);
+        closeThemeCustomizer();
+        showToast('Tema restablecido al predeterminado Fortinet (Jade).');
+    }
+
+    // Load initial theme on DOM ready
+    (function initThemeEngine() {
+        const user = getCurrentAnalyst();
+        const savedTheme = localStorage.getItem(`openrecon_theme_${user}`);
+        const customData = localStorage.getItem(`openrecon_custom_data_${user}`);
+
+        if (savedTheme === 'custom' && customData) {
+            try {
+                applyTheme('custom', JSON.parse(customData), false);
+            } catch(e) {
+                applyTheme('jade', null, false);
+            }
+        } else if (savedTheme && FORTI_THEMES[savedTheme]) {
+            applyTheme(savedTheme, null, false);
+        } else {
+            applyTheme('jade', null, false);
+        }
+
+        // Restore Density
+        if (localStorage.getItem('openrecon_density') === 'compact') {
+            document.documentElement.setAttribute('data-density', 'compact');
+        }
+
+        // Restore Sidebar State
+        if (localStorage.getItem('openrecon_sidebar_collapsed') === '1') {
+            document.addEventListener('DOMContentLoaded', () => {
+                const sb = document.getElementById('forti-sidebar');
+                if (sb) {
+                    sb.classList.add('collapsed');
+                    document.body.classList.add('sidebar-collapsed');
+                    const icon = document.getElementById('sidebar-toggle-icon');
+                    if (icon) icon.className = 'fa-solid fa-angles-right';
+                }
+            });
+        }
+    })();
+    </script>
+
+
+    <script>
+    // Module Titles and Categories Dictionary for FortiOS Breadcrumb Navigation
+    const FORTI_MODULE_META = {
+        'easm': { cat: 'Superficie de Ataque (EASM)', title: 'Inventario Perimetral Descubierto' },
+        'graph': { cat: 'Dashboard & Topología', title: 'Grafo de Relaciones y Amenazas' },
+        'vulns': { cat: 'Vulnerabilidades & Postura', title: 'Centro de Vulnerabilidades & CISA KEV' },
+        'drp': { cat: 'Threat Intelligence & DRP', title: 'Protección Digital de Marca' },
+        'leaks': { cat: 'Threat Intelligence & DRP', title: 'Fugas de Credenciales y Secretos' },
+        'cti': { cat: 'Threat Intelligence & DRP', title: 'Inteligencia de Amenazas (CTI Feeds)' },
+        'seeds': { cat: 'Superficie de Ataque (EASM)', title: 'Semillas y Perímetro Corporativo' },
+        'strix': { cat: 'Operaciones Ofensivas & Pentest', title: 'Sackmesser Suite (Strix & AutoPentestX)' },
+        'loginrecon': { cat: 'Operaciones Ofensivas & Pentest', title: 'LoginRecon OSINT & Identidades' },
+        'php2shell': { cat: 'Vulnerabilidades & Postura', title: 'PHP2Shell Scanner (CVE-2026)' },
+        'connectors': { cat: 'Security Fabric & Conectores', title: 'Conectores OSINT & APIs de Ciberseguridad' },
+        'scope': { cat: 'Políticas & Alcance', title: 'Alcance Autorizado & Protección Anti-SSRF' },
+        'cloud': { cat: 'Superficie de Ataque (EASM)', title: 'Auditoría de Exposición Cloud & Buckets' },
+        'ai': { cat: 'Security Fabric & IA', title: 'Correlación de Evidencias Asistida por IA' }
+    };
+
+    // Override switchTab with FortiOS sidebar navigation support
+    const previousSwitchTab = typeof switchTab === 'function' ? switchTab : null;
+    switchTab = function(tabId) {
+        // 1. Update FortiOS Sidebar Active States
+        document.querySelectorAll('.forti-nav-item').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+        if (activeBtn) {
+            activeBtn.classList.add('active');
+        }
+
+        // 2. Update Breadcrumb Text
+        const meta = FORTI_MODULE_META[tabId] || { cat: 'OpenRecon', title: tabId.toUpperCase() };
+        const bcCat = document.getElementById('bc-category');
+        const bcMod = document.getElementById('bc-module');
+        if (bcCat) bcCat.innerText = meta.cat;
+        if (bcMod) bcMod.innerText = meta.title;
+
+        // 3. Toggle Visibility of 14 Tab Content Sections
+        const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai'];
+        allTabs.forEach(t => {
+            const el = document.getElementById(`tab-content-${t}`);
+            if (el) el.classList.toggle('hidden', t !== tabId);
+        });
+
+        // 4. Trigger Specific Module Loaders
+        if (tabId === 'connectors' && typeof loadConnectors === 'function') loadConnectors();
+        if (tabId === 'scope' && typeof loadScope === 'function') loadScope();
+        if (tabId === 'cloud' && typeof loadCloudExposure === 'function') loadCloudExposure();
+        if (tabId === 'graph' && typeof networkInstance !== 'undefined' && networkInstance) {
+            setTimeout(() => { networkInstance.fit(); }, 120);
+        }
+        if (tabId === 'strix' && typeof populateStrixAssetDropdown === 'function') populateStrixAssetDropdown();
+        if (tabId === 'loginrecon' && typeof populateLoginReconPresets === 'function') populateLoginReconPresets();
+        if (tabId === 'php2shell' && typeof updatePhp2shellSelectedSeed === 'function') updatePhp2shellSelectedSeed(activeSeed);
+
+        // Scroll main viewport to top on tab switch
+        const vp = document.getElementById('forti-main-viewport');
+        if (vp) vp.scrollTop = 0;
+    };
+    </script>

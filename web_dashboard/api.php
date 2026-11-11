@@ -18,7 +18,7 @@ if (!empty($origin) && (in_array($origin, $allowedOrigins) || preg_match('/^http
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     exit(0);
 }
 
@@ -182,6 +182,36 @@ try {
     try { $pdo->exec("ALTER TABLE assets ADD COLUMN discovery_source TEXT DEFAULT 'OSINT / Passive DNS'"); } catch (Exception $e) {}
     try { $pdo->exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_vulns_sub_title ON vulnerabilities(asset_subdomain, title)"); } catch (Exception $e) {}
 
+    // VulnValidator Engine Columns & History Table
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN confidence_score INTEGER DEFAULT 50"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN validation_method TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN last_validated_at DATETIME"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN validation_evidence TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN validation_justification TEXT"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE vulnerabilities ADD COLUMN reproduction_curl TEXT"); } catch (Exception $e) {}
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS vuln_validation_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                vuln_id INTEGER NOT NULL,
+                asset_subdomain TEXT NOT NULL,
+                title TEXT NOT NULL,
+                state_before TEXT,
+                state_after TEXT NOT NULL,
+                confidence_score INTEGER DEFAULT 0,
+                validation_method TEXT NOT NULL,
+                evidence_json TEXT,
+                justification TEXT,
+                reproduction_curl TEXT,
+                validator_agent TEXT DEFAULT 'OpenRecon-Engine/2.0',
+                validated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (vuln_id) REFERENCES vulnerabilities(id) ON DELETE CASCADE
+            )
+        ");
+    } catch (Exception $e) {}
+
+    require_once __DIR__ . '/vuln_validator_engine.php';
+
 } catch (Exception $e) {
     echo json_encode(['error' => 'Database initialization failed: ' . $e->getMessage()]);
     exit;
@@ -236,6 +266,30 @@ function isTargetInScope($target, $pdo) {
     }
 
     try {
+        // 1. All registered perimeter seeds and their subdomains are inherently in scope
+        $seedStmt = $pdo->query("SELECT domain FROM seeds");
+        $seeds = $seedStmt->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($seeds as $sd) {
+            $sdClean = strtolower(trim($sd));
+            if ($cleanTarget === $sdClean || str_ends_with($cleanTarget, '.' . $sdClean)) {
+                return true;
+            }
+            if (str_starts_with($sdClean, 'www.')) {
+                $apex = substr($sdClean, 4);
+                if ($cleanTarget === $apex || str_ends_with($cleanTarget, '.' . $apex)) {
+                    return true;
+                }
+            }
+        }
+
+        // 2. All discovered assets belonging to the organization are in scope
+        $assetStmt = $pdo->prepare("SELECT id FROM assets WHERE subdomain = ? LIMIT 1");
+        $assetStmt->execute([$cleanTarget]);
+        if ($assetStmt->fetchColumn()) {
+            return true;
+        }
+
+        // 3. Explicit authorized_scope rules
         $stmt = $pdo->query("SELECT target_pattern, scope_type FROM authorized_scope");
         $scopes = $stmt->fetchAll(PDO::FETCH_ASSOC);
         if (empty($scopes)) {
@@ -433,6 +487,38 @@ switch ($action) {
         break;
     case 'update_vuln_validation':
         updateVulnValidation($pdo);
+        break;
+    case 'validate_vulnerability':
+        $vulnId = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+        if ($vulnId <= 0) {
+            echo json_encode(['success' => false, 'error' => 'ID de vulnerabilidad inválido']);
+            break;
+        }
+        $res = runVulnerabilityValidation($pdo, $vulnId);
+        echo json_encode($res);
+        break;
+    case 'batch_validate_vulnerabilities':
+        $seed = trim($_POST['seed'] ?? $_GET['seed'] ?? '');
+        $limit = (int)($_POST['limit'] ?? $_GET['limit'] ?? 25);
+        $idsRaw = $_POST['vuln_ids'] ?? $_GET['vuln_ids'] ?? [];
+        $vulnIds = is_array($idsRaw) ? array_map('intval', $idsRaw) : [];
+        $res = runBatchVulnerabilityValidation($pdo, $vulnIds, $seed, $limit);
+        echo json_encode($res);
+        break;
+    case 'get_validation_history':
+        $vulnId = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+        if ($vulnId > 0) {
+            $stmt = $pdo->prepare("SELECT * FROM vuln_validation_history WHERE vuln_id = ? ORDER BY validated_at DESC");
+            $stmt->execute([$vulnId]);
+        } else {
+            $stmt = $pdo->query("SELECT * FROM vuln_validation_history ORDER BY validated_at DESC LIMIT 50");
+        }
+        echo json_encode(['success' => true, 'history' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+        break;
+    case 'get_validation_metrics':
+        $seed = trim($_POST['seed'] ?? $_GET['seed'] ?? '');
+        $metrics = getValidationEngineMetrics($pdo, $seed);
+        echo json_encode(['success' => true, 'metrics' => $metrics]);
         break;
     case 'get_risk_score_breakdown':
         getRiskScoreBreakdown($pdo);
@@ -798,7 +884,7 @@ function aiCorrelateEvidence($pdo) {
     }
 
     if (empty($vectors)) {
-        $md .= "No se detectaron vectores de explotación inmediata ni suplantación activa con servidores MX en este perímetro.\n\n";
+        $md .= "No se detectaron vectores de explotación inmediata ni suplantación activa con servidores MX en este perímetro según la matriz MITRE ATT&CK.\n\n";
     } else {
         $md .= "### Vectores de Ataque Correlacionados (Mapeo MITRE ATT&CK)\n";
         $md .= implode("\n", $vectors) . "\n\n";
