@@ -9,7 +9,490 @@
     <!-- Local FontAwesome 6.5.1 -->
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
     <!-- Local Tailwind Engine -->
-    <script src="assets/js/tailwindcss.min.js"></script>
+    <script src="assets/js/tailwindcss.min.js">
+        // =============================================================
+        // STAGE 3 CLIENT-SIDE CONTROLLERS (Connectors, Scope, Cloud, AI)
+        // =============================================================
+
+        // Connectors State
+        let globalConnectors = [];
+        let currentConnectorFilter = 'ALL';
+
+        async function loadConnectors() {
+            try {
+                const res = await fetch(`${API_URL}?action=get_connectors`);
+                const data = await res.json();
+                if (data.success) {
+                    globalConnectors = data.connectors || [];
+                    document.getElementById('conn-stat-total').innerText = data.counts.total || 16;
+                    document.getElementById('conn-stat-free').innerText = data.counts.free || 6;
+                    document.getElementById('conn-stat-api').innerText = data.counts.api_key || 6;
+                    document.getElementById('conn-stat-comm').innerText = data.counts.commercial || 4;
+                    renderConnectorsGrid();
+                }
+            } catch (e) {
+                console.error("Error loading connectors:", e);
+            }
+        }
+
+        function filterConnectorsList(cat) {
+            currentConnectorFilter = cat;
+            ['ALL', 'FREE', 'API_KEY', 'COMMERCIAL'].forEach(c => {
+                const btn = document.getElementById(`conn-filter-${c}`);
+                if (btn) {
+                    if (c === cat) {
+                        btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-teal-300 border border-teal-800/60 transition';
+                    } else {
+                        btn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition';
+                    }
+                }
+            });
+            renderConnectorsGrid();
+        }
+
+        function renderConnectorsGrid() {
+            const grid = document.getElementById('connectors-grid');
+            if (!grid) return;
+
+            let filtered = globalConnectors;
+            if (currentConnectorFilter !== 'ALL') {
+                filtered = globalConnectors.filter(c => c.category === currentConnectorFilter);
+            }
+
+            grid.innerHTML = filtered.map(c => {
+                let catBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">GRATUITO</span>';
+                if (c.category === 'API_KEY') {
+                    catBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800">API KEY</span>';
+                } else if (c.category === 'COMMERCIAL') {
+                    catBadge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950 text-indigo-300 border border-indigo-800">COMERCIAL</span>';
+                }
+
+                const isEnabled = parseInt(c.is_enabled) === 1;
+                const toggleBadge = isEnabled ?
+                    '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-400 border border-emerald-800 flex items-center gap-1"><i class="fa-solid fa-circle text-[6px]"></i>ACTIVO</span>' :
+                    '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-500 border border-slate-800 flex items-center gap-1"><i class="fa-solid fa-circle text-[6px]"></i>INACTIVO</span>';
+
+                return `
+                    <div class="bg-cyber-card border border-cyber-border rounded-xl p-5 flex flex-col justify-between space-y-4 hover:border-slate-700 transition">
+                        <div>
+                            <div class="flex items-center justify-between mb-2">
+                                <h4 class="font-bold text-white text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-satellite-dish text-teal-400"></i>
+                                    ${c.name}
+                                </h4>
+                                ${catBadge}
+                            </div>
+                            <p class="text-xs text-slate-400 line-clamp-2">${c.description || ''}</p>
+                            <div class="mt-3 pt-3 border-t border-cyber-border text-[11px] font-mono space-y-1">
+                                <div class="flex justify-between text-slate-400">
+                                    <span>Auth:</span> <strong class="text-slate-300">${c.auth_type}</strong>
+                                </div>
+                                <div class="flex justify-between text-slate-400">
+                                    <span>Clave:</span> <strong class="text-slate-300">${c.api_key_masked || 'Sin requerimiento'}</strong>
+                                </div>
+                                <div class="flex justify-between text-slate-400">
+                                    <span>Sincronizados:</span> <strong class="text-teal-400">${c.items_synced || 0} items</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2 border-t border-cyber-border">
+                            ${toggleBadge}
+                            <button onclick="openConnectorConfigModal('${c.connector_id}', '${c.name}', ${isEnabled})" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-gear"></i>
+                                <span>Configurar</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openConnectorConfigModal(id, name, isEnabled) {
+            document.getElementById('conn-modal-id').value = id;
+            document.getElementById('conn-modal-title').innerHTML = `<i class="fa-solid fa-key text-teal-400"></i> Configurar: ${name}`;
+            document.getElementById('conn-modal-enabled').checked = isEnabled;
+            document.getElementById('conn-modal-key').value = '';
+            document.getElementById('connector-config-modal').classList.remove('hidden');
+        }
+
+        function closeConnectorConfigModal() {
+            document.getElementById('connector-config-modal').classList.add('hidden');
+        }
+
+        async function handleSaveConnectorKey(e) {
+            e.preventDefault();
+            const id = document.getElementById('conn-modal-id').value;
+            const key = document.getElementById('conn-modal-key').value;
+            const enabled = document.getElementById('conn-modal-enabled').checked ? '1' : '0';
+
+            const form = new FormData();
+            form.append('connector_id', id);
+            form.append('is_enabled', enabled);
+            if (key) form.append('api_key', key);
+
+            try {
+                const res = await fetch(`${API_URL}?action=update_connector`, { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message);
+                    closeConnectorConfigModal();
+                    await loadConnectors();
+                } else {
+                    showToast(data.error || 'Error al guardar', true);
+                }
+            } catch (err) {
+                showToast('Fallo al conectar con el servidor', true);
+            }
+        }
+
+        async function syncCtiFeedsLive() {
+            showToast('Sincronizando feeds de CTI en vivo (CISA KEV, IPsum, Ransomwatch)...');
+            try {
+                const res = await fetch(`${API_URL}?action=sync_cti`);
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`CTI Sincronizado: ${data.iocs_ingested} IoCs y ${data.ransomware_ingested} posts de ransomware actualizados.`);
+                    await Promise.all([loadStats(), loadConnectors(), loadCti()]);
+                } else {
+                    showToast('Fallo en sincronización CTI', true);
+                }
+            } catch (err) {
+                showToast('Error al ejecutar sincronización', true);
+            }
+        }
+
+        // Scope Management
+        let globalScope = [];
+        async function loadScope() {
+            try {
+                const res = await fetch(`${API_URL}?action=get_scope`);
+                const data = await res.json();
+                if (data.success) {
+                    globalScope = data.scope || [];
+                    document.getElementById('scope-count').innerText = globalScope.length;
+                    renderScopeTable(globalScope);
+                }
+            } catch (err) {
+                console.error("Error loading scope:", err);
+            }
+        }
+
+        function renderScopeTable(list) {
+            const tbody = document.getElementById('scope-table-body');
+            if (!tbody) return;
+
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500 font-sans">No hay objetivos de alcance registrados.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = list.map(s => `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3 font-bold text-white flex items-center gap-1.5">
+                        <i class="fa-solid fa-bullseye text-cyan-400"></i>
+                        ${s.target_pattern}
+                    </td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-cyan-300 border border-slate-700">${s.scope_type}</span></td>
+                    <td class="p-3 text-slate-300">${s.authorized_by}</td>
+                    <td class="p-3 text-slate-400">${s.created_at}</td>
+                    <td class="p-3 text-slate-400 font-sans text-xs">${s.notes || '-'}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="deleteScopeEntry(${s.id})" class="text-rose-400 hover:text-rose-300 px-2 py-1 rounded hover:bg-rose-950/40 transition" title="Revocar alcance"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterScopeTable() {
+            const q = (document.getElementById('scope-filter-search')?.value || '').toLowerCase().trim();
+            const filtered = globalScope.filter(s => s.target_pattern.toLowerCase().includes(q) || (s.notes || '').toLowerCase().includes(q));
+            renderScopeTable(filtered);
+        }
+
+        async function handleAddScopeSubmit(e) {
+            e.preventDefault();
+            const pattern = document.getElementById('scope-input-pattern').value.trim();
+            const type = document.getElementById('scope-input-type').value;
+            const notes = document.getElementById('scope-input-notes').value.trim();
+
+            const form = new FormData();
+            form.append('target_pattern', pattern);
+            form.append('scope_type', type);
+            form.append('notes', notes);
+
+            try {
+                const res = await fetch(`${API_URL}?action=add_scope`, { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message);
+                    document.getElementById('scope-input-pattern').value = '';
+                    document.getElementById('scope-input-notes').value = '';
+                    await loadScope();
+                } else {
+                    showToast(data.error || 'Error al autorizar objetivo', true);
+                }
+            } catch (err) {
+                showToast('Fallo de conexión al guardar alcance', true);
+            }
+        }
+
+        async function deleteScopeEntry(id) {
+            if (!confirm('¿Confirmas revocar y eliminar esta regla de alcance autorizado?')) return;
+            const form = new FormData();
+            form.append('id', id);
+            try {
+                const res = await fetch(`${API_URL}?action=delete_scope`, { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(data.message);
+                    await loadScope();
+                } else {
+                    showToast(data.error || 'Error al eliminar', true);
+                }
+            } catch (err) {
+                showToast('Fallo al conectar', true);
+            }
+        }
+
+        // Cloud Security Exposure
+        async function loadCloudExposure() {
+            try {
+                const res = await fetch(`${API_URL}?action=get_cloud_exposure${getSeedQueryParam()}`);
+                const data = await res.json();
+                if (data.success) {
+                    renderCloudTable(data.exposures || []);
+                }
+            } catch (err) {
+                console.error("Error loading cloud:", err);
+            }
+        }
+
+        function renderCloudTable(list) {
+            const tbody = document.getElementById('cloud-table-body');
+            if (!tbody) return;
+
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-8 text-center text-slate-500 font-sans">No se han registrado recursos cloud expuestos para esta semilla.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = list.map(c => {
+                let badge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">ACCESO RESTRINGIDO (403)</span>';
+                if (c.status === 'PUBLIC_LISTABLE') {
+                    badge = '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950 text-rose-300 border border-rose-800 animate-pulse"><i class="fa-solid fa-triangle-exclamation mr-1"></i>PÚBLICO LISTABLE (CRÍTICO)</span>';
+                }
+
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-3 font-bold text-white font-sans">${c.provider}</td>
+                        <td class="p-3 text-cyan-400 font-bold">${c.resource_name}</td>
+                        <td class="p-3"><a href="${c.url}" target="_blank" class="hover:underline text-slate-300">${c.url}</a></td>
+                        <td class="p-3">${badge}</td>
+                        <td class="p-3 text-slate-400 font-sans text-xs">${c.details || '-'}</td>
+                        <td class="p-3 text-slate-500">${c.detected_at}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function triggerCloudScan() {
+            showToast('Sondeando almacenamiento público (AWS S3, Azure Blob, GCP Storage)...');
+            const form = new FormData();
+            form.append('seed', activeSeed || 'vulnweb.com');
+            try {
+                const res = await fetch(`${API_URL}?action=scan_cloud_exposure`, { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`Sondeo finalizado: ${data.permutations_scanned} permutaciones cloud evaluadas.`);
+                    await loadCloudExposure();
+                } else {
+                    showToast(data.error || 'Fallo en sondeo cloud', true);
+                }
+            } catch (err) {
+                showToast('Error ejecutando auditoría cloud', true);
+            }
+        }
+
+        // Risk Breakdown Modal
+        async function openRiskBreakdownModal() {
+            const modal = document.getElementById('risk-breakdown-modal');
+            const content = document.getElementById('risk-breakdown-content');
+            modal.classList.remove('hidden');
+            content.innerHTML = '<div class="text-center py-12 text-slate-400"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2 block"></i>Calculando desglose explicable de riesgo...</div>';
+
+            try {
+                const res = await fetch(`${API_URL}?action=get_risk_score_breakdown${getSeedQueryParam()}`);
+                const data = await res.json();
+                if (data.success) {
+                    renderRiskBreakdown(data.assessment);
+                } else {
+                    content.innerHTML = '<div class="text-rose-400 p-4">Error obteniendo desglose.</div>';
+                }
+            } catch (err) {
+                content.innerHTML = '<div class="text-rose-400 p-4">Fallo de comunicación con la API.</div>';
+            }
+        }
+
+        function closeRiskBreakdownModal() {
+            document.getElementById('risk-breakdown-modal').classList.add('hidden');
+        }
+
+        function renderRiskBreakdown(a) {
+            const content = document.getElementById('risk-breakdown-content');
+            if (!content || !a) return;
+
+            let levelColor = 'text-emerald-400 border-emerald-800 bg-emerald-950/60';
+            if (a.risk_level === 'CRÍTICO') levelColor = 'text-rose-400 border-rose-800 bg-rose-950/60';
+            if (a.risk_level === 'ALTO') levelColor = 'text-orange-400 border-orange-800 bg-orange-950/60';
+            if (a.risk_level === 'MEDIO') levelColor = 'text-amber-400 border-amber-800 bg-amber-950/60';
+
+            const factorsHtml = (a.factors || []).map(f => {
+                let evidenceList = '';
+                if (f.evidence && f.evidence.length > 0) {
+                    evidenceList = `
+                        <div class="mt-2 pt-2 border-t border-cyber-border font-mono text-[11px] text-slate-400 space-y-0.5">
+                            <strong class="text-slate-300 block text-[10px] uppercase">Evidencias Verificadas:</strong>
+                            ${f.evidence.map(e => `<div>• ${e}</div>`).join('')}
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="bg-slate-900 border border-cyber-border rounded-xl p-4 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-white text-sm">${f.category}</span>
+                            <span class="px-2.5 py-1 rounded text-xs font-mono font-bold bg-rose-950 text-rose-300 border border-rose-800">+${f.points} pts</span>
+                        </div>
+                        <p class="text-slate-400 text-xs">${f.description}</p>
+                        <div class="text-[11px] text-slate-500 font-mono">Ponderación: ${f.weight}</div>
+                        ${evidenceList}
+                    </div>
+                `;
+            }).join('');
+
+            content.innerHTML = `
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="bg-slate-900 border border-cyber-border rounded-xl p-5 flex items-center gap-4">
+                        <div class="text-4xl font-black text-rose-400 font-mono">${a.risk_score} <span class="text-xs text-slate-500">/ 100</span></div>
+                        <div>
+                            <span class="text-xs text-slate-400 block font-medium">Nivel de Riesgo EASM</span>
+                            <span class="px-2 py-0.5 rounded text-xs font-bold border ${levelColor}">${a.risk_level}</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 border border-cyber-border rounded-xl p-5 flex items-center gap-4">
+                        <div class="text-4xl font-black text-emerald-400 font-mono">${a.posture_score} <span class="text-xs text-slate-500">/ 100</span></div>
+                        <div>
+                            <span class="text-xs text-slate-400 block font-medium">Postura de Resiliencia</span>
+                            <strong class="text-white text-sm block">${a.posture_level}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Factores de Riesgo Identificados (${(a.factors || []).length})</h4>
+                    ${factorsHtml || '<div class="p-4 bg-slate-900 rounded-xl text-slate-500 text-center">No hay factores que aumenten el riesgo. Postura óptima.</div>'}
+                </div>
+
+                <div class="p-3 bg-slate-950 rounded-xl border border-cyber-border text-[11px] text-slate-400">
+                    <i class="fa-solid fa-info-circle text-cyan-400 mr-1"></i>
+                    ${a.methodology || 'Metodología EASM explicable.'}
+                </div>
+            `;
+        }
+
+        // AI Correlation
+        async function triggerAiCorrelation() {
+            const container = document.getElementById('ai-report-container');
+            const btn = document.getElementById('btn-run-ai');
+            if (btn) btn.disabled = true;
+
+            container.innerHTML = `
+                <div class="text-center py-16 text-slate-400">
+                    <i class="fa-solid fa-spinner fa-spin text-3xl text-purple-400 mb-3 block"></i>
+                    <strong class="text-white text-sm block font-bold">Correlacionando Telemetría con Inteligencia Artificial...</strong>
+                    <p class="text-xs text-slate-500 mt-1">Auditando activos, puertos, CISA KEV y vectores MITRE ATT&CK.</p>
+                </div>
+            `;
+
+            try {
+                const res = await fetch(`${API_URL}?action=ai_correlate_evidence&seed=${encodeURIComponent(activeSeed || 'vulnweb.com')}`);
+                const data = await res.json();
+                if (data.success) {
+                    renderAiMarkdownReport(data.report_markdown);
+                } else {
+                    container.innerHTML = '<div class="text-rose-400 p-4">Error generando análisis de IA.</div>';
+                }
+            } catch (err) {
+                container.innerHTML = '<div class="text-rose-400 p-4">Fallo de comunicación con el motor de IA.</div>';
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        function renderAiMarkdownReport(md) {
+            const container = document.getElementById('ai-report-container');
+            if (!container) return;
+
+            // Simple fast client-side markdown formatter
+            let html = md
+                .replace(/^# (.*$)/gim, '<h1 class="text-lg font-black text-white mb-2 pb-2 border-b border-cyber-border">$1</h1>')
+                .replace(/^## (.*$)/gim, '<h2 class="text-sm font-bold text-teal-300 mt-4 mb-2 flex items-center gap-1.5">$1</h2>')
+                .replace(/^### (.*$)/gim, '<h3 class="text-xs font-bold text-white mt-3 mb-1">$1</h3>')
+                .replace(/^> (.*$)/gim, '<blockquote class="p-3 rounded-xl bg-slate-900 border-l-4 border-purple-500 text-slate-300 text-xs my-2">$1</blockquote>')
+                .replace(/\*\*(.*?)\*\*/gim, '<strong class="text-white font-bold">$1</strong>')
+                .replace(/`([^`]+)`/gim, '<code class="px-1.5 py-0.5 rounded bg-slate-900 text-cyan-300 font-mono text-[11px]">$1</code>')
+                .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc text-slate-300 my-1">$1</li>')
+                .replace(/\n/g, '<br>');
+
+            container.innerHTML = `<div class="space-y-3">${html}</div>`;
+        }
+
+        // Enhance switchTab to cover all Stage 3 tabs
+        const originalSwitchTab = switchTab;
+        switchTab = function(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.className = 'tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition';
+            });
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+            if (activeBtn) {
+                activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
+            }
+
+            const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai'];
+            allTabs.forEach(t => {
+                const el = document.getElementById(`tab-content-${t}`);
+                if (el) el.classList.toggle('hidden', t !== tabId);
+            });
+
+            if (tabId === 'connectors') loadConnectors();
+            if (tabId === 'scope') loadScope();
+            if (tabId === 'cloud') loadCloudExposure();
+            if (tabId === 'graph' && networkInstance) setTimeout(() => { networkInstance.fit(); }, 100);
+            if (tabId === 'strix') populateStrixAssetDropdown();
+            if (tabId === 'loginrecon') populateLoginReconPresets();
+        };
+
+        // Handler for updating vulnerability validation state
+        async function handleValidationStateChange(vulnId, newState) {
+            const form = new FormData();
+            form.append('id', vulnId);
+            form.append('validation_state', newState);
+
+            try {
+                const res = await fetch(`${API_URL}?action=update_vuln_validation`, { method: 'POST', body: form });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`Estado de validación actualizado a: ${newState}`);
+                    await Promise.all([loadStats(), loadVulns()]);
+                } else {
+                    showToast(data.error || 'Error actualizando validación', true);
+                }
+            } catch (err) {
+                showToast('Fallo de conexión al actualizar validación', true);
+            }
+        }
+
+</script>
     <!-- Local Chart.js & Vis-Network -->
     <script src="assets/vendor/chart.min.js"></script>
     <script src="assets/vendor/vis-network.min.js"></script>
@@ -125,9 +608,13 @@
                         <div id="posture-badge" class="inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800/50 mb-1">
                             Calculando...
                         </div>
-                        <p class="text-xs text-slate-400 leading-relaxed">
-                            Métrica perimetral aislada exclusivamente para la semilla seleccionada.
+                        <p class="text-xs text-slate-400 leading-relaxed mb-2">
+                            Métrica perimetral explicable basada en CISA KEV, EPSS y telemetría de activos.
                         </p>
+                        <button onclick="openRiskBreakdownModal()" class="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-950/80 border border-indigo-700/60 text-indigo-300 hover:text-white hover:bg-indigo-900 transition flex items-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-calculator text-indigo-400"></i>
+                            <span>Explicabilidad del Riesgo (0-100)</span>
+                        </button>
                     </div>
                 </div>
 
@@ -229,6 +716,22 @@
                 <i class="fa-brands fa-php text-indigo-400 text-lg"></i>
                 <span>PHP2Shell Scanner</span>
                 <span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-950 text-rose-300 border border-rose-800/80 animate-pulse">CVE-2026</span>
+            </button>
+            <button onclick="switchTab('connectors')" id="tab-btn-connectors" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Centro de gestión de conectores OSINT, CTI y proveedores de inteligencia">
+                <i class="fa-solid fa-plug text-teal-400"></i>
+                <span>Conectores OSINT</span>
+            </button>
+            <button onclick="switchTab('scope')" id="tab-btn-scope" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Control de alcance autorizado y protección perimetral Anti-SSRF">
+                <i class="fa-solid fa-shield-halved text-cyan-400"></i>
+                <span>Alcance & RoE</span>
+            </button>
+            <button onclick="switchTab('cloud')" id="tab-btn-cloud" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Auditoría de buckets públicos en AWS S3, Azure Blob y GCP Storage">
+                <i class="fa-solid fa-cloud text-blue-400"></i>
+                <span>Exposición Cloud</span>
+            </button>
+            <button onclick="switchTab('ai')" id="tab-btn-ai" class="tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition" title="Correlación ejecutiva asistida por IA con citas de evidencia verificables y MITRE ATT&CK">
+                <i class="fa-solid fa-brain text-purple-400"></i>
+                <span>Correlación IA</span>
             </button>
         </div>
 
@@ -1970,6 +2473,228 @@
             </div>
         </section>
 
+        <!-- TAB CONTENT: CONNECTORS (OSINT & CTI HUB) -->
+        <section id="tab-content-connectors" class="space-y-6 hidden">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-plug text-teal-400"></i>
+                        Centro de Conectores OSINT & Inteligencia de Amenazas
+                    </h3>
+                    <p class="text-xs text-slate-400">Gestión de conectores clasificados con separación estricta: fuentes gratuitas, con API key y comerciales.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="syncCtiFeedsLive()" class="px-3 py-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-semibold text-xs shadow-lg shadow-teal-500/20 hover:from-teal-400 hover:to-emerald-500 transition flex items-center gap-1.5 cursor-pointer">
+                        <i class="fa-solid fa-arrows-rotate"></i>
+                        <span>Sincronizar Feeds Vivos</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Connectors KPI Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-4">
+                    <span class="text-[11px] text-slate-400 block font-medium">Total Conectores</span>
+                    <strong id="conn-stat-total" class="text-xl font-bold text-white">16</strong>
+                </div>
+                <div class="bg-cyber-card border border-emerald-900/40 rounded-xl p-4">
+                    <span class="text-[11px] text-emerald-400 block font-medium">Fuentes Gratuitas (Activas)</span>
+                    <strong id="conn-stat-free" class="text-xl font-bold text-emerald-400">6</strong>
+                </div>
+                <div class="bg-cyber-card border border-amber-900/40 rounded-xl p-4">
+                    <span class="text-[11px] text-amber-400 block font-medium">Requieren API Key</span>
+                    <strong id="conn-stat-api" class="text-xl font-bold text-amber-400">6</strong>
+                </div>
+                <div class="bg-cyber-card border border-indigo-900/40 rounded-xl p-4">
+                    <span class="text-[11px] text-indigo-400 block font-medium">Comerciales / Enterprise</span>
+                    <strong id="conn-stat-comm" class="text-xl font-bold text-indigo-400">4</strong>
+                </div>
+            </div>
+
+            <!-- Filter Buttons -->
+            <div class="flex items-center gap-2 border-b border-cyber-border pb-3">
+                <button onclick="filterConnectorsList('ALL')" id="conn-filter-ALL" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-teal-300 border border-teal-800/60 transition">Todos (16)</button>
+                <button onclick="filterConnectorsList('FREE')" id="conn-filter-FREE" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition">Gratuitos (6)</button>
+                <button onclick="filterConnectorsList('API_KEY')" id="conn-filter-API_KEY" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition">Con API Key (6)</button>
+                <button onclick="filterConnectorsList('COMMERCIAL')" id="conn-filter-COMMERCIAL" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition">Comerciales (4)</button>
+            </div>
+
+            <!-- Connectors Grid -->
+            <div id="connectors-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Dynamically loaded -->
+            </div>
+        </section>
+
+        <!-- TAB CONTENT: SCOPE & GOVERNANCE -->
+        <section id="tab-content-scope" class="space-y-6 hidden">
+            <div>
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-cyan-400"></i>
+                    Gobernanza de Alcance Autorizado (Rules of Engagement)
+                </h3>
+                <p class="text-xs text-slate-400">Control estricto de objetivos legales. Los sondeos activos bloquean cualquier host fuera de esta lista y previenen SSRF contra IPs privadas.</p>
+            </div>
+
+            <!-- Anti-SSRF Defense Banner -->
+            <div class="p-4 rounded-xl bg-cyan-950/30 border border-cyan-800/50 flex items-start gap-3">
+                <i class="fa-solid fa-lock text-cyan-400 text-lg mt-0.5"></i>
+                <div class="text-xs text-slate-300 space-y-1">
+                    <strong class="text-white block font-semibold">Protección Perimetral Anti-SSRF Activa (RFC 1918 / Loopback / Link-Local)</strong>
+                    <p class="text-slate-400">Todo intento de sondeo hacia rangos internos (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8) o metadatos cloud (169.254.169.254) es rechazado y registrado en la bitácora de auditoría.</p>
+                </div>
+            </div>
+
+            <!-- Add Scope Form -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-6">
+                <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle text-cyan-400"></i>
+                    Registrar Nuevo Objetivo en el Alcance Autorizado
+                </h4>
+                <form id="form-add-scope" onsubmit="handleAddScopeSubmit(event)" class="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                    <div class="sm:col-span-5">
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Patrón de Objetivo (Dominio, Comodín o IP):</label>
+                        <input type="text" id="scope-input-pattern" placeholder="ej: organizacion.com, *.organizacion.com, 200.1.2.3" required class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400 font-mono">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Tipo:</label>
+                        <select id="scope-input-type" class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400">
+                            <option value="DOMAIN">DOMAIN</option>
+                            <option value="IP">IP</option>
+                            <option value="CIDR">CIDR</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-3">
+                        <label class="block text-xs font-semibold text-slate-400 mb-1">Justificación / RoE:</label>
+                        <input type="text" id="scope-input-notes" placeholder="ej: Autorizado por CISO contrato #2026-B" class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-400">
+                    </div>
+                    <div class="sm:col-span-2 flex items-end">
+                        <button type="submit" class="w-full px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs transition cursor-pointer flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-check"></i>
+                            <span>Autorizar</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Scope Table -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-cyber-border flex items-center justify-between">
+                    <h4 class="text-sm font-bold text-white">Objetivos Legalmente Habilitados (<span id="scope-count">0</span>)</h4>
+                    <input type="text" id="scope-filter-search" oninput="filterScopeTable()" placeholder="Filtrar alcance..." class="bg-slate-900 border border-cyber-border rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-cyan-400">
+                </div>
+                <div class="overflow-x-auto max-h-[500px]">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-900/80 text-slate-400 font-semibold border-b border-cyber-border sticky top-0">
+                            <tr>
+                                <th class="p-3">Patrón de Alcance</th>
+                                <th class="p-3">Tipo</th>
+                                <th class="p-3">Autorizado Por</th>
+                                <th class="p-3">Fecha de Alta</th>
+                                <th class="p-3">Notas RoE</th>
+                                <th class="p-3 text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scope-table-body" class="divide-y divide-cyber-border font-mono">
+                            <!-- Dynamically loaded -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB CONTENT: CLOUD EXPOSURE -->
+        <section id="tab-content-cloud" class="space-y-6 hidden">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-cloud text-blue-400"></i>
+                        Exposición y Almacenamiento Cloud (AWS S3, Azure Blob, GCP)
+                    </h3>
+                    <p class="text-xs text-slate-400">Identificación de buckets públicos, permisos de listado no autorizados y recursos cloud expuestos externamente.</p>
+                </div>
+                <button onclick="triggerCloudScan()" class="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold text-xs shadow-lg shadow-blue-500/20 hover:from-blue-400 hover:to-indigo-500 transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-radar"></i>
+                    <span>Sondear Almacenamiento Cloud</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 flex items-center gap-3">
+                    <i class="fa-brands fa-aws text-amber-400 text-2xl"></i>
+                    <div>
+                        <span class="text-xs text-slate-400">AWS S3 Permutations</span>
+                        <strong class="text-white block font-mono text-sm">&lt;domain&gt;.s3.amazonaws.com</strong>
+                    </div>
+                </div>
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 flex items-center gap-3">
+                    <i class="fa-brands fa-microsoft text-sky-400 text-2xl"></i>
+                    <div>
+                        <span class="text-xs text-slate-400">Azure Blob Storage</span>
+                        <strong class="text-white block font-mono text-sm">&lt;domain&gt;.blob.core.windows.net</strong>
+                    </div>
+                </div>
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 flex items-center gap-3">
+                    <i class="fa-brands fa-google text-red-400 text-2xl"></i>
+                    <div>
+                        <span class="text-xs text-slate-400">Google Cloud Storage</span>
+                        <strong class="text-white block font-mono text-sm">storage.googleapis.com/&lt;domain&gt;</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cloud Exposures Table -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-cyber-border">
+                    <h4 class="text-sm font-bold text-white">Recursos Cloud Identificados</h4>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-slate-900/80 text-slate-400 font-semibold border-b border-cyber-border">
+                            <tr>
+                                <th class="p-3">Proveedor</th>
+                                <th class="p-3">Recurso / Bucket</th>
+                                <th class="p-3">URL Pública</th>
+                                <th class="p-3">Estado de Exposición</th>
+                                <th class="p-3">Diagnóstico</th>
+                                <th class="p-3">Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cloud-table-body" class="divide-y divide-cyber-border font-mono">
+                            <tr>
+                                <td colspan="6" class="p-8 text-center text-slate-500 font-sans">
+                                    Presiona "Sondear Almacenamiento Cloud" para verificar recursos públicos en AWS, Azure y Google Cloud.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB CONTENT: AI CORRELATION -->
+        <section id="tab-content-ai" class="space-y-6 hidden">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-brain text-purple-400"></i>
+                        Correlación de Amenazas Asistida por Inteligencia Artificial
+                    </h3>
+                    <p class="text-xs text-slate-400">Síntesis determinista basada estrictamente en evidencias empíricas comprobables con mapeo MITRE ATT&CK.</p>
+                </div>
+                <button onclick="triggerAiCorrelation()" id="btn-run-ai" class="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold text-xs shadow-lg shadow-purple-600/25 hover:from-purple-500 hover:to-indigo-500 transition flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>Generar Informe Ejecutivo IA</span>
+                </button>
+            </div>
+
+            <div id="ai-report-container" class="bg-cyber-card border border-cyber-border rounded-2xl p-8 space-y-4 text-slate-300 text-xs leading-relaxed font-sans">
+                <div class="text-center py-12 text-slate-500">
+                    <i class="fa-solid fa-microchip text-4xl text-purple-400 mb-3 block"></i>
+                    <strong class="text-white text-base block font-bold">Motor de Inteligencia de Amenazas Listo</strong>
+                    <p class="text-xs text-slate-400 mt-1 max-w-md mx-auto">Haz clic en "Generar Informe Ejecutivo IA" para correlacionar activos vivos, vulnerabilidades confirmadas, vectores MITRE ATT&CK y prioridades NIST.</p>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- Work Plan & Roadmap Modal -->
@@ -2892,17 +3617,40 @@
                         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider ${badgeColor}">${v.severity}</span>
+                                ${(() => {
+                                    const vState = (v.validation_state || 'POTENCIAL').toUpperCase();
+                                    if (vState === 'VALIDADA') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-900 text-rose-200 border border-rose-700 flex items-center gap-1"><i class="fa-solid fa-circle-check"></i>VALIDADA</span>';
+                                    if (vState === 'PROBABLE') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-900 text-amber-200 border border-amber-700 flex items-center gap-1"><i class="fa-solid fa-triangle-exclamation"></i>PROBABLE</span>';
+                                    if (vState === 'FALSO_POSITIVO') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 line-through">FALSO POSITIVO</span>';
+                                    if (vState === 'INFO_INSUFICIENTE') return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-900 text-slate-400 border border-slate-800">INFO INSUFICIENTE</span>';
+                                    return '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-950 text-yellow-300 border border-yellow-800 flex items-center gap-1"><i class="fa-solid fa-lightbulb"></i>POTENCIAL</span>';
+                                })()}
+                                ${parseInt(v.cisa_kev) === 1 ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-950 text-red-300 border border-red-700 animate-pulse flex items-center gap-1"><i class="fa-solid fa-radiation"></i>CISA KEV</span>' : ''}
+                                ${parseFloat(v.epss_score) > 0 ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-950 text-purple-300 border border-purple-800">EPSS: ${(parseFloat(v.epss_score) * 100).toFixed(1)}%</span>` : ''}
+                                ${v.cve_id ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-800 text-cyan-300 border border-cyan-800">${v.cve_id}</span>` : ''}
                                 <h4 class="font-bold ${isResolved ? 'text-slate-400 line-through' : 'text-white'} text-sm">${v.title}</h4>
                             </div>
 
-                            <div class="flex items-center gap-2">
-                                <span class="text-[11px] text-slate-400 font-medium">Estado:</span>
-                                <select onchange="handleStatusChange(${v.id}, this.value)" class="px-3 py-1.5 rounded-lg text-xs font-semibold border ${isResolved ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : (isInProgress ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-slate-900 text-rose-300 border-rose-800')} focus:outline-none">
-                                    <option value="OPEN" ${currentStatus === 'OPEN' ? 'selected' : ''}>🔴 Abierto</option>
-                                    <option value="IN_PROGRESS" ${currentStatus === 'IN_PROGRESS' ? 'selected' : ''}>🟡 En Remediación</option>
-                                    <option value="RESOLVED" ${currentStatus === 'RESOLVED' ? 'selected' : ''}>🟢 Mitigado / Resuelto</option>
-                                    <option value="FALSE_POSITIVE" ${currentStatus === 'FALSE_POSITIVE' ? 'selected' : ''}>⚪ Falso Positivo</option>
-                                </select>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <div class="flex items-center gap-1">
+                                    <span class="text-[10px] text-slate-400 font-medium">Validación:</span>
+                                    <select onchange="handleValidationStateChange(${v.id}, this.value)" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-slate-300 border border-cyber-border focus:outline-none">
+                                        <option value="POTENCIAL" ${(v.validation_state || '') === 'POTENCIAL' ? 'selected' : ''}>Potencial</option>
+                                        <option value="PROBABLE" ${(v.validation_state || '') === 'PROBABLE' ? 'selected' : ''}>Probable</option>
+                                        <option value="VALIDADA" ${(v.validation_state || '') === 'VALIDADA' ? 'selected' : ''}>Validada</option>
+                                        <option value="FALSO_POSITIVO" ${(v.validation_state || '') === 'FALSO_POSITIVO' ? 'selected' : ''}>Falso Positivo</option>
+                                        <option value="INFO_INSUFICIENTE" ${(v.validation_state || '') === 'INFO_INSUFICIENTE' ? 'selected' : ''}>Info Insuficiente</option>
+                                    </select>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <span class="text-[10px] text-slate-400 font-medium">Ciclo:</span>
+                                    <select onchange="handleStatusChange(${v.id}, this.value)" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold border ${isResolved ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : (isInProgress ? 'bg-amber-950 text-amber-300 border-amber-800' : 'bg-slate-900 text-rose-300 border-rose-800')} focus:outline-none">
+                                        <option value="OPEN" ${currentStatus === 'OPEN' ? 'selected' : ''}>🔴 Abierto</option>
+                                        <option value="IN_PROGRESS" ${currentStatus === 'IN_PROGRESS' ? 'selected' : ''}>🟡 En Remediación</option>
+                                        <option value="RESOLVED" ${currentStatus === 'RESOLVED' ? 'selected' : ''}>🟢 Mitigado</option>
+                                        <option value="FALSE_POSITIVE" ${currentStatus === 'FALSE_POSITIVE' ? 'selected' : ''}>⚪ Falso Positivo</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -5952,5 +6700,57 @@ function closeTakedownModal() {
         }
 
 </script>
+    <!-- RISK SCORE BREAKDOWN MODAL -->
+    <div id="risk-breakdown-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cyber-card border border-cyber-border rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-cyber-border flex items-center justify-between">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-calculator text-indigo-400"></i>
+                        Desglose Explicable de Riesgo EASM / CTEM (0 a 100)
+                    </h3>
+                    <p class="text-xs text-slate-400">Metodología transparente con evidencias consultables y ponderadas (CISA KEV, EPSS, NIST).</p>
+                </div>
+                <button onclick="closeRiskBreakdownModal()" class="text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-6 text-xs" id="risk-breakdown-content">
+                <div class="text-center py-8 text-slate-500">Cargando desglose de riesgo...</div>
+            </div>
+
+            <div class="p-4 border-t border-cyber-border bg-slate-900/60 flex justify-end">
+                <button onclick="closeRiskBreakdownModal()" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs transition">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONNECTOR CONFIG MODAL -->
+    <div id="connector-config-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-cyber-card border border-cyber-border rounded-2xl max-w-md w-full shadow-2xl overflow-hidden">
+            <div class="p-5 border-b border-cyber-border flex items-center justify-between">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2" id="conn-modal-title">
+                    <i class="fa-solid fa-key text-teal-400"></i>
+                    Configurar Conector
+                </h4>
+                <button onclick="closeConnectorConfigModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleSaveConnectorKey(event)" class="p-5 space-y-4">
+                <input type="hidden" id="conn-modal-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 mb-1">API Key / Token de Acceso:</label>
+                    <input type="password" id="conn-modal-key" placeholder="Ingresa la API key del proveedor" class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-teal-400">
+                    <span class="text-[10px] text-slate-500 mt-1 block">La clave se almacena encriptada y se enmascara para preservar su confidencialidad.</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="conn-modal-enabled" class="rounded bg-slate-900 border-cyber-border text-teal-500 focus:ring-0">
+                    <label for="conn-modal-enabled" class="text-xs text-slate-300 font-medium">Habilitar sincronización para este conector</label>
+                </div>
+                <div class="flex justify-end gap-2 pt-2 border-t border-cyber-border">
+                    <button type="button" onclick="closeConnectorConfigModal()" class="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 text-xs">Cancelar</button>
+                    <button type="submit" class="px-4 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs transition">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

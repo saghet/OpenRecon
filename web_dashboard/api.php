@@ -404,6 +404,24 @@ function handleCheckAuth($pdo) {
 
 // Router
 switch ($action) {
+    case 'get_cloud_exposure':
+        getCloudExposure($pdo);
+        break;
+    case 'scan_cloud_exposure':
+        scanCloudExposure($pdo);
+        break;
+    case 'get_monitors':
+        getMonitors($pdo);
+        break;
+    case 'toggle_monitor':
+        toggleMonitor($pdo);
+        break;
+    case 'get_infrastructure_diffs':
+        getInfrastructureDiffs($pdo);
+        break;
+    case 'ai_correlate_evidence':
+        aiCorrelateEvidence($pdo);
+        break;
     case 'get_connectors':
         getConnectors($pdo);
         break;
@@ -552,6 +570,270 @@ switch ($action) {
 // -------------------------------------------------------------
 // STAGE 2: OSINT CONNECTORS, VULNERABILITY INTELLIGENCE & EXPLAINABLE RISK
 // -------------------------------------------------------------
+
+
+// -------------------------------------------------------------
+// STAGE 3: CLOUD SECURITY EXPOSURE, CONTINUOUS MONITORING & AI CORRELATION
+// -------------------------------------------------------------
+
+function getCloudExposure($pdo) {
+    $seed = trim($_GET['seed'] ?? '');
+    if (!empty($seed) && $seed !== 'ALL') {
+        $stmt = $pdo->prepare("SELECT * FROM cloud_exposures WHERE seed_domain = ? ORDER BY CASE status WHEN 'PUBLIC_LISTABLE' THEN 1 WHEN 'ACCESS_RESTRICTED' THEN 2 ELSE 3 END, detected_at DESC");
+        $stmt->execute([$seed]);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM cloud_exposures ORDER BY CASE status WHEN 'PUBLIC_LISTABLE' THEN 1 WHEN 'ACCESS_RESTRICTED' THEN 2 ELSE 3 END, detected_at DESC");
+    }
+    echo json_encode([
+        'success' => true,
+        'exposures' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+    ]);
+}
+
+function scanCloudExposure($pdo) {
+    set_time_limit(180);
+    $seed = trim($_POST['seed'] ?? $_GET['seed'] ?? '');
+    if (empty($seed)) {
+        echo json_encode(['success' => false, 'error' => 'Dominio semilla no especificado']);
+        return;
+    }
+
+    $apex = getApexDomain($seed);
+    $cleanApex = preg_replace('/^www\./i', '', $apex);
+    $core = explode('.', $cleanApex)[0];
+
+    if (strlen($core) < 3) {
+        echo json_encode(['success' => false, 'error' => 'Nombre base de dominio demasiado corto para enumeración cloud']);
+        return;
+    }
+
+    $suffixes = ['', '-backup', '-data', '-assets', '-public', '-dev', '-prod'];
+    $targets = [];
+
+    foreach ($suffixes as $suf) {
+        $bucketName = $core . $suf;
+        // AWS S3
+        $targets[] = [
+            'provider' => 'AWS_S3',
+            'resource' => $bucketName,
+            'url' => "https://{$bucketName}.s3.amazonaws.com"
+        ];
+        // Azure Blob Storage
+        $targets[] = [
+            'provider' => 'AZURE_BLOB',
+            'resource' => $bucketName,
+            'url' => "https://{$bucketName}.blob.core.windows.net"
+        ];
+        // Google Cloud Storage
+        $targets[] = [
+            'provider' => 'GCP_STORAGE',
+            'resource' => $bucketName,
+            'url' => "https://storage.googleapis.com/{$bucketName}"
+        ];
+    }
+
+    $results = [];
+    $stmtIns = $pdo->prepare("
+        INSERT INTO cloud_exposures (seed_domain, provider, resource_name, url, status, http_code, details, detected_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(seed_domain, url) DO UPDATE SET
+            status = excluded.status,
+            http_code = excluded.http_code,
+            details = excluded.details,
+            detected_at = CURRENT_TIMESTAMP
+    ");
+
+    foreach ($targets as $tgt) {
+        $ch = curl_init($tgt['url']);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_USERAGENT, 'OpenRecon-CloudAuditor/1.0');
+        $body = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        $status = 'DOES_NOT_EXIST';
+        $details = 'Almacenamiento no existente o DNS no resuelto.';
+
+        if ($code === 200) {
+            // Check if directory listing / XML is returned
+            if (stripos($body, '<ListBucketResult') !== false || stripos($body, '<EnumerationResults') !== false) {
+                $status = 'PUBLIC_LISTABLE';
+                $details = 'ALERTA CRÍTICA: Bucket público accesible y listable sin autenticación. Riesgo de exfiltración masiva de datos.';
+                // Register high vulnerability
+                try {
+                    $stmtVuln = $pdo->prepare("
+                        INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, description, status, validation_state, cvss_score, evidence)
+                        VALUES (?, ?, 'CRITICAL', ?, 'OPEN', 'VALIDADA', 9.5, ?)
+                    ");
+                    $stmtVuln->execute([
+                        $tgt['resource'] . '.' . strtolower($tgt['provider']),
+                        "Almacenamiento Cloud Público Listable ({$tgt['provider']})",
+                        "El recurso {$tgt['url']} responde con código 200 OK y listado público de objetos habilitado.",
+                        "URL: {$tgt['url']} | HTTP Status: 200 | ListBucketResult XML confirmado"
+                    ]);
+                } catch (Exception $e) {}
+            } else {
+                $status = 'ACCESS_RESTRICTED';
+                $details = 'El recurso existe y responde 200 pero el listado directo requiere autenticación.';
+            }
+        } elseif ($code === 403) {
+            $status = 'ACCESS_RESTRICTED';
+            $details = 'Recurso existente pero con políticas de acceso denegadas (403 Forbidden). No listable públicamente.';
+        } elseif ($code === 404) {
+            $status = 'DOES_NOT_EXIST';
+            $details = 'Recurso inexistente (404 Not Found).';
+        }
+
+        if ($status !== 'DOES_NOT_EXIST') {
+            $stmtIns->execute([$apex, $tgt['provider'], $tgt['resource'], $tgt['url'], $status, $code, $details]);
+            $results[] = [
+                'provider' => $tgt['provider'],
+                'resource' => $tgt['resource'],
+                'url' => $tgt['url'],
+                'status' => $status,
+                'http_code' => $code,
+                'details' => $details
+            ];
+        }
+    }
+
+    logAuditAction($pdo, 'SCAN_CLOUD_EXPOSURE', $apex, 'SUCCESS', 'Scanned ' . count($targets) . ' permutations');
+    echo json_encode([
+        'success' => true,
+        'seed_domain' => $apex,
+        'permutations_scanned' => count($targets),
+        'exposed_resources' => $results
+    ]);
+}
+
+function getMonitors($pdo) {
+    $stmt = $pdo->query("SELECT * FROM scheduled_monitors ORDER BY created_at DESC");
+    echo json_encode([
+        'success' => true,
+        'monitors' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+    ]);
+}
+
+function toggleMonitor($pdo) {
+    $id = (int)($_POST['id'] ?? 0);
+    $active = (int)($_POST['is_active'] ?? 1);
+    if ($id <= 0) {
+        echo json_encode(['success' => false, 'error' => 'ID de monitor no válido']);
+        return;
+    }
+    $stmt = $pdo->prepare("UPDATE scheduled_monitors SET is_active = ? WHERE id = ?");
+    $stmt->execute([$active, $id]);
+    logAuditAction($pdo, 'TOGGLE_MONITOR', (string)$id, 'SUCCESS', "Set active={$active}");
+    echo json_encode(['success' => true, 'id' => $id, 'is_active' => $active]);
+}
+
+function getInfrastructureDiffs($pdo) {
+    $seed = trim($_GET['seed'] ?? '');
+    if (!empty($seed) && $seed !== 'ALL') {
+        $stmt = $pdo->prepare("SELECT * FROM infrastructure_diffs WHERE seed_domain = ? ORDER BY detected_at DESC LIMIT 50");
+        $stmt->execute([$seed]);
+    } else {
+        $stmt = $pdo->query("SELECT * FROM infrastructure_diffs ORDER BY detected_at DESC LIMIT 50");
+    }
+    echo json_encode([
+        'success' => true,
+        'diffs' => $stmt->fetchAll(PDO::FETCH_ASSOC)
+    ]);
+}
+
+function aiCorrelateEvidence($pdo) {
+    $seed = trim($_POST['seed'] ?? $_GET['seed'] ?? '');
+    if (empty($seed) || $seed === 'ALL') {
+        $seeds = $pdo->query("SELECT domain FROM seeds LIMIT 1")->fetchAll(PDO::FETCH_COLUMN);
+        $seed = $seeds[0] ?? 'vulnweb.com';
+    }
+
+    // 1. Gather all empirical evidence for this seed
+    $assetsStmt = $pdo->prepare("SELECT subdomain, ip_address, is_live, tech_stack FROM assets WHERE seed_domain = ?");
+    $assetsStmt->execute([$seed]);
+    $assets = $assetsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $portsStmt = $pdo->prepare("SELECT asset_subdomain, port, service_name FROM open_ports WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)");
+    $portsStmt->execute([$seed]);
+    $ports = $portsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $vulnStmt = $pdo->prepare("SELECT id, asset_subdomain, title, severity, cve_id, cvss_score, epss_score, cisa_kev, validation_state, description FROM vulnerabilities WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)");
+    $vulnStmt->execute([$seed]);
+    $vulns = $vulnStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $drpStmt = $pdo->prepare("SELECT lookalike_domain, ip_address, has_mx, severity, details FROM drp_threats WHERE seed_domain = ?");
+    $drpStmt->execute([$seed]);
+    $drpThreats = $drpStmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $riskAssessment = calculateExplainableRiskScore($pdo, $seed);
+
+    // 2. Synthesize strict evidence-based correlation report
+    $timestamp = gmdate('Y-m-d H:i:s') . ' UTC';
+    $md = "# 🛡️ INFORME DE CORRELACIÓN CTI & GESTIÓN DE EXPOSICIÓN DIGITAL\n\n";
+    $md .= "> **ORGANIZACIÓN / OBJETIVO:** `{$seed}` | **FECHA DE ANÁLISIS:** `{$timestamp}`  \n";
+    $md .= "> **POSTURA GLOBAL:** `{$riskAssessment['posture_score']}/100 ({$riskAssessment['posture_level']})` | **NIVEL DE RIESGO EASM:** `{$riskAssessment['risk_score']}/100 ({$riskAssessment['risk_level']})`  \n\n";
+    $md .= "---\n\n";
+
+    $md .= "## 1. RESUMEN EJECUTIVO Y CADENA DE ATAQUE IDENTIFICADA\n\n";
+    $md .= "El motor de inteligencia correlacionó de forma determinista la telemetría perimetral descubierta contra fuentes de amenazas (CISA KEV, FIRST.org EPSS y bases de datos DNS activas).\n\n";
+
+    // Trace Attack Vectors based strictly on real database rows
+    $vectors = [];
+    foreach ($vulns as $v) {
+        if ($v['validation_state'] === 'VALIDADA' || (int)$v['cisa_kev'] === 1) {
+            $vectors[] = "- **[VECTOR CRÍTICO CONFIRMADO]** En `{$v['asset_subdomain']}`, se confirmó `{$v['title']}` (CVE: `{$v['cve_id']}`). **Técnica MITRE:** `T1190 (Exploit Public-Facing Application)`. **Evidencia ID:** `#{$v['id']}`.";
+        }
+    }
+    foreach ($ports as $p) {
+        if (in_array((int)$p['port'], [22, 3389, 445])) {
+            $vectors[] = "- **[EXPOSICIÓN DE GESTIÓN]** Puerto administrativo `{$p['port']} ({$p['service_name']})` expuesto en `{$p['asset_subdomain']}`. **Técnica MITRE:** `T1021 (Remote Services)`. Permite ataques de fuerza bruta o password spraying.";
+        }
+    }
+    foreach ($drpThreats as $d) {
+        if ((int)$d['has_mx'] === 1) {
+            $vectors[] = "- **[AMENAZA DE SUPLANTACIÓN INMINENTE]** Dominio imitador activo `{$d['lookalike_domain']}` con servidores MX configurados en IP `{$d['ip_address']}`. **Técnica MITRE:** `T1566 (Phishing)` / `T1583 (Acquire Infrastructure)`.";
+        }
+    }
+
+    if (empty($vectors)) {
+        $md .= "No se detectaron vectores de explotación inmediata ni suplantación activa con servidores MX en este perímetro.\n\n";
+    } else {
+        $md .= "### Vectores de Ataque Correlacionados (Mapeo MITRE ATT&CK)\n";
+        $md .= implode("\n", $vectors) . "\n\n";
+    }
+
+    $md .= "---\n\n";
+    $md .= "## 2. INVENTARIO DE EVIDENCIAS AUDITABLES\n\n";
+    $md .= "| Activo / Subdominio | Dirección IP | Puertos Abiertos | Vulnerabilidades Registradas |\n";
+    $md .= "| :--- | :--- | :--- | :--- |\n";
+
+    foreach (array_slice($assets, 0, 15) as $ast) {
+        $sub = $ast['subdomain'];
+        $subPorts = array_filter($ports, function($p) use ($sub) { return $p['asset_subdomain'] === $sub; });
+        $subVulns = array_filter($vulns, function($v) use ($sub) { return $v['asset_subdomain'] === $sub; });
+
+        $portsStr = empty($subPorts) ? 'Sin puertos' : implode(', ', array_map(function($p) { return $p['port']; }, $subPorts));
+        $vulnsStr = empty($subVulns) ? '0 hallazgos' : count($subVulns) . ' (' . implode(', ', array_map(function($v) { return $v['validation_state']; }, array_slice($subVulns, 0, 2))) . ')';
+
+        $md .= "| `" . htmlspecialchars($sub) . "` | `" . htmlspecialchars($ast['ip_address'] ?: 'Sin IP') . "` | `{$portsStr}` | {$vulnsStr} |\n";
+    }
+
+    $md .= "\n---\n\n";
+    $md .= "## 3. PLAN DE REMEDIACIÓN PRIORIZADO (NIST SP 800-40r4)\n\n";
+    $md .= "1. **Aplicar parches de emergencia:** Para las vulnerabilidades en estado `VALIDADA` o listadas en CISA KEV (plazo máximo de mitigación: 24 horas).\n";
+    $md .= "2. **Restringir acceso perimetral:** Desplegar ACLs en firewall para cerrar puertos de administración (22, 3389, 445) a internet público y canalizarlos exclusivamente por VPN con MFA.\n";
+    $md .= "3. **Takedown DRP preventivo:** Emitir solicitudes de baja por abuso contra registradores para los dominios imitadores detectados con registros MX activos.\n";
+
+    echo json_encode([
+        'success' => true,
+        'seed_domain' => $seed,
+        'generated_at' => $timestamp,
+        'report_markdown' => $md,
+        'risk_assessment' => $riskAssessment
+    ]);
+}
 
 function getConnectors($pdo) {
     $stmt = $pdo->query("SELECT id, connector_id, name, category, description, auth_type, endpoint_url, is_enabled, api_key_masked, last_sync, sync_status, items_synced, error_message FROM connectors_config ORDER BY CASE category WHEN 'FREE' THEN 1 WHEN 'API_KEY' THEN 2 ELSE 3 END, name ASC");

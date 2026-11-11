@@ -235,6 +235,7 @@ try {
                         <thead class="bg-slate-50 text-slate-600 uppercase text-[10px] border-b border-slate-200">
                             <tr>
                                 <th class="p-3">Severidad</th>
+                                <th class="p-3">Validación & CTI</th>
                                 <th class="p-3">Hallazgo Técnico</th>
                                 <th class="p-3">Activo Afectado</th>
                                 <th class="p-3">Acción Recomendada</th>
@@ -247,6 +248,17 @@ try {
                                     <span class="px-2 py-0.5 rounded text-[10px] uppercase <?php echo $v['severity'] === 'CRITICAL' ? 'bg-rose-100 text-rose-800' : ($v['severity'] === 'HIGH' ? 'bg-orange-100 text-orange-800' : ($v['severity'] === 'MEDIUM' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800')); ?>">
                                         <?php echo $v['severity']; ?>
                                     </span>
+                                </td>
+                                <td class="p-3 whitespace-nowrap space-y-1">
+                                    <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold <?php echo ($v['validation_state'] ?? '') === 'VALIDADA' ? 'bg-red-100 text-red-800 border border-red-300' : (($v['validation_state'] ?? '') === 'PROBABLE' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'); ?>">
+                                        <?php echo htmlspecialchars($v['validation_state'] ?? 'POTENCIAL'); ?>
+                                    </span>
+                                    <?php if (!empty($v['cisa_kev'])): ?>
+                                        <span class="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800">CISA KEV</span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($v['cve_id'])): ?>
+                                        <span class="block font-mono text-[9px] text-slate-500"><?php echo htmlspecialchars($v['cve_id']); ?></span>
+                                    <?php endif; ?>
                                 </td>
                                 <td class="p-3 font-semibold text-slate-900"><?php echo htmlspecialchars($v['title']); ?></td>
                                 <td class="p-3 font-mono text-[11px] text-slate-500 whitespace-nowrap"><?php echo htmlspecialchars($v['asset_subdomain']); ?></td>
