@@ -1237,7 +1237,7 @@
                     <!-- Asset quick-loader -->
                     <div class="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-xl border border-cyber-border">
                         <i class="fa-solid fa-crosshairs text-cyan-400 text-xs"></i>
-                        <select id="strix-asset-quick-select" class="bg-slate-950 text-xs text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-500 max-w-[200px]">
+                        <select id="strix-asset-quick-select" onchange="applyStrixSelectedAsset()" class="bg-slate-950 text-xs text-slate-200 border border-slate-700 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-cyan-500 max-w-[200px]">
                             <option value="">Seleccionar activo...</option>
                         </select>
                         <button onclick="applyStrixSelectedAsset()" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold transition">
@@ -3142,6 +3142,7 @@
     <!-- Application Script -->
     <script>
         const API_URL = 'api.php';
+        let globalSeeds = [];
         let globalAssets = [];
         let globalLeaks = [];
         let globalIocs = [];
@@ -3181,6 +3182,7 @@
             }
 
             showToast(`Cambiando perímetro a: ${(activeSeed && activeSeed !== 'ALL') ? activeSeed : 'Todas las semillas'}`);
+            populateStrixAssetDropdown();
             refreshAllData();
         }
 
@@ -4559,7 +4561,8 @@ function closeTakedownModal() {
             try {
                 const res = await fetch(`${API_URL}?action=get_seeds`);
                 const seeds = await res.json();
-                document.getElementById('seeds-count').innerText = `${seeds.length} semillas`;
+                globalSeeds = Array.isArray(seeds) ? seeds : [];
+                document.getElementById('seeds-count').innerText = `${globalSeeds.length} semillas`;
 
                 // Populate Topbar Switcher
                 const selector = document.getElementById('active-seed-selector');
@@ -4610,6 +4613,7 @@ function closeTakedownModal() {
                     </div>
                 `).join('');
 
+                populateStrixAssetDropdown();
             } catch (err) {
                 console.error(err);
             }
@@ -4800,54 +4804,19 @@ function closeTakedownModal() {
 
             let optionsHtml = '<option value="">Seleccionar activo...</option>';
 
-            // Filter assets for current active seed or all
-            let relevantAssets = (globalAssets || []).slice();
-            if (activeSeed && activeSeed !== 'ALL') {
-                relevantAssets = relevantAssets.filter(a => a.seed_domain === activeSeed || a.subdomain === activeSeed || (a.subdomain && a.subdomain.endsWith('.' + activeSeed)));
-            }
+            const seedsToDisplay = (globalSeeds || []).filter(s => s && s.domain);
 
-            // Sort: assets with open ports or status_code 200 first, then live, then others
-            relevantAssets.sort((a, b) => {
-                const aHasPort = (a.ports && a.ports.length > 0) ? 1 : 0;
-                const bHasPort = (b.ports && b.ports.length > 0) ? 1 : 0;
-                if (aHasPort !== bHasPort) return bHasPort - aHasPort;
-                return (b.is_live || 0) - (a.is_live || 0);
-            });
-
-            let liveGroup = [];
-            let otherGroup = [];
-
-            relevantAssets.forEach(a => {
-                const host = a.subdomain || a.ip_address;
-                if (!host) return;
-
-                const portsStr = a.ports || '';
-                const portList = portsStr.split(',').map(p => p.trim());
-                const has443 = portList.includes('443') || portList.includes('8443');
-                const has80 = portList.includes('80') || portList.includes('8080');
-
-                let scheme = has443 ? 'https' : (has80 ? 'http' : 'https');
-                let portBadge = '';
-                if (has443 && has80) portBadge = ' [HTTP:80, HTTPS:443]';
-                else if (has443) portBadge = ' [HTTPS:443]';
-                else if (has80) portBadge = ' [HTTP:80]';
-
-                const optValue = `${scheme}://${host}`;
-                const isRoot = (host === activeSeed);
-                const optLabel = `${host}${portBadge}` + (isRoot ? ' (Semilla activa)' : '') + (a.is_live ? ' 🟢' : '');
-
-                if (portBadge || isRoot || a.is_live) {
-                    liveGroup.push(`<option value="${optValue}" class="bg-slate-900 text-white font-medium">${optLabel}</option>`);
-                } else {
-                    otherGroup.push(`<option value="${optValue}" class="bg-slate-900 text-slate-400">${host}</option>`);
-                }
-            });
-
-            if (liveGroup.length > 0) {
-                optionsHtml += `<optgroup label="Activos Prioritarios (Servicios / Semilla)">${liveGroup.join('')}</optgroup>`;
-            }
-            if (otherGroup.length > 0) {
-                optionsHtml += `<optgroup label="Otros Subdominios Descubiertos">${otherGroup.slice(0, 60).join('')}</optgroup>`;
+            if (seedsToDisplay.length === 0) {
+                optionsHtml = '<option value="">(No hay semillas registradas)</option>';
+            } else {
+                seedsToDisplay.forEach(s => {
+                    const domain = (s.domain || '').trim();
+                    if (!domain) return;
+                    const optValue = `https://${domain}`;
+                    const isSelected = (activeSeed && activeSeed !== 'ALL' && domain === activeSeed) ? 'selected' : '';
+                    const badge = (domain === activeSeed) ? ' (Semilla Activa)' : ' (Semilla)';
+                    optionsHtml += `<option value="${optValue}" ${isSelected} class="bg-slate-900 text-white font-medium">${domain}${badge}</option>`;
+                });
             }
 
             select.innerHTML = optionsHtml;
