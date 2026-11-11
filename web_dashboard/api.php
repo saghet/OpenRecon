@@ -404,6 +404,21 @@ function handleCheckAuth($pdo) {
 
 // Router
 switch ($action) {
+    case 'get_connectors':
+        getConnectors($pdo);
+        break;
+    case 'update_connector':
+        updateConnector($pdo);
+        break;
+    case 'enrich_cve':
+        enrichCveWithCti($pdo);
+        break;
+    case 'update_vuln_validation':
+        updateVulnValidation($pdo);
+        break;
+    case 'get_risk_score_breakdown':
+        getRiskScoreBreakdown($pdo);
+        break;
     case 'get_scope':
         getScope($pdo);
         break;
@@ -533,6 +548,355 @@ switch ($action) {
 // Controller Functions (Strict Seed Scoping)
 // -------------------------------------------------------------
 
+
+// -------------------------------------------------------------
+// STAGE 2: OSINT CONNECTORS, VULNERABILITY INTELLIGENCE & EXPLAINABLE RISK
+// -------------------------------------------------------------
+
+function getConnectors($pdo) {
+    $stmt = $pdo->query("SELECT id, connector_id, name, category, description, auth_type, endpoint_url, is_enabled, api_key_masked, last_sync, sync_status, items_synced, error_message FROM connectors_config ORDER BY CASE category WHEN 'FREE' THEN 1 WHEN 'API_KEY' THEN 2 ELSE 3 END, name ASC");
+    $connectors = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $counts = [
+        'total' => count($connectors),
+        'free' => 0,
+        'api_key' => 0,
+        'commercial' => 0,
+        'active' => 0
+    ];
+
+    foreach ($connectors as $c) {
+        $cat = strtolower($c['category']);
+        if (isset($counts[$cat])) $counts[$cat]++;
+        if ((int)$c['is_enabled'] === 1) $counts['active']++;
+    }
+
+    echo json_encode([
+        'success' => true,
+        'counts' => $counts,
+        'connectors' => $connectors
+    ]);
+}
+
+function updateConnector($pdo) {
+    $connectorId = trim($_POST['connector_id'] ?? '');
+    $isEnabled = isset($_POST['is_enabled']) ? (int)$_POST['is_enabled'] : null;
+    $apiKey = trim($_POST['api_key'] ?? '');
+
+    if (empty($connectorId)) {
+        echo json_encode(['success' => false, 'error' => 'connector_id es requerido']);
+        return;
+    }
+
+    $updates = [];
+    $params = [];
+
+    if ($isEnabled !== null) {
+        $updates[] = "is_enabled = ?";
+        $params[] = $isEnabled;
+    }
+
+    if (!empty($apiKey)) {
+        $masked = (strlen($apiKey) > 8) ? substr($apiKey, 0, 4) . '...' . substr($apiKey, -4) : '****';
+        $updates[] = "api_key_masked = ?";
+        $updates[] = "api_key_enc = ?";
+        $params[] = $masked;
+        $params[] = base64_encode($apiKey);
+    }
+
+    if (empty($updates)) {
+        echo json_encode(['success' => false, 'error' => 'No hay cambios especificados']);
+        return;
+    }
+
+    $params[] = $connectorId;
+    $sql = "UPDATE connectors_config SET " . implode(', ', $updates) . " WHERE connector_id = ?";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+
+    logAuditAction($pdo, 'UPDATE_CONNECTOR', $connectorId, 'SUCCESS', 'Config updated');
+    echo json_encode(['success' => true, 'message' => "Conector '{$connectorId}' actualizado exitosamente."]);
+}
+
+function enrichCveWithCti($pdo) {
+    $cveId = strtoupper(trim($_POST['cve_id'] ?? $_GET['cve_id'] ?? ''));
+    if (empty($cveId) || !preg_match('/^CVE-\d{4}-\d+$/i', $cveId)) {
+        echo json_encode(['success' => false, 'error' => 'Identificador CVE inválido']);
+        return;
+    }
+
+    // 1. Check local CISA KEV Catalog
+    $stmtKev = $pdo->prepare("SELECT * FROM cisa_kev_catalog WHERE cve_id = ?");
+    $stmtKev->execute([$cveId]);
+    $kevMatch = $stmtKev->fetch(PDO::FETCH_ASSOC);
+
+    // 2. Query EPSS API (FIRST.org)
+    $epssScore = 0.0;
+    $percentile = 0.0;
+    $ch = curl_init("https://api.first.org/data/v1/epss?cve=" . urlencode($cveId));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, "OpenRecon-EASM/1.0");
+    $res = curl_exec($ch);
+    curl_close($ch);
+
+    if ($res) {
+        $epssData = json_decode($res, true);
+        if (!empty($epssData['data'][0])) {
+            $epssScore = (float)($epssData['data'][0]['epss'] ?? 0.0);
+            $percentile = (float)($epssData['data'][0]['percentile'] ?? 0.0);
+        }
+    }
+
+    // 3. Update existing records in vulnerabilities table
+    $isKev = $kevMatch ? 1 : 0;
+    $updateStmt = $pdo->prepare("
+        UPDATE vulnerabilities 
+        SET cisa_kev = ?, epss_score = ?
+        WHERE cve_id = ?
+    ");
+    $updateStmt->execute([$isKev, $epssScore, $cveId]);
+
+    echo json_encode([
+        'success' => true,
+        'cve_id' => $cveId,
+        'in_cisa_kev' => (bool)$kevMatch,
+        'cisa_kev_details' => $kevMatch ?: null,
+        'epss' => [
+            'score' => $epssScore,
+            'percentile' => $percentile
+        ]
+    ]);
+}
+
+function updateVulnValidation($pdo) {
+    $id = (int)($_POST['id'] ?? 0);
+    $state = strtoupper(trim($_POST['validation_state'] ?? ''));
+    $allowed = ['POTENCIAL', 'PROBABLE', 'VALIDADA', 'FALSO_POSITIVO', 'INFO_INSUFICIENTE'];
+
+    if ($id <= 0 || !in_array($state, $allowed)) {
+        echo json_encode(['success' => false, 'error' => 'ID o estado de validación inválido. Opciones: POTENCIAL, PROBABLE, VALIDADA, FALSO_POSITIVO, INFO_INSUFICIENTE']);
+        return;
+    }
+
+    $notes = trim($_POST['notes'] ?? '');
+    $stmt = $pdo->prepare("UPDATE vulnerabilities SET validation_state = ?, mitigation_notes = COALESCE(NULLIF(?, ''), mitigation_notes) WHERE id = ?");
+    $stmt->execute([$state, $notes, $id]);
+
+    logAuditAction($pdo, 'UPDATE_VULN_STATE', (string)$id, 'SUCCESS', "State changed to $state");
+    echo json_encode(['success' => true, 'id' => $id, 'validation_state' => $state]);
+}
+
+function calculateExplainableRiskScore($pdo, $seed = null) {
+    $isSpecificSeed = (!empty($seed) && $seed !== 'ALL');
+    
+    if ($isSpecificSeed) {
+        $assets = $pdo->prepare("SELECT subdomain, ip_address, is_live, cloud_provider FROM assets WHERE seed_domain = ?");
+        $assets->execute([$seed]);
+        $liveAssets = $assets->fetchAll(PDO::FETCH_ASSOC);
+
+        $portsStmt = $pdo->prepare("SELECT asset_subdomain, port, service_name FROM open_ports WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)");
+        $portsStmt->execute([$seed]);
+        $openPorts = $portsStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $vulnStmt = $pdo->prepare("SELECT id, asset_subdomain, title, severity, cve_id, cvss_score, epss_score, cisa_kev, validation_state FROM vulnerabilities WHERE (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain = ?)");
+        $vulnStmt->execute([$seed]);
+        $vulns = $vulnStmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $drpStmt = $pdo->prepare("SELECT lookalike_domain, ip_address, has_mx, severity FROM drp_threats WHERE seed_domain = ? AND (status = 'OPEN' OR status IS NULL)");
+        $drpStmt->execute([$seed]);
+        $drpThreats = $drpStmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $liveAssets = $pdo->query("SELECT subdomain, ip_address, is_live, cloud_provider FROM assets WHERE is_live = 1 AND seed_domain IN (SELECT domain FROM seeds)")->fetchAll(PDO::FETCH_ASSOC);
+        $openPorts = $pdo->query("SELECT asset_subdomain, port, service_name FROM open_ports WHERE asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))")->fetchAll(PDO::FETCH_ASSOC);
+        $vulns = $pdo->query("SELECT id, asset_subdomain, title, severity, cve_id, cvss_score, epss_score, cisa_kev, validation_state FROM vulnerabilities WHERE (status = 'OPEN' OR status = 'IN_PROGRESS' OR status IS NULL) AND asset_subdomain IN (SELECT subdomain FROM assets WHERE seed_domain IN (SELECT domain FROM seeds))")->fetchAll(PDO::FETCH_ASSOC);
+        $drpThreats = $pdo->query("SELECT lookalike_domain, ip_address, has_mx, severity FROM drp_threats WHERE seed_domain IN (SELECT domain FROM seeds) AND (status = 'OPEN' OR status IS NULL)")->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    $ransomMatched = (int)queryScalar($pdo, "SELECT COUNT(*) FROM ransomware_leaks WHERE is_matched = 1");
+
+    $factors = [];
+    $totalRiskPoints = 0;
+
+    // A. Exposure Factor: Live Assets (Max 15 pts)
+    $liveCount = count($liveAssets);
+    $exposurePts = min(15, $liveCount * 1);
+    if ($exposurePts > 0) {
+        $factors[] = [
+            'category' => 'Superficie de Exposición Externa',
+            'points' => $exposurePts,
+            'weight' => '1 pt por activo vivo (tope 15)',
+            'description' => "Se identificaron {$liveCount} activos en línea expuestos a internet.",
+            'evidence_count' => $liveCount
+        ];
+        $totalRiskPoints += $exposurePts;
+    }
+
+    // Critical Ports exposure (22, 3389, 445, 8080, 8443, 21, 23) (Max 20 pts)
+    $critPortsFound = [];
+    foreach ($openPorts as $p) {
+        $portNum = (int)$p['port'];
+        if (in_array($portNum, [22, 3389, 445, 8080, 8443, 21, 23])) {
+            $critPortsFound[] = "{$p['asset_subdomain']}:{$portNum} ({$p['service_name']})";
+        }
+    }
+    $critPortPts = min(20, count($critPortsFound) * 5);
+    if ($critPortPts > 0) {
+        $factors[] = [
+            'category' => 'Puertos y Servicios Administrativos Expuestos',
+            'points' => $critPortPts,
+            'weight' => '5 pts por puerto administrativo crítico (tope 20)',
+            'description' => count($critPortsFound) . ' servicios de gestión expuestos en el perímetro.',
+            'evidence' => array_slice($critPortsFound, 0, 10)
+        ];
+        $totalRiskPoints += $critPortPts;
+    }
+
+    // B. Vulnerability Factor: Grounded in CISA KEV, EPSS & Validation State (Max 45 pts)
+    $validatedVulns = [];
+    $cisaKevVulns = [];
+    $probableVulns = [];
+    $potentialVulns = [];
+
+    foreach ($vulns as $v) {
+        $state = strtoupper($v['validation_state'] ?? 'POTENCIAL');
+        $isKev = (int)($v['cisa_kev'] ?? 0);
+        $cve = $v['cve_id'] ?? '';
+
+        if ($state === 'FALSO_POSITIVO') {
+            continue;
+        }
+
+        if ($state === 'VALIDADA' || $isKev === 1) {
+            $validatedVulns[] = "{$v['asset_subdomain']}: {$v['title']}" . ($cve ? " ({$cve})" : "");
+            if ($isKev) {
+                $cisaKevVulns[] = $cve;
+            }
+        } elseif ($state === 'PROBABLE' || $v['severity'] === 'CRITICAL' || $v['severity'] === 'HIGH') {
+            $probableVulns[] = "{$v['asset_subdomain']}: {$v['title']}";
+        } else {
+            $potentialVulns[] = "{$v['asset_subdomain']}: {$v['title']}";
+        }
+    }
+
+    $valPts = min(35, count($validatedVulns) * 20 + (count($cisaKevVulns) > 0 ? 15 : 0));
+    if ($valPts > 0) {
+        $factors[] = [
+            'category' => 'Vulnerabilidades Validadas / Activamente Explotadas (CISA KEV)',
+            'points' => $valPts,
+            'weight' => '20 pts por vulnerabilidad validada por PoC o presente en CISA KEV (tope 35)',
+            'description' => count($validatedVulns) . ' vulnerabilidades confirmadas técnicamente.',
+            'evidence' => array_slice($validatedVulns, 0, 8)
+        ];
+        $totalRiskPoints += $valPts;
+    }
+
+    $probPts = min(20, count($probableVulns) * 8);
+    if ($probPts > 0) {
+        $factors[] = [
+            'category' => 'Vulnerabilidades Probables de Alto Impacto',
+            'points' => $probPts,
+            'weight' => '8 pts por vulnerabilidad probable de severidad ALTA/CRÍTICA (tope 20)',
+            'description' => count($probableVulns) . ' fallas de alto riesgo identificadas por versión de software.',
+            'evidence' => array_slice($probableVulns, 0, 8)
+        ];
+        $totalRiskPoints += $probPts;
+    }
+
+    $potPts = min(5, count($potentialVulns) * 1);
+    if ($potPts > 0) {
+        $factors[] = [
+            'category' => 'Vulnerabilidades Potenciales / Higiene Perimetral',
+            'points' => $potPts,
+            'weight' => '1 pt por hallazgo potencial (tope 5)',
+            'description' => count($potentialVulns) . ' hallazgos potenciales de configuración perimetral.',
+            'evidence_count' => count($potentialVulns)
+        ];
+        $totalRiskPoints += $potPts;
+    }
+
+    // C. Digital Risk Protection (DRP) Factor (Max 25 pts)
+    $activeDrpMx = [];
+    $activeDrpNoMx = [];
+    foreach ($drpThreats as $d) {
+        if ((int)$d['has_mx'] === 1) {
+            $activeDrpMx[] = $d['lookalike_domain'] . " (MX activo: {$d['ip_address']})";
+        } else {
+            $activeDrpNoMx[] = $d['lookalike_domain'];
+        }
+    }
+    $drpPts = min(25, count($activeDrpMx) * 15 + count($activeDrpNoMx) * 5);
+    if ($drpPts > 0) {
+        $factors[] = [
+            'category' => 'Suplantación de Marca y Dominios Phishing (DRP)',
+            'points' => $drpPts,
+            'weight' => '15 pts por dominio imitador con MX activo (phishing inminente), 5 pts sin MX (tope 25)',
+            'description' => count($activeDrpMx) . ' dominios imitadores con servidor de correo activo y ' . count($activeDrpNoMx) . ' sin correo.',
+            'evidence' => array_slice(array_merge($activeDrpMx, $activeDrpNoMx), 0, 8)
+        ];
+        $totalRiskPoints += $drpPts;
+    }
+
+    // D. Ransomware CTI Matching Factor (Max 30 pts)
+    if ($ransomMatched > 0) {
+        $ransomPts = min(30, $ransomMatched * 30);
+        $factors[] = [
+            'category' => 'Inteligencia de Extorsión y Ransomware (CTI Dark Web)',
+            'points' => $ransomPts,
+            'weight' => '30 pts por coincidencia activa en blogs de extorsión',
+            'description' => "La organización figura en publicaciones recientes de grupos de ransomware.",
+            'evidence_count' => $ransomMatched
+        ];
+        $totalRiskPoints += $ransomPts;
+    }
+
+    $finalRiskScore = min(100, max(0, $totalRiskPoints));
+    $postureScore = 100 - $finalRiskScore;
+
+    if ($finalRiskScore >= 80) {
+        $riskLevel = 'CRÍTICO';
+        $postureLevel = 'Alerta Crítica';
+    } elseif ($finalRiskScore >= 55) {
+        $riskLevel = 'ALTO';
+        $postureLevel = 'Riesgo Alto';
+    } elseif ($finalRiskScore >= 30) {
+        $riskLevel = 'MEDIO';
+        $postureLevel = 'Riesgo Moderado';
+    } else {
+        $riskLevel = 'BAJO';
+        $postureLevel = 'Excelente / Resiliente';
+    }
+
+    return [
+        'risk_score' => $finalRiskScore,
+        'posture_score' => $postureScore,
+        'risk_level' => $riskLevel,
+        'posture_level' => $postureLevel,
+        'summary' => [
+            'live_assets' => $liveCount,
+            'open_ports' => count($openPorts),
+            'validated_vulns' => count($validatedVulns),
+            'cisa_kev_vulns' => count($cisaKevVulns),
+            'probable_vulns' => count($probableVulns),
+            'potential_vulns' => count($potentialVulns),
+            'drp_phishing_domains' => count($activeDrpMx),
+            'ransomware_matched' => $ransomMatched
+        ],
+        'factors' => $factors,
+        'methodology' => 'Algoritmo Explicable de Riesgo EASM / CTEM basado en evidencias ponderadas (CISA KEV, EPSS, NIST SP 800-30).'
+    ];
+}
+
+function getRiskScoreBreakdown($pdo) {
+    $seed = trim($_GET['seed'] ?? $_POST['seed'] ?? '');
+    $breakdown = calculateExplainableRiskScore($pdo, $seed);
+    echo json_encode([
+        'success' => true,
+        'assessment' => $breakdown
+    ]);
+}
+
 function getStats($pdo) {
     $seed = trim($_GET['seed'] ?? '');
     $isSpecificSeed = (!empty($seed) && $seed !== 'ALL');
@@ -601,10 +965,16 @@ function getStats($pdo) {
     $totalVulnsCount = $critVulns + $highVulns + $medVulns + $lowVulns;
     $isUnscanned = ($liveAssets > 0 && $openPorts === 0 && $totalVulnsCount === 0);
 
+    $riskAssessment = calculateExplainableRiskScore($pdo, $seed);
+    $calculatedPosture = $riskAssessment['posture_score'];
+
     echo json_encode([
-        'exposure_score' => $isUnscanned ? null : $score,
+        'exposure_score' => $isUnscanned ? null : $calculatedPosture,
+        'risk_score' => $isUnscanned ? null : $riskAssessment['risk_score'],
+        'risk_level' => $riskAssessment['risk_level'],
         'is_unscanned' => $isUnscanned,
-        'posture' => $isUnscanned ? 'Pendiente de Escaneo' : ($score > 75 ? 'Excelente' : ($score > 50 ? 'Riesgo Moderado' : 'Alerta Crítica')),
+        'posture' => $isUnscanned ? 'Pendiente de Escaneo' : $riskAssessment['posture_level'],
+        'risk_assessment' => $riskAssessment,
         'total_assets' => $totalAssets,
         'live_assets' => $liveAssets,
         'open_ports' => $openPorts,
@@ -4883,11 +5253,12 @@ function php2shellScan($pdo) {
             try {
                 $host = $item['target'] ?? $target;
                 $cveDesc = "PHP2Shell RCE (" . ($item['php_version'] ? 'PHP ' . $item['php_version'] : 'PHP') . ") en puerto " . ($item['port'] ?? 80) . " - Requiere actualización a " . ($item['fixed_version'] ?: 'versión parcheada');
+                $evidenceStr = "Verificación activa confirmada | PHP Version: " . ($item['php_version'] ?? 'N/A') . " | Puerto: " . ($item['port'] ?? 80) . " | Banner: " . ($item['server_banner'] ?? 'N/A');
                 $stmtV = $pdo->prepare("
-                    INSERT OR IGNORE INTO vulnerabilities (asset_subdomain, title, severity, cve_id, description, status)
-                    VALUES (?, ?, 'CRITICAL', 'CVE-2026-109618', ?, 'OPEN')
+                    INSERT OR REPLACE INTO vulnerabilities (asset_subdomain, title, severity, cve_id, description, status, validation_state, cvss_score, cisa_kev, evidence)
+                    VALUES (?, ?, 'CRITICAL', 'CVE-2026-109618', ?, 'OPEN', 'VALIDADA', 9.8, 0, ?)
                 ");
-                $stmtV->execute([$host, 'PHP2Shell Remote Code Execution (CVE-2026-109618 / CVE-2026-109619)', $cveDesc]);
+                $stmtV->execute([$host, 'PHP2Shell Remote Code Execution (CVE-2026-109618 / CVE-2026-109619)', $cveDesc, $evidenceStr]);
             } catch (Exception $e) {
                 error_log("[OpenRecon PHP2Shell Write Error] " . $e->getMessage());
             }
