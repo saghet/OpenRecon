@@ -374,6 +374,34 @@ try {
             </div>
         </div>
 
+        <!-- Email Intelligence OSINT Integration Section -->
+        <?php
+        $eiInvs = [];
+        try {
+            $stEi = $pdo->query("SELECT target_email, risk_level, exposure_score, total_findings, created_at FROM email_intel_investigations ORDER BY created_at DESC LIMIT 5");
+            $eiInvs = $stEi->fetchAll();
+        } catch (Exception $e) {}
+        ?>
+        <?php if (!empty($eiInvs)): ?>
+        <div class="pt-4 border-t border-slate-200">
+            <h4 class="text-xs font-bold text-slate-900 uppercase flex items-center gap-2 mb-2">
+                <i class="fa-solid fa-at text-sky-600"></i>
+                Inteligencia OSINT de Correos (Email Intelligence - Zehef)
+            </h4>
+            <div class="space-y-2">
+                <?php foreach ($eiInvs as $ei): ?>
+                <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between text-xs">
+                    <span class="font-mono font-bold text-slate-800"><?php echo htmlspecialchars($ei['target_email']); ?></span>
+                    <span class="text-slate-600"><?php echo htmlspecialchars($ei['total_findings']); ?> hallazgos confirmados</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase font-mono <?php echo $ei['risk_level'] === 'CRITICAL' ? 'bg-rose-100 text-rose-800' : ($ei['risk_level'] === 'HIGH' ? 'bg-orange-100 text-orange-800' : 'bg-slate-200 text-slate-800'); ?>">
+                        Riesgo: <?php echo htmlspecialchars($ei['risk_level']); ?> (<?php echo htmlspecialchars($ei['exposure_score']); ?>/100)
+                    </span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Footer / Certification -->
         <div class="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 gap-2">
             <p>Generado automáticamente por <strong>OpenRecon Platform v1.0 (Suite Abierta de Ciberseguridad)</strong>.</p>

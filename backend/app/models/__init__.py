@@ -2,6 +2,35 @@ from app.models.organization import Organization, Seed, SeedType
 from app.models.asset import Asset, AssetType
 from app.models.exposure import PortService, Vulnerability, DigitalRiskFinding, SeverityLevel, RiskType
 from app.models.scan import ScanJob, ScanType, ScanStatus
+from app.models.darkintel import (
+    DarkEvidenceVault,
+    DarkSource,
+    DarkLeak,
+    DarkRansomwarePost,
+    DarkThreatActor,
+    DarkIOC,
+    DarkSearchQuery,
+    DarkInvestigation,
+    EvidenceValidationStatus,
+    EvidenceSeverity,
+    SourceCategory,
+    SourceStatus,
+    ExposureType,
+    CorroborationLevel,
+    IOCType,
+    InvestigationStatus,
+)
+from app.models.email_intel import (
+    EmailIntelInvestigation,
+    EmailIntelEvidence,
+    EmailIntelLeak,
+    EmailIntelAccount,
+    EmailIntelPaste,
+    EmailIntelDomainAnalysis,
+    EmailIntelGeneratedVariant,
+    RiskLevel,
+    AccountCheckStatus,
+)
 
 __all__ = [
     "Organization",
@@ -17,4 +46,20 @@ __all__ = [
     "ScanJob",
     "ScanType",
     "ScanStatus",
+    "DarkEvidenceVault",
+    "DarkSource",
+    "DarkLeak",
+    "DarkRansomwarePost",
+    "DarkThreatActor",
+    "DarkIOC",
+    "DarkSearchQuery",
+    "DarkInvestigation",
+    "EvidenceValidationStatus",
+    "EvidenceSeverity",
+    "SourceCategory",
+    "SourceStatus",
+    "ExposureType",
+    "CorroborationLevel",
+    "IOCType",
+    "InvestigationStatus",
 ]

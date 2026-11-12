@@ -1,0 +1,32 @@
+# ==============================================================================
+# OpenRecon Defensive Tor Sandbox Configuration (torrc)
+# High-Security Isolated Tor Client for Threat Intelligence Collection
+# ==============================================================================
+
+# Client-only mode (NEVER act as relay, exit, or bridge)
+ClientOnly 1
+ExitRelay 0
+PublishServerDescriptor 0
+
+# Bind SOCKS5 listener with client/destination isolation
+SocksPort 0.0.0.0:9050 IsolateClientAddr IsolateDestAddr
+
+# Data directory inside container (non-root writeable)
+DataDirectory /var/lib/tor
+
+# Reject private and reserved IP exit traffic (Anti-SSRF at Tor circuit level)
+# Reject private RFC 1918
+# Reject loopback
+# Reject link-local / cloud metadata (169.254.0.0/16)
+ClientRejectInternalAddresses 1
+
+# DNS leak prevention: Remote DNS resolution only via SOCKS5h
+DNSPort 0
+
+# Security hardening: Avoid unsafe exit nodes and circuits
+EnforceDistinctSubnets 1
+StrictNodes 0
+
+# Logging: Only warning and error logs (avoid sensitive forensic metadata leakage)
+Log notice stdout
+SafeLogging 1

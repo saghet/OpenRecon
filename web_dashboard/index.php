@@ -460,7 +460,7 @@
                 activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
             }
 
-            const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai'];
+            const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel'];
             allTabs.forEach(t => {
                 const el = document.getElementById(`tab-content-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tabId);
@@ -472,6 +472,13 @@
             if (tabId === 'graph' && networkInstance) setTimeout(() => { networkInstance.fit(); }, 100);
             if (tabId === 'strix') populateStrixAssetDropdown();
             if (tabId === 'loginrecon') populateLoginReconPresets();
+            if (tabId === 'darkintel') {
+                if (typeof darkIntelLoadOverview === 'function') darkIntelLoadOverview();
+                if (typeof darkIntelSyncWithGlobalSeeds === 'function') darkIntelSyncWithGlobalSeeds();
+            }
+            if (tabId === 'emailintel') {
+                if (typeof emailIntelLoadOverview === 'function') emailIntelLoadOverview();
+            }
         };
 
         // Handler for updating vulnerability validation state
@@ -537,6 +544,11 @@
     <header id="forti-topbar" class="no-print">
         <!-- Left: Hamburger toggle + Branding -->
         <div class="flex items-center gap-3">
+            <!-- Emergency Kill Switch Quick Button -->
+            <button id="btn-top-kill-switch" onclick="handleToggleKillSwitchUI()" class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 border border-slate-700 bg-slate-900/80 text-slate-300 hover:border-rose-700 hover:text-rose-300 transition" title="Parada de Emergencia de Escaneos (Kill-Switch)">
+                <i class="fa-solid fa-power-off text-emerald-400" id="kill-switch-icon"></i>
+                <span id="kill-switch-label">RO-GUARD: NORMAL</span>
+            </button>
             <button onclick="toggleFortiSidebar()" class="w-8 h-8 rounded flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 transition" title="Contraer/Expandir Menú de Navegación [Ctrl+B]">
                 <i class="fa-solid fa-bars text-sm"></i>
             </button>
@@ -722,6 +734,11 @@
 
             <!-- Category: THREAT INTEL & DRP -->
             <div class="forti-nav-group-title">Threat Intelligence & DRP</div>
+            <button onclick="switchTab('darkintel')" id="tab-btn-darkintel" class="forti-nav-item" data-forti-tooltip="Dark Intelligence, Red Tor & Fugas">
+                <i class="fa-solid fa-user-secret text-cyan-400"></i>
+                <span class="nav-label">Dark Intelligence</span>
+                <span id="nav-badge-darkintel" class="nav-badge bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">PRO</span>
+            </button>
             <button onclick="switchTab('drp')" id="tab-btn-drp" class="forti-nav-item" data-forti-tooltip="Protección de Marca & Phishing (DRP)">
                 <i class="fa-solid fa-masks-theater text-amber-400"></i>
                 <span class="nav-label">Protección DRP</span>
@@ -738,17 +755,22 @@
                 <span id="nav-badge-cti" class="nav-badge bg-purple-950 text-purple-300 border border-purple-800 font-mono">163</span>
             </button>
 
-            <!-- Category: OFFENSIVE OPERATIONS -->
-            <div class="forti-nav-group-title">Operaciones Ofensivas</div>
-            <button onclick="switchTab('strix')" id="tab-btn-strix" class="forti-nav-item" data-forti-tooltip="Sackmesser Suite (Strix & AutoPentestX)">
-                <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
-                <span class="nav-label">Sackmesser Pentest</span>
-                <span class="nav-badge bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">PoC</span>
+            <!-- Category: OFFENSIVE OPERATIONS & OSINT -->
+            <div class="forti-nav-group-title">OSINT & Operaciones Ofensivas</div>
+            <button onclick="switchTab('emailintel')" id="tab-btn-emailintel" class="forti-nav-item" data-forti-tooltip="Email Intelligence & Fugas (Zehef OSINT)">
+                <i class="fa-solid fa-at text-sky-400"></i>
+                <span class="nav-label">Email Intelligence</span>
+                <span id="nav-badge-emailintel" class="nav-badge bg-sky-950 text-sky-300 border border-sky-800 font-mono">ZEHEF</span>
             </button>
             <button onclick="switchTab('loginrecon')" id="tab-btn-loginrecon" class="forti-nav-item" data-forti-tooltip="LoginRecon & OSINT de Identidades">
                 <i class="fa-solid fa-id-badge text-sky-400"></i>
                 <span class="nav-label">LoginRecon OSINT</span>
                 <span class="nav-badge bg-sky-950 text-sky-300 border border-sky-800 font-mono">ID</span>
+            </button>
+            <button onclick="switchTab('strix')" id="tab-btn-strix" class="forti-nav-item" data-forti-tooltip="Sackmesser Suite (Strix & AutoPentestX)">
+                <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+                <span class="nav-label">Sackmesser Pentest</span>
+                <span class="nav-badge bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">PoC</span>
             </button>
 
             <!-- Category: FABRIC & AI -->
@@ -776,6 +798,11 @@
 
         <!-- Sidebar Footer Toggle -->
         <div class="p-2 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+            <!-- Emergency Kill Switch Quick Button -->
+            <button id="btn-top-kill-switch" onclick="handleToggleKillSwitchUI()" class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 border border-slate-700 bg-slate-900/80 text-slate-300 hover:border-rose-700 hover:text-rose-300 transition" title="Parada de Emergencia de Escaneos (Kill-Switch)">
+                <i class="fa-solid fa-power-off text-emerald-400" id="kill-switch-icon"></i>
+                <span id="kill-switch-label">RO-GUARD: NORMAL</span>
+            </button>
             <button onclick="toggleFortiSidebar()" class="w-full py-1.5 rounded flex items-center justify-center gap-2 hover:bg-white/10 hover:text-white transition" title="Alternar Barra Lateral [Ctrl+B]">
                 <i id="sidebar-toggle-icon" class="fa-solid fa-angles-left"></i>
                 <span class="nav-label font-mono text-[11px]">Contraer Menú</span>
@@ -2906,7 +2933,237 @@
                 </div>
             </div>
         </section>
-    </main>
+    
+        <!-- MÓDULO 8: MITRE ATT&CK ENTERPRISE MATRIX -->
+        <section id="tab-content-mitre" class="space-y-6 hidden">
+            <div class="bg-cyber-card border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 mb-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-chess-knight text-red-400"></i>
+                            Matriz MITRE ATT&CK Enterprise (Mapeo a Superficie de Ataque)
+                        </h3>
+                        <p class="text-xs text-slate-400">Tácticas y técnicas empleadas por actores de amenazas correlacionadas con la exposición detectada en el perímetro.</p>
+                    </div>
+                    <button onclick="loadMitreMatrixUI()" class="px-3.5 py-1.5 bg-red-600/20 text-red-300 border border-red-700/50 rounded-xl text-xs hover:bg-red-600/30 flex items-center gap-2 transition">
+                        <i class="fa-solid fa-arrows-rotate"></i> Recargar Matriz
+                    </button>
+                </div>
+                <div id="mitre-matrix-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- MÓDULO 9: IOC MANAGEMENT & STIX 2.1 -->
+        <section id="tab-content-iocs" class="space-y-6 hidden">
+            <div class="bg-cyber-card border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 mb-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-crosshairs text-amber-400"></i>
+                            Centro de Gestión de Indicadores de Compromiso (IoCs)
+                        </h3>
+                        <p class="text-xs text-slate-400">Base unificada de IPs maliciosas, dominios C2 y hashes bajo formato STIX 2.1.</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="ioc-search-filter" onkeyup="filterIoCsTable()" placeholder="Buscar IP, dominio, malware..." class="px-3 py-1.5 bg-slate-900 border border-slate-700 text-xs text-white rounded-xl focus:border-amber-500 outline-none w-52">
+                        <button onclick="exportStixBundleUI()" class="px-3.5 py-1.5 bg-amber-600/20 text-amber-300 border border-amber-700/50 rounded-xl text-xs hover:bg-amber-600/30 flex items-center gap-2 transition">
+                            <i class="fa-solid fa-file-export"></i> Exportar STIX 2.1
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-900/80 uppercase text-[10px] text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Indicador (IoC)</th>
+                                <th class="py-3 px-4">Tipo</th>
+                                <th class="py-3 px-4">Familia Malware / Amenaza</th>
+                                <th class="py-3 px-4">Fuente / Confiabilidad</th>
+                                <th class="py-3 px-4">Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="iocs-table-body" class="divide-y divide-slate-800/50 font-mono">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- MÓDULO 10: RANSOMWARE INTELLIGENCE -->
+        <section id="tab-content-ransomware" class="space-y-6 hidden">
+            <div class="bg-cyber-card border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/80 pb-4 mb-6">
+                    <div>
+                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-skull-crossbones text-rose-400"></i>
+                            Telemetría Global de Ransomware & Grupos de Extorsión
+                        </h3>
+                        <p class="text-xs text-slate-400">Monitoreo continuo de sitios de divulgación (DLS) en la Dark Web con verificación de coincidencias sobre el perímetro corporativo.</p>
+                    </div>
+                    <button onclick="runDarkWebCorrelationUI()" class="px-3.5 py-1.5 bg-rose-600/20 text-rose-300 border border-rose-700/50 rounded-xl text-xs hover:bg-rose-600/30 flex items-center gap-2 transition">
+                        <i class="fa-solid fa-magnifying-glass-arrow-right"></i> Correlacionar Semillas Ahora
+                    </button>
+                </div>
+                <div id="ransomware-intel-stats" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                    <div class="p-4 bg-slate-900/60 border border-slate-800 rounded-xl">
+                        <span class="text-xs text-slate-400">Víctimas Globales Monitoreadas</span>
+                        <div class="text-2xl font-black text-white mt-1" id="rw-stat-total">100</div>
+                    </div>
+                    <div class="p-4 bg-slate-900/60 border border-slate-800 rounded-xl">
+                        <span class="text-xs text-slate-400">Coincidencias en Semillas</span>
+                        <div class="text-2xl font-black text-rose-400 mt-1" id="rw-stat-matched">0</div>
+                    </div>
+                    <div class="p-4 bg-slate-900/60 border border-slate-800 rounded-xl">
+                        <span class="text-xs text-slate-400">Sindicatos Criminales Activos</span>
+                        <div class="text-2xl font-black text-amber-400 mt-1">42</div>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-900/80 uppercase text-[10px] text-slate-400 border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Grupo de Ransomware</th>
+                                <th class="py-3 px-4">Víctima Anunciada</th>
+                                <th class="py-3 px-4">Fecha Descubrimiento</th>
+                                <th class="py-3 px-4">Estado / Coincidencia</th>
+                                <th class="py-3 px-4">Severidad</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ransomware-table-body" class="divide-y divide-slate-800/50">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- MÓDULO 11: RISK SCORING EXPLICABLE -->
+        <section id="tab-content-riskscoring" class="space-y-6 hidden">
+            <div class="bg-cyber-card border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="border-b border-slate-800/80 pb-4 mb-6">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-cyan-400"></i>
+                        Motor de Ponderación y Explicabilidad de Riesgo (Exposure Score)
+                    </h3>
+                    <p class="text-xs text-slate-400">Cálculo transparente basado en CVSS v3.1, percentil EPSS, presencia en CISA KEV, exposición perimetral y mitigaciones verificadas.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="p-5 bg-slate-900/60 border border-slate-800 rounded-xl space-y-4">
+                        <h4 class="text-sm font-semibold text-white">Ponderación Oficial de Criterios (Suma = 100%)</h4>
+                        <div class="space-y-3 text-xs">
+                            <div>
+                                <div class="flex justify-between mb-1"><span class="text-slate-300">Severidad Técnica Base (CVSS v3.1)</span><span class="text-cyan-400 font-bold">25%</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded"><div class="bg-cyan-500 h-2 rounded" style="width: 25%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1"><span class="text-slate-300">Explotabilidad en el Mundo Real (FIRST.org EPSS)</span><span class="text-emerald-400 font-bold">20%</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded"><div class="bg-emerald-500 h-2 rounded" style="width: 20%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1"><span class="text-slate-300">Explotación Activa Confirmada (CISA KEV)</span><span class="text-red-400 font-bold">25%</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded"><div class="bg-red-500 h-2 rounded" style="width: 25%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1"><span class="text-slate-300">Nivel de Exposición Perimetral & Puertos Vivos</span><span class="text-amber-400 font-bold">15%</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded"><div class="bg-amber-500 h-2 rounded" style="width: 15%"></div></div>
+                            </div>
+                            <div>
+                                <div class="flex justify-between mb-1"><span class="text-slate-300">Amenaza de Ransomware & Fugas CTI</span><span class="text-purple-400 font-bold">15%</span></div>
+                                <div class="w-full bg-slate-800 h-2 rounded"><div class="bg-purple-500 h-2 rounded" style="width: 15%"></div></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-5 bg-slate-900/60 border border-slate-800 rounded-xl space-y-4">
+                        <h4 class="text-sm font-semibold text-white">Impacto según Estado de Validación Forense</h4>
+                        <div class="space-y-2 text-xs">
+                            <div class="p-2.5 rounded bg-red-950/40 border border-red-800/60 flex items-center justify-between">
+                                <span class="font-bold text-red-300">VALIDADA (Técnicamente Confirmada)</span>
+                                <span class="text-red-400 font-mono">+15% Multiplicador</span>
+                            </div>
+                            <div class="p-2.5 rounded bg-amber-950/40 border border-amber-800/60 flex items-center justify-between">
+                                <span class="font-bold text-amber-300">PROBABLE (Versión dentro de rango CVE)</span>
+                                <span class="text-amber-400 font-mono">100% Impacto Base</span>
+                            </div>
+                            <div class="p-2.5 rounded bg-blue-950/40 border border-blue-800/60 flex items-center justify-between">
+                                <span class="font-bold text-blue-300">POTENCIAL / INFO_INSUFICIENTE</span>
+                                <span class="text-blue-400 font-mono">75% Impacto Reducido</span>
+                            </div>
+                            <div class="p-2.5 rounded bg-slate-950/40 border border-slate-700/60 flex items-center justify-between">
+                                <span class="font-bold text-slate-300">RIESGO_ACEPTADO (403 Cloud Block)</span>
+                                <span class="text-slate-400 font-mono">Penalización Mínima</span>
+                            </div>
+                            <div class="p-2.5 rounded bg-emerald-950/40 border border-emerald-800/60 flex items-center justify-between">
+                                <span class="font-bold text-emerald-300">FALSO_POSITIVO / MITIGADA</span>
+                                <span class="text-emerald-400 font-mono font-bold">0% (Riesgo Nulo)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MÓDULO 13: REPORTES & EXPORTACIÓN -->
+        <section id="tab-content-reports" class="space-y-6 hidden">
+            <div class="bg-cyber-card border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <div class="border-b border-slate-800/80 pb-4 mb-6">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-file-invoice text-emerald-400"></i>
+                        Centro de Generación de Reportes y Exportación Ejecutiva
+                    </h3>
+                    <p class="text-xs text-slate-400">Exporta informes ejecutivos en HTML/PDF, bundles de inteligencia en formato STIX 2.1 y solicitudes formales de Takedown (RFC 2142).</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="p-5 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col justify-between">
+                        <div>
+                            <div class="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-400 mb-3 text-lg">
+                                <i class="fa-solid fa-file-pdf"></i>
+                            </div>
+                            <h4 class="text-base font-bold text-white">Informe Ejecutivo de Exposición</h4>
+                            <p class="text-xs text-slate-400 mt-1">Reporte completo con métricas de postura, activos vivos, desglose CISA KEV y recomendaciones de mitigación.</p>
+                        </div>
+                        <a href="report.php" target="_blank" class="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-center rounded-xl text-xs transition block">
+                            <i class="fa-solid fa-external-link mr-1"></i> Abrir Reporte Ejecutivo
+                        </a>
+                    </div>
+                    <div class="p-5 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col justify-between">
+                        <div>
+                            <div class="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-800 flex items-center justify-center text-cyan-400 mb-3 text-lg">
+                                <i class="fa-solid fa-file-code"></i>
+                            </div>
+                            <h4 class="text-base font-bold text-white">Exportación STIX 2.1 Bundle</h4>
+                            <p class="text-xs text-slate-400 mt-1">Exporta todos los activos, vulnerabilidades e indicadores en formato estándar STIX 2.1 para OpenCTI y MISP.</p>
+                        </div>
+                        <button onclick="exportStixBundleUI()" class="mt-4 w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-center rounded-xl text-xs transition">
+                            <i class="fa-solid fa-download mr-1"></i> Descargar STIX 2.1 JSON
+                        </button>
+                    </div>
+                    <div class="p-5 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col justify-between">
+                        <div>
+                            <div class="w-10 h-10 rounded-xl bg-purple-950 border border-purple-800 flex items-center justify-center text-purple-400 mb-3 text-lg">
+                                <i class="fa-solid fa-gavel"></i>
+                            </div>
+                            <h4 class="text-base font-bold text-white">Plantilla de Solicitud Takedown</h4>
+                            <p class="text-xs text-slate-400 mt-1">Avisos formales de abuso dirigidos a registradores y proveedores de hosting para retiro de sitios phishing.</p>
+                        </div>
+                        <button onclick="switchTab('drp')" class="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-500 text-white font-bold text-center rounded-xl text-xs transition">
+                            <i class="fa-solid fa-arrow-right mr-1"></i> Ir a Módulo DRP
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- TAB CONTENT: DARK INTELLIGENCE PRO -->
+        <?php include __DIR__ . '/darkintel.php'; ?>
+
+        <!-- TAB CONTENT: EMAIL INTELLIGENCE (ZEHEF OSINT) -->
+        <?php include __DIR__ . '/email_intel.php'; ?>
+
+</main>
 
             </main>
         </div>
@@ -3694,6 +3951,9 @@
             showToast(`Cambiando perímetro a: ${(activeSeed && activeSeed !== 'ALL') ? activeSeed : 'Todas las semillas'}`);
             if (typeof updatePhp2shellSelectedSeed === 'function') {
                 updatePhp2shellSelectedSeed(activeSeed);
+            }
+            if (typeof darkIntelSyncWithGlobalSeeds === 'function') {
+                darkIntelSyncWithGlobalSeeds();
             }
             populateStrixAssetDropdown();
             refreshAllData();
@@ -5272,6 +5532,9 @@ function closeTakedownModal() {
                 document.getElementById('seeds-count').innerText = `${globalSeeds.length} semillas`;
                 if (typeof populatePhp2shellPreloadedSeeds === 'function') {
                     populatePhp2shellPreloadedSeeds(globalSeeds);
+                }
+                if (typeof darkIntelPopulateExposureSeeds === 'function') {
+                    darkIntelPopulateExposureSeeds(globalSeeds);
                 }
 
                 // Populate Topbar Switcher
@@ -8088,6 +8351,11 @@ function closeTakedownModal() {
     <script>
     // Module Titles and Categories Dictionary for FortiOS Breadcrumb Navigation
     const FORTI_MODULE_META = {
+        'mitre': { cat: 'Threat Intelligence (CTI)', title: 'Matriz MITRE ATT&CK Enterprise' },
+        'iocs': { cat: 'Threat Intelligence (CTI)', title: 'Centro de Gestión de IoCs (STIX 2.1)' },
+        'ransomware': { cat: 'Threat Intelligence (CTI)', title: 'Telemetría de Ransomware & Extorsión' },
+        'riskscoring': { cat: 'Vulnerabilidades & Postura', title: 'Motor Explicable de Riesgo' },
+        'reports': { cat: 'Centro de Reportes', title: 'Generación de Reportes & Exportación' },
         'easm': { cat: 'Superficie de Ataque (EASM)', title: 'Inventario Perimetral Descubierto' },
         'graph': { cat: 'Dashboard & Topología', title: 'Grafo de Relaciones y Amenazas' },
         'vulns': { cat: 'Vulnerabilidades & Postura', title: 'Centro de Vulnerabilidades & CISA KEV' },
@@ -8101,7 +8369,9 @@ function closeTakedownModal() {
         'connectors': { cat: 'Security Fabric & Conectores', title: 'Conectores OSINT & APIs de Ciberseguridad' },
         'scope': { cat: 'Políticas & Alcance', title: 'Alcance Autorizado & Protección Anti-SSRF' },
         'cloud': { cat: 'Superficie de Ataque (EASM)', title: 'Auditoría de Exposición Cloud & Buckets' },
-        'ai': { cat: 'Security Fabric & IA', title: 'Correlación de Evidencias Asistida por IA' }
+        'ai': { cat: 'Security Fabric & IA', title: 'Correlación de Evidencias Asistida por IA' },
+        'darkintel': { cat: 'Threat Intelligence (CTI)', title: 'Dark Intelligence, Onion OSINT & CTI' },
+        'emailintel': { cat: 'OSINT & Identidades', title: 'Email Intelligence (Zehef OSINT)' }
     };
 
     // Override switchTab with FortiOS sidebar navigation support
@@ -8124,7 +8394,7 @@ function closeTakedownModal() {
         if (bcMod) bcMod.innerText = meta.title;
 
         // 3. Toggle Visibility of 14 Tab Content Sections
-        const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai'];
+        const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel'];
         allTabs.forEach(t => {
             const el = document.getElementById(`tab-content-${t}`);
             if (el) el.classList.toggle('hidden', t !== tabId);
@@ -8140,6 +8410,8 @@ function closeTakedownModal() {
         if (tabId === 'strix' && typeof populateStrixAssetDropdown === 'function') populateStrixAssetDropdown();
         if (tabId === 'loginrecon' && typeof populateLoginReconPresets === 'function') populateLoginReconPresets();
         if (tabId === 'php2shell' && typeof updatePhp2shellSelectedSeed === 'function') updatePhp2shellSelectedSeed(activeSeed);
+        if (tabId === 'darkintel' && typeof darkIntelLoadOverview === 'function') darkIntelLoadOverview();
+        if (tabId === 'emailintel' && typeof emailIntelLoadOverview === 'function') emailIntelLoadOverview();
 
         // Scroll main viewport to top on tab switch
         const vp = document.getElementById('forti-main-viewport');

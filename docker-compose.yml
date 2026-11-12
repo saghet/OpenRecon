@@ -13,6 +13,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - internal-data-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U openrecon"]
       interval: 5s
@@ -27,9 +29,40 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - internal-data-net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Dedicated Isolated Tor SOCKS5 Sandbox (Zero-Privilege)
+  tor-proxy:
+    image: alpine:3.19
+    container_name: openrecon-tor-sandbox
+    restart: unless-stopped
+    command: >
+      sh -c "apk add --no-cache tor &&
+             mkdir -p /var/lib/tor &&
+             chown -R tor:nogroup /var/lib/tor &&
+             chmod 700 /var/lib/tor &&
+             su -s /bin/sh tor -c 'tor -f /etc/tor/torrc'"
+    volumes:
+      - ./docker/tor/torrc:/etc/tor/torrc:ro
+      - tor_data:/var/lib/tor
+    networks:
+      - tor-sandbox-net
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9050 || exit 1"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
@@ -47,14 +80,27 @@ services:
     environment:
       - DATABASE_URL=postgresql://openrecon:openrecon_password@postgres:5432/openrecon
       - REDIS_URL=redis://redis:6379/0
+      - TOR_PROXY_URL=socks5h://tor-proxy:9050
       - SAFE_MODE=true
       - RATE_LIMIT_RPS=15
+    networks:
+      - internal-data-net
+      - tor-sandbox-net
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      tor-proxy:
+        condition: service_started
+
+networks:
+  internal-data-net:
+    driver: bridge
+  tor-sandbox-net:
+    driver: bridge
 
 volumes:
   postgres_data:
   redis_data:
+  tor_data:
