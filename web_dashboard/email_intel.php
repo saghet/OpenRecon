@@ -455,21 +455,96 @@
         <!-- ========================================================= -->
         <!-- SUBTAB 8: RELATIONAL GRAPH (VIS-NETWORK) -->
         <!-- ========================================================= -->
-        <div id="emailintel-pane-graph" class="emailintel-pane mt-6 space-y-6 hidden">
-            <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-xl">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                        <i class="fa-solid fa-circle-nodes text-indigo-400"></i> Grafo de Conocimiento & Relaciones OSINT
-                    </h3>
-                    <div class="flex items-center gap-2 text-xs">
-                        <button onclick="emailIntelFitGraph()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">
+        <div id="emailintel-pane-graph" class="emailintel-pane mt-6 space-y-4 hidden">
+            <div id="ei-graph-backdrop" onclick="emailIntelToggleExpandGraph(false)" class="fixed inset-0 bg-slate-950/85 backdrop-blur-sm z-40 hidden"></div>
+            <div id="ei-graph-wrapper" class="bg-slate-900/95 border border-slate-800 rounded-xl p-4 shadow-2xl flex flex-col transition-all duration-200">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <div class="flex items-center gap-3">
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-circle-nodes text-indigo-400"></i> Grafo de Conocimiento & Relaciones OSINT
+                        </h3>
+                        <span id="ei-graph-stats" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 hidden"></span>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-1.5 text-xs">
+                        <!-- Modo Manito vs Puntero -->
+                        <div class="inline-flex rounded-lg bg-slate-950 p-0.5 border border-slate-700 mr-1" role="group" aria-label="Modo de manipulación">
+                            <button id="ei-btn-mode-hand" onclick="emailIntelSetGraphMode('hand')" title="Modo Manito: arrastra todo el grafo libremente sin mover nodos" class="px-2.5 py-1 rounded-md bg-indigo-600 text-white font-medium flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-hand"></i> <span>Manito</span>
+                            </button>
+                            <button id="ei-btn-mode-select" onclick="emailIntelSetGraphMode('select')" title="Modo Puntero: selecciona e inspecciona o mueve nodos individuales" class="px-2.5 py-1 rounded-md text-slate-300 hover:text-white flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-arrow-pointer"></i> <span>Nodos</span>
+                            </button>
+                        </div>
+
+                        <!-- Controles de Zoom -->
+                        <div class="inline-flex items-center rounded-lg bg-slate-950 border border-slate-700 mr-1">
+                            <button onclick="emailIntelZoomGraph(0.8)" title="Alejar (-)" class="px-2.5 py-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded-l-lg transition">
+                                <i class="fa-solid fa-magnifying-glass-minus"></i>
+                            </button>
+                            <span id="ei-graph-zoom-label" class="px-2 text-[11px] font-mono text-slate-300 border-x border-slate-800 select-none">100%</span>
+                            <button onclick="emailIntelZoomGraph(1.25)" title="Acercar (+)" class="px-2.5 py-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded-r-lg transition">
+                                <i class="fa-solid fa-magnifying-glass-plus"></i>
+                            </button>
+                        </div>
+
+                        <button onclick="emailIntelFitGraph()" title="Centrar y ajustar todo el grafo" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
                             <i class="fa-solid fa-compress mr-1"></i> Centrar
+                        </button>
+                        <button id="ei-btn-physics" onclick="emailIntelTogglePhysics()" title="Congelar / Reanudar física de nodos" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                            <i class="fa-solid fa-snowflake mr-1 text-sky-400"></i> <span>Fijar</span>
+                        </button>
+                        <button onclick="emailIntelExportGraphPng()" title="Descargar imagen PNG del grafo" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+                            <i class="fa-solid fa-camera mr-1"></i> PNG
+                        </button>
+                        <button id="ei-btn-expand" onclick="emailIntelToggleExpandGraph()" title="Ampliar grafo a pantalla completa (Esc para salir)" class="px-3 py-1 rounded-lg bg-indigo-600/90 hover:bg-indigo-500 text-white font-semibold border border-indigo-400/40 transition">
+                            <i class="fa-solid fa-expand mr-1"></i> <span>Ampliar</span>
                         </button>
                     </div>
                 </div>
-                <div id="ei-network-container" class="w-full h-[550px] bg-slate-950 rounded-xl border border-slate-800 relative">
-                    <div id="ei-network-loading" class="absolute inset-0 flex items-center justify-center text-slate-500 text-xs">
-                        <i class="fa-solid fa-spinner fa-spin mr-2"></i> Inicializando grafo relacional...
+
+                <!-- Filtros rápidos y leyenda -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-[11px]">
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <span class="text-slate-400 mr-1">Filtrar:</span>
+                        <button onclick="emailIntelFilterGraph('ALL')" data-ei-filter="ALL" class="ei-graph-filter-btn px-2 py-0.5 rounded-full bg-indigo-600 text-white border border-indigo-500">Todos</button>
+                        <button onclick="emailIntelFilterGraph('leak')" data-ei-filter="leak" class="ei-graph-filter-btn px-2 py-0.5 rounded-full bg-slate-800 text-rose-300 border border-slate-700 hover:border-rose-500/60">Filtraciones</button>
+                        <button onclick="emailIntelFilterGraph('account')" data-ei-filter="account" class="ei-graph-filter-btn px-2 py-0.5 rounded-full bg-slate-800 text-emerald-300 border border-slate-700 hover:border-emerald-500/60">Cuentas</button>
+                        <button onclick="emailIntelFilterGraph('domain')" data-ei-filter="domain" class="ei-graph-filter-btn px-2 py-0.5 rounded-full bg-slate-800 text-sky-300 border border-slate-700 hover:border-sky-500/60">Dominio / MX</button>
+                        <button onclick="emailIntelFilterGraph('device')" data-ei-filter="device" class="ei-graph-filter-btn px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 border border-slate-700 hover:border-amber-500/60">Hosts</button>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3 text-slate-400">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block"></span> Correo</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rotate-45 bg-rose-500 inline-block"></span> Fuga</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Host</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 bg-emerald-500 inline-block"></span> Cuenta</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-teal-500 inline-block"></span> MX / Dominio</span>
+                    </div>
+                </div>
+
+                <div id="ei-network-stage" class="relative w-full h-[640px] flex-1 min-h-0">
+                    <div id="ei-network-container" class="w-full h-full bg-slate-950 rounded-xl border border-slate-800 relative overflow-hidden">
+                        <div id="ei-network-loading" class="absolute inset-0 flex items-center justify-center text-slate-500 text-xs">
+                            <i class="fa-solid fa-spinner fa-spin mr-2"></i> Inicializando grafo relacional...
+                        </div>
+                    </div>
+
+                    <!-- Inspector flotante de nodo seleccionado -->
+                    <div id="ei-node-inspector" class="hidden absolute bottom-3 left-3 max-w-sm bg-slate-900/95 border border-slate-700 rounded-xl p-3 shadow-2xl backdrop-blur-md z-10 text-xs">
+                        <div class="flex items-start justify-between gap-3">
+                            <div>
+                                <span id="ei-inspector-group" class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">NODO</span>
+                                <p id="ei-inspector-label" class="text-slate-100 font-semibold mt-1.5 break-all whitespace-pre-line"></p>
+                                <p id="ei-inspector-meta" class="text-slate-400 text-[11px] mt-1"></p>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button onclick="emailIntelCopyInspectorNode()" title="Copiar valor" class="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">
+                                    <i class="fa-regular fa-copy"></i>
+                                </button>
+                                <button onclick="document.getElementById('ei-node-inspector').classList.add('hidden')" title="Cerrar" class="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1152,12 +1227,22 @@ function emailIntelLoadEvidenceVault(evidences) {
     `).join('');
 }
 
-// Render Graph using Vis-Network
+// Render Graph using Vis-Network (UX Enhanced: Hand Pan Mode, Zoom Controls, Expand, Filter & Inspector)
+let emailIntelGraphNodesDS = null;
+let emailIntelGraphEdgesDS = null;
+let emailIntelGraphRawNodes = [];
+let emailIntelGraphMode = 'hand';
+let emailIntelGraphPhysicsEnabled = true;
+let emailIntelGraphExpanded = false;
+
 async function emailIntelRenderGraph() {
     if (!currentEmailInvestigationId) return;
     const container = document.getElementById('ei-network-container');
     const loading = document.getElementById('ei-network-loading');
+    const statsEl = document.getElementById('ei-graph-stats');
+    const inspector = document.getElementById('ei-node-inspector');
     if (!container) return;
+    if (inspector) inspector.classList.add('hidden');
 
     try {
         const res = await fetch(`${API_URL}?action=email_intel_graph&id=${currentEmailInvestigationId}`);
@@ -1166,35 +1251,263 @@ async function emailIntelRenderGraph() {
         if (data.status === 'ok') {
             if (loading) loading.style.display = 'none';
 
-            const graphData = {
-                nodes: new vis.DataSet(data.nodes),
-                edges: new vis.DataSet(data.edges)
-            };
+            // Normalize node sizes/fonts so MX database nodes do not overlap neighboring labels
+            emailIntelGraphRawNodes = (data.nodes || []).map((n) => {
+                const copy = { ...n };
+                if (copy.shape === 'database' || copy.group === 'mx') {
+                    copy.size = 18;
+                    copy.widthConstraint = { maximum: 190 };
+                    copy.font = { ...(copy.font || {}), size: 10, color: '#e2e8f0' };
+                } else {
+                    copy.font = { ...(copy.font || {}), size: 11 };
+                }
+                copy._origColor = copy.color;
+                return copy;
+            });
+
+            emailIntelGraphNodesDS = new vis.DataSet(emailIntelGraphRawNodes);
+            emailIntelGraphEdgesDS = new vis.DataSet(data.edges || []);
+
+            if (statsEl) {
+                statsEl.textContent = `${emailIntelGraphRawNodes.length} nodos · ${(data.edges || []).length} relaciones`;
+                statsEl.classList.remove('hidden');
+            }
 
             const options = {
                 physics: {
-                    stabilization: true,
-                    barnesHut: { gravitationalConstant: -3000, springLength: 100 }
+                    enabled: true,
+                    stabilization: { iterations: 250, updateInterval: 25 },
+                    barnesHut: {
+                        gravitationalConstant: -8500,
+                        centralGravity: 0.25,
+                        springLength: 175,
+                        springConstant: 0.04,
+                        damping: 0.14,
+                        avoidOverlap: 0.85
+                    }
                 },
                 nodes: {
                     borderWidth: 2,
                     shadow: true
                 },
                 edges: {
-                    smooth: true,
-                    arrows: { to: { enabled: true, scaleFactor: 0.8 } }
+                    smooth: { type: 'dynamic' },
+                    arrows: { to: { enabled: true, scaleFactor: 0.75 } },
+                    font: {
+                        size: 9,
+                        color: '#cbd5e1',
+                        strokeWidth: 0,
+                        background: 'rgba(15, 23, 42, 0.85)'
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    dragView: true,
+                    zoomView: true,
+                    dragNodes: emailIntelGraphMode === 'select',
+                    keyboard: { enabled: true }
                 }
             };
 
-            emailIntelGraphNetwork = new vis.Network(container, graphData, options);
+            if (emailIntelGraphNetwork) {
+                emailIntelGraphNetwork.destroy();
+            }
+            emailIntelGraphNetwork = new vis.Network(
+                container,
+                { nodes: emailIntelGraphNodesDS, edges: emailIntelGraphEdgesDS },
+                options
+            );
+
+            emailIntelGraphPhysicsEnabled = true;
+            emailIntelUpdatePhysicsButton();
+            emailIntelSetGraphMode(emailIntelGraphMode);
+
+            emailIntelGraphNetwork.once('stabilizationIterationsDone', () => {
+                emailIntelGraphPhysicsEnabled = false;
+                emailIntelGraphNetwork.setOptions({ physics: { enabled: false } });
+                emailIntelUpdatePhysicsButton();
+                emailIntelGraphNetwork.fit({ animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+            });
+
+            emailIntelGraphNetwork.on('zoom', () => {
+                emailIntelUpdateZoomLabel();
+            });
+            emailIntelGraphNetwork.on('afterDrawing', () => {
+                emailIntelUpdateZoomLabel();
+            });
+            emailIntelGraphNetwork.on('click', (params) => {
+                if (!params.nodes || params.nodes.length === 0) {
+                    if (inspector) inspector.classList.add('hidden');
+                    return;
+                }
+                const nodeId = params.nodes[0];
+                const node = emailIntelGraphNodesDS.get(nodeId);
+                if (node && inspector) {
+                    const edgesCount = (emailIntelGraphNetwork.getConnectedEdges(nodeId) || []).length;
+                    document.getElementById('ei-inspector-group').textContent = (node.group || 'ENTIDAD').toUpperCase();
+                    document.getElementById('ei-inspector-label').textContent = node.label || node.id;
+                    document.getElementById('ei-inspector-meta').textContent = `ID: ${node.id} · Conexiones: ${edgesCount}`;
+                    inspector.classList.remove('hidden');
+                }
+            });
+
+            container.onmousedown = () => {
+                if (emailIntelGraphMode === 'hand') container.style.cursor = 'grabbing';
+            };
+            container.onmouseup = () => {
+                container.style.cursor = emailIntelGraphMode === 'hand' ? 'grab' : 'default';
+            };
         }
     } catch (e) {
         console.error("Error rendering email intel graph:", e);
     }
 }
 
+function emailIntelUpdateZoomLabel() {
+    const label = document.getElementById('ei-graph-zoom-label');
+    if (label && emailIntelGraphNetwork) {
+        const pct = Math.max(10, Math.round(emailIntelGraphNetwork.getScale() * 100));
+        label.textContent = `${pct}%`;
+    }
+}
+
+function emailIntelSetGraphMode(mode) {
+    emailIntelGraphMode = mode === 'select' ? 'select' : 'hand';
+    const handBtn = document.getElementById('ei-btn-mode-hand');
+    const selBtn = document.getElementById('ei-btn-mode-select');
+    const container = document.getElementById('ei-network-container');
+
+    if (handBtn && selBtn) {
+        if (emailIntelGraphMode === 'hand') {
+            handBtn.className = 'px-2.5 py-1 rounded-md bg-indigo-600 text-white font-medium flex items-center gap-1.5 transition';
+            selBtn.className = 'px-2.5 py-1 rounded-md text-slate-300 hover:text-white flex items-center gap-1.5 transition';
+        } else {
+            selBtn.className = 'px-2.5 py-1 rounded-md bg-indigo-600 text-white font-medium flex items-center gap-1.5 transition';
+            handBtn.className = 'px-2.5 py-1 rounded-md text-slate-300 hover:text-white flex items-center gap-1.5 transition';
+        }
+    }
+    if (container) {
+        container.style.cursor = emailIntelGraphMode === 'hand' ? 'grab' : 'default';
+    }
+    if (emailIntelGraphNetwork) {
+        emailIntelGraphNetwork.setOptions({
+            interaction: {
+                dragView: true,
+                dragNodes: emailIntelGraphMode === 'select'
+            }
+        });
+    }
+}
+
+function emailIntelZoomGraph(factor) {
+    if (!emailIntelGraphNetwork) return;
+    const current = emailIntelGraphNetwork.getScale();
+    const target = Math.min(4.0, Math.max(0.2, current * factor));
+    emailIntelGraphNetwork.moveTo({
+        scale: target,
+        animation: { duration: 220, easingFunction: 'easeInOutQuad' }
+    });
+    setTimeout(emailIntelUpdateZoomLabel, 240);
+}
+
 function emailIntelFitGraph() {
-    if (emailIntelGraphNetwork) emailIntelGraphNetwork.fit();
+    if (emailIntelGraphNetwork) {
+        emailIntelGraphNetwork.fit({ animation: { duration: 280, easingFunction: 'easeInOutQuad' } });
+        setTimeout(emailIntelUpdateZoomLabel, 300);
+    }
+}
+
+function emailIntelUpdatePhysicsButton() {
+    const btn = document.getElementById('ei-btn-physics');
+    if (!btn) return;
+    const span = btn.querySelector('span');
+    if (span) {
+        span.textContent = emailIntelGraphPhysicsEnabled ? 'Fijar' : 'Reanudar';
+    }
+}
+
+function emailIntelTogglePhysics() {
+    if (!emailIntelGraphNetwork) return;
+    emailIntelGraphPhysicsEnabled = !emailIntelGraphPhysicsEnabled;
+    emailIntelGraphNetwork.setOptions({ physics: { enabled: emailIntelGraphPhysicsEnabled } });
+    emailIntelUpdatePhysicsButton();
+}
+
+function emailIntelToggleExpandGraph(forceState) {
+    const wrapper = document.getElementById('ei-graph-wrapper');
+    const backdrop = document.getElementById('ei-graph-backdrop');
+    const stage = document.getElementById('ei-network-stage');
+    const btn = document.getElementById('ei-btn-expand');
+    if (!wrapper || !stage) return;
+
+    emailIntelGraphExpanded = typeof forceState === 'boolean' ? forceState : !emailIntelGraphExpanded;
+
+    if (emailIntelGraphExpanded) {
+        if (backdrop) backdrop.classList.remove('hidden');
+        wrapper.classList.add('fixed', 'inset-4', 'z-50', 'h-[calc(100vh-2rem)]');
+        stage.classList.remove('h-[640px]');
+        stage.classList.add('h-full');
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-compress mr-1"></i> <span>Reducir</span>';
+    } else {
+        if (backdrop) backdrop.classList.add('hidden');
+        wrapper.classList.remove('fixed', 'inset-4', 'z-50', 'h-[calc(100vh-2rem)]');
+        stage.classList.remove('h-full');
+        stage.classList.add('h-[640px]');
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-expand mr-1"></i> <span>Ampliar</span>';
+    }
+
+    if (emailIntelGraphNetwork) {
+        setTimeout(() => {
+            emailIntelGraphNetwork.redraw();
+            emailIntelGraphNetwork.fit({ animation: { duration: 220, easingFunction: 'easeInOutQuad' } });
+        }, 120);
+    }
+}
+
+document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && emailIntelGraphExpanded) {
+        emailIntelToggleExpandGraph(false);
+    }
+});
+
+function emailIntelFilterGraph(group) {
+    document.querySelectorAll('.ei-graph-filter-btn').forEach((b) => {
+        const active = b.getAttribute('data-ei-filter') === group;
+        b.classList.toggle('bg-indigo-600', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('bg-slate-800', !active);
+    });
+    if (!emailIntelGraphNodesDS) return;
+
+    const updates = emailIntelGraphRawNodes.map((n) => {
+        const g = (n.group || '').toLowerCase();
+        const match = group === 'ALL'
+            || (group === 'domain' && (g === 'domain' || g === 'mx' || g === 'email'))
+            || g === group
+            || g === 'email';
+        return {
+            id: n.id,
+            opacity: match ? 1.0 : 0.15,
+            color: match ? n._origColor : { background: '#1e293b', border: '#334155' }
+        };
+    });
+    emailIntelGraphNodesDS.update(updates);
+}
+
+function emailIntelCopyInspectorNode() {
+    const txt = document.getElementById('ei-inspector-label')?.textContent || '';
+    if (txt && navigator.clipboard) {
+        navigator.clipboard.writeText(txt);
+    }
+}
+
+function emailIntelExportGraphPng() {
+    const canvas = document.querySelector('#ei-network-container canvas');
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `openrecon-email-graph-${currentEmailInvestigationId || 'export'}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
 }
 
 // Correlate to Central Threat IOCs
