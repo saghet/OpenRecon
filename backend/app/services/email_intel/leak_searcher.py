@@ -12,6 +12,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 from datetime import datetime, timezone
 from app.services.email_intel.zehef_adapter import ZehefAdapter
+from app.services.email_intel.xposedornot_connector import XposedOrNotConnector
 
 logger = logging.getLogger("email_intel.leak_searcher")
 
@@ -22,6 +23,7 @@ HUDSONROCK_KEY = "ROCKHUDSONROCK"
 class LeakSearcher:
     def __init__(self, adapter: ZehefAdapter):
         self.adapter = adapter
+        self.xon_connector = XposedOrNotConnector(adapter=adapter)
 
     async def search_leaks(self, target_email: str) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """
@@ -97,5 +99,12 @@ class LeakSearcher:
                 "validation_status": "ERROR",
                 "confidence_score": 0.0
             })
+
+        # 2. XposedOrNot Official API v1 (Data Breaches)
+        xon_res = await self.xon_connector.search_email(target_email)
+        if xon_res.get("evidence"):
+            evidences.append(xon_res["evidence"])
+        for xf in xon_res.get("findings", []):
+            findings.append(xf)
 
         return findings, evidences

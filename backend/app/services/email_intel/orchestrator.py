@@ -260,9 +260,13 @@ class EmailIntelOrchestrator:
         conn = self._get_connection()
         try:
             with conn:
-                # Save evidences first
+                # Save evidences first and map by source_name
+                evidence_map: Dict[str, str] = {}
+                last_ev_id = None
                 for ev in evidences:
                     ev_id = f"EV-{uuid.uuid4().hex[:8]}"
+                    last_ev_id = ev_id
+                    evidence_map[ev["source_name"]] = ev_id
                     conn.execute(
                         """
                         INSERT INTO email_intel_evidence (
@@ -279,9 +283,18 @@ class EmailIntelOrchestrator:
                         )
                     )
 
-                # Save findings
+                # Save findings avoiding duplicates in the same investigation
+                seen_leaks = set()
                 for l in leaks:
-                    ev_id_ref = ev_id if evidences else f"EV-{uuid.uuid4().hex[:8]}"
+                    leak_key = (l["source"], str(l.get("leak_date") or ""), str(l.get("computer_name_preview") or ""))
+                    if leak_key in seen_leaks:
+                        continue
+                    seen_leaks.add(leak_key)
+
+                    if str(l["source"]).startswith("XposedOrNot"):
+                        ev_id_ref = evidence_map.get("XposedOrNot", last_ev_id or f"EV-{uuid.uuid4().hex[:8]}")
+                    else:
+                        ev_id_ref = evidence_map.get("HudsonRock Cavalier", last_ev_id or f"EV-{uuid.uuid4().hex[:8]}")
                     conn.execute(
                         """
                         INSERT INTO email_intel_leaks (

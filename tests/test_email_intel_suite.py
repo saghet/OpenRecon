@@ -146,7 +146,7 @@ class TestEmailIntelligenceSuite(unittest.TestCase):
             # Crucial assertion: Cleartext password must NEVER exist in finding
             finding_str = json.dumps(finding)
             self.assertNotIn("CLEAR_TEXT_PASSWORD_LEAKED_1234", finding_str)
-            self.assertEqual(len(evidences), 1)
+            self.assertEqual(len(evidences), 2)  # HudsonRock Cavalier + XposedOrNot
 
     # -------------------------------------------------------------------------
     # 4. Búsqueda de Cuentas Digitales (Account Search)

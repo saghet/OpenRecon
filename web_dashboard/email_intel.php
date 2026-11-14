@@ -899,29 +899,45 @@ function emailIntelPopulateLeaks(leaks) {
         return;
     }
 
-    container.innerHTML = leaks.map(l => `
+    container.innerHTML = leaks.map(l => {
+        const isXon = String(l.source || '').startsWith('XposedOrNot');
+        const badge = isXon
+            ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-950 text-amber-300 border border-amber-800">XPOSEDORNOT BREACH</span>'
+            : '<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-950 text-rose-400 border border-rose-800">INFO-STEALER</span>';
+        const cats = Array.isArray(l.exposed_data_types) ? l.exposed_data_types : [];
+        const catsHtml = cats.map(c => `<span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-cyan-300">${c}</span>`).join(' ');
+        const detailsHtml = isXon ? `
+            <div class="text-xs text-slate-300 flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+                <span><i class="fa-solid fa-globe text-slate-500 mr-1"></i>Dominio/Servicio: <b class="text-cyan-300 font-mono">${l.computer_name_preview || 'N/A'}</b></span>
+                <span><i class="fa-solid fa-industry text-slate-500 mr-1"></i>Categoría: <b class="text-slate-300">${l.operating_system || 'Breach'}</b></span>
+                <span><i class="fa-solid fa-database text-slate-500 mr-1"></i>Volumen: <b class="text-amber-400 font-mono">${l.ip_address_preview || 'N/D'}</b></span>
+                ${l.verifiable_reference ? `<a href="${l.verifiable_reference}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:underline"><i class="fa-solid fa-arrow-up-right-from-square mr-1"></i>Referencia</a>` : ''}
+            </div>
+            <div class="flex flex-wrap gap-1 pt-1.5">${catsHtml}</div>` : `
+            <div class="text-xs text-slate-300 flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
+                <span><i class="fa-solid fa-building text-slate-500 mr-1"></i>Servicios Corporativos: <b class="text-rose-400 font-mono">${l.corporate_services_count || 0}</b></span>
+                <span><i class="fa-solid fa-users text-slate-500 mr-1"></i>Cuentas de Usuario: <b class="text-amber-400 font-mono">${l.user_services_count || 0}</b></span>
+                <span><i class="fa-solid fa-laptop text-slate-500 mr-1"></i>Host: <b class="text-slate-300 font-mono">${l.computer_name_preview || 'N/A'}</b> (${l.operating_system || 'SO no especificado'})</span>
+                <span><i class="fa-solid fa-network-wired text-slate-500 mr-1"></i>IP Anónima: <b class="text-slate-400 font-mono">${l.ip_address_preview || '***'}</b></span>
+            </div>`;
+        return `
         <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow">
             <div class="space-y-1">
-                <div class="flex items-center gap-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-rose-950 text-rose-400 border border-rose-800">INFO-STEALER</span>
+                <div class="flex items-center gap-2 flex-wrap">
+                    ${badge}
                     <h4 class="text-sm font-bold text-white">${l.source}</h4>
                     <span class="text-xs text-slate-500 font-mono">(${l.leak_date || 'Fecha desconocida'})</span>
                 </div>
-                <div class="text-xs text-slate-300 flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
-                    <span><i class="fa-solid fa-building text-slate-500 mr-1"></i>Servicios Corporativos: <b class="text-rose-400 font-mono">${l.corporate_services_count || 0}</b></span>
-                    <span><i class="fa-solid fa-users text-slate-500 mr-1"></i>Cuentas de Usuario: <b class="text-amber-400 font-mono">${l.user_services_count || 0}</b></span>
-                    <span><i class="fa-solid fa-laptop text-slate-500 mr-1"></i>Host: <b class="text-slate-300 font-mono">${l.computer_name_preview || 'N/A'}</b> (${l.operating_system || 'SO no especificado'})</span>
-                    <span><i class="fa-solid fa-network-wired text-slate-500 mr-1"></i>IP Anónima: <b class="text-slate-400 font-mono">${l.ip_address_preview || '***'}</b></span>
-                </div>
+                ${detailsHtml}
             </div>
             <div class="text-right shrink-0">
                 <span class="px-2 py-1 rounded text-[10px] font-mono bg-slate-900 text-slate-400 border border-slate-800 block">
-                    K-Anonymity Verified
+                    ${l.confidence_level || 'HIGH'} · K-Anonymity
                 </span>
                 <span class="text-[9px] text-slate-600 block mt-1 font-mono">SHA: ${(l.raw_evidence_sha256 || '').substring(0, 12)}...</span>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 function emailIntelPopulateAccounts(accounts) {

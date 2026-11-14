@@ -25,12 +25,14 @@ class RiskScorer:
         score = 0.0
         reasons = []
 
-        # 1. Leak Evaluation (Heavy impact if corporate credentials or recent info-stealers)
-        confirmed_leaks = [l for l in leaks if l.get("corporate_services_count", 0) > 0 or l.get("user_services_count", 0) > 0]
-        if confirmed_leaks:
+        # 1. Leak Evaluation (Info-Stealers + XposedOrNot Data Breaches)
+        confirmed_stealers = [l for l in leaks if l.get("corporate_services_count", 0) > 0 or l.get("user_services_count", 0) > 0]
+        xon_breaches = [l for l in leaks if str(l.get("source", "")).startswith("XposedOrNot")]
+
+        if confirmed_stealers:
             stealer_score = 45.0
-            total_corp = sum(l.get("corporate_services_count", 0) for l in confirmed_leaks)
-            total_user = sum(l.get("user_services_count", 0) for l in confirmed_leaks)
+            total_corp = sum(l.get("corporate_services_count", 0) for l in confirmed_stealers)
+            total_user = sum(l.get("user_services_count", 0) for l in confirmed_stealers)
             if total_corp > 0:
                 stealer_score += min(20.0, total_corp * 4.0)
                 reasons.append(f"Infección por info-stealer detectada con {total_corp} servicios corporativos expuestos.")
@@ -38,7 +40,33 @@ class RiskScorer:
                 stealer_score += min(10.0, total_user * 1.5)
                 reasons.append(f"Credenciales de usuario ({total_user} cuentas) capturadas en telemetría de stealers.")
             score += min(65.0, stealer_score)
-        elif leaks:
+
+        if xon_breaches:
+            all_cats = set()
+            for xb in xon_breaches:
+                for c in (xb.get("exposed_data_types") or []):
+                    all_cats.add(str(c))
+            has_creds = bool(all_cats & {"PASSWORDS", "PASSWORD_HASHES"})
+            has_pii_corp = bool(all_cats & {"PERSONAL_INFO", "FINANCIAL_DATA", "CORPORATE_DATA", "PHONE_NUMBERS"})
+
+            if has_creds:
+                score += min(55.0, 35.0 + len(xon_breaches) * 5.0)
+                reasons.append(
+                    f"XposedOrNot reporta {len(xon_breaches)} filtración(es) con exposición histórica de credenciales/hashes "
+                    "(nota: una contraseña filtrada histórica no implica que sea vigente)."
+                )
+            elif has_pii_corp:
+                score += min(40.0, 20.0 + len(xon_breaches) * 4.0)
+                reasons.append(
+                    f"XposedOrNot reporta {len(xon_breaches)} filtración(es) con datos personales/empresariales relevantes."
+                )
+            else:
+                score += min(20.0, 10.0 + len(xon_breaches) * 2.0)
+                reasons.append(
+                    f"Correo identificado en {len(xon_breaches)} filtración(es) histórica(s) en XposedOrNot sin credenciales expuestas "
+                    "(la presencia en una brecha no implica compromiso activo)."
+                )
+        elif leaks and not confirmed_stealers:
             score += 20.0
             reasons.append("Presencia en filtraciones públicas generales sin indicio de stealer corporativo activo.")
 
