@@ -22,6 +22,7 @@ from app.services.email_intel.zehef_adapter import ZehefAdapter
 logger = logging.getLogger("email_intel.xposedornot")
 
 XON_BREACH_ANALYTICS_URL = "https://api.xposedornot.com/v1/breach-analytics"
+XON_DOMAIN_BREACHES_URL = "https://api.xposedornot.com/v1/domain-breaches/"
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+$")
 
 # Mapeo determinista de campos xposed_data a categorías normalizadas
@@ -84,13 +85,20 @@ def classify_exposed_categories(raw_xposed_data: Any) -> List[str]:
 
 
 class XposedOrNotConnector:
-    """Conector asíncrono hacia la API oficial de XposedOrNot."""
+    """Conector asíncrono hacia la API oficial de XposedOrNot con caché TTL configurable."""
 
-    def __init__(self, adapter: Optional[ZehefAdapter] = None, timeout: float = 10.0):
+    _EMAIL_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+
+    def __init__(self, adapter: Optional[ZehefAdapter] = None, timeout: float = 10.0, cache_ttl_seconds: int = 1800):
         self.adapter = adapter or ZehefAdapter(timeout_seconds=timeout)
         self.timeout = timeout
+        self.cache_ttl_seconds = cache_ttl_seconds
 
-    async def search_email(self, target_email: str) -> Dict[str, Any]:
+    @classmethod
+    def clear_cache(cls) -> None:
+        cls._EMAIL_CACHE.clear()
+
+    async def search_email(self, target_email: str, use_cache: bool = True) -> Dict[str, Any]:
         """
         Consulta /v1/breach-analytics?email=... y retorna estructura normalizada
         con estado explícito, hallazgos y evidencia criptográfica.
@@ -116,6 +124,13 @@ class XposedOrNotConnector:
                 },
             }
 
+        if use_cache and self.cache_ttl_seconds > 0 and clean_email in self._EMAIL_CACHE:
+            cached_ts, cached_res = self._EMAIL_CACHE[clean_email]
+            if (datetime.now(timezone.utc).timestamp() - cached_ts) < self.cache_ttl_seconds:
+                copied = dict(cached_res)
+                copied["from_cache"] = True
+                return copied
+
         headers = {
             "Accept": "application/json",
             "User-Agent": "OpenRecon-EmailIntel/1.0",
@@ -137,7 +152,10 @@ class XposedOrNotConnector:
             sha256 = self.adapter.calculate_sha256(raw_text)
 
             if resp.status_code == 404:
-                return self._no_matches_result(queried_at, raw_text, sha256)
+                res = self._no_matches_result(queried_at, raw_text, sha256)
+                if use_cache and self.cache_ttl_seconds > 0:
+                    self._EMAIL_CACHE[clean_email] = (datetime.now(timezone.utc).timestamp(), res)
+                return res
 
             if resp.status_code == 429:
                 return self._error_result(
@@ -180,7 +198,10 @@ class XposedOrNotConnector:
                 )
 
             if payload.get("Error") == "Not found":
-                return self._no_matches_result(queried_at, raw_text, sha256)
+                res = self._no_matches_result(queried_at, raw_text, sha256)
+                if use_cache and self.cache_ttl_seconds > 0:
+                    self._EMAIL_CACHE[clean_email] = (datetime.now(timezone.utc).timestamp(), res)
+                return res
 
             exposed = payload.get("ExposedBreaches")
             if not isinstance(exposed, dict) or not isinstance(exposed.get("breaches_details"), list):
@@ -243,9 +264,10 @@ class XposedOrNotConnector:
                     "raw_evidence_sha256": sha256,
                 })
 
-            return {
+            result = {
                 "source": "XposedOrNot",
                 "status": "COMPLETED",
+                "from_cache": False,
                 "queried_at": queried_at,
                 "matches_count": len(findings),
                 "findings": findings,
@@ -259,6 +281,9 @@ class XposedOrNotConnector:
                     "confidence_score": 0.90,
                 },
             }
+            if use_cache and self.cache_ttl_seconds > 0:
+                self._EMAIL_CACHE[clean_email] = (datetime.now(timezone.utc).timestamp(), result)
+            return result
 
         except httpx.TimeoutException:
             msg = "Tiempo de espera agotado consultando XposedOrNot."
@@ -308,4 +333,102 @@ class XposedOrNotConnector:
                 "validation_status": status,
                 "confidence_score": 0.0,
             },
+        }
+
+    async def query_domain_breaches(self, api_key: Optional[str] = None) -> Dict[str, Any]:
+        """Query XposedOrNot Enterprise / CXO domain-breaches API with x-api-key."""
+        queried_at = datetime.now(timezone.utc).isoformat()
+        resolved_key = (api_key or os.getenv("XPOSEDORNOT_API_KEY") or "").strip()
+        if not resolved_key:
+            return {
+                "source": "XposedOrNot",
+                "endpoint": "domain-breaches",
+                "status": "KEY_NOT_CONFIGURED",
+                "queried_at": queried_at,
+                "error": "XPOSEDORNOT_API_KEY no configurada.",
+                "data": None,
+            }
+
+        headers = {
+            "User-Agent": "OpenRecon-EmailIntel/1.0",
+            "Accept": "application/json",
+            "x-api-key": resolved_key,
+            "Content-Length": "0",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout, verify=True, follow_redirects=False) as client:
+                resp = await client.post(XON_DOMAIN_BREACHES_URL, headers=headers)
+        except httpx.TimeoutException:
+            return {
+                "source": "XposedOrNot",
+                "endpoint": "domain-breaches",
+                "status": "TIMEOUT",
+                "queried_at": queried_at,
+                "error": "Timeout consultando XposedOrNot domain-breaches.",
+                "data": None,
+            }
+        except httpx.RequestError as exc:
+            return {
+                "source": "XposedOrNot",
+                "endpoint": "domain-breaches",
+                "status": "CONNECTION_ERROR",
+                "queried_at": queried_at,
+                "error": f"Error de conexión con XposedOrNot: {type(exc).__name__}",
+                "data": None,
+            }
+
+        if resp.status_code == 200:
+            try:
+                payload = resp.json()
+            except ValueError:
+                return {
+                    "source": "XposedOrNot",
+                    "endpoint": "domain-breaches",
+                    "status": "PARTIAL",
+                    "queried_at": queried_at,
+                    "error": "Respuesta JSON inválida de XposedOrNot domain-breaches.",
+                    "data": None,
+                }
+            return {
+                "source": "XposedOrNot",
+                "endpoint": "domain-breaches",
+                "status": "COMPLETED",
+                "queried_at": queried_at,
+                "error": None,
+                "data": payload,
+            }
+        if resp.status_code in (401, 403, 422):
+            return {
+                "source": "XposedOrNot",
+                "endpoint": "domain-breaches",
+                "status": "INVALID_KEY",
+                "queried_at": queried_at,
+                "error": f"XposedOrNot rechazó la API key (HTTP {resp.status_code}).",
+                "data": None,
+            }
+        if resp.status_code == 429:
+            return {
+                "source": "XposedOrNot",
+                "endpoint": "domain-breaches",
+                "status": "RATE_LIMITED",
+                "queried_at": queried_at,
+                "error": "Límite de consultas alcanzado en XposedOrNot (HTTP 429).",
+                "data": None,
+            }
+        if resp.status_code >= 500:
+            return {
+                "source": "XposedOrNot",
+                "endpoint": "domain-breaches",
+                "status": "TEMPORARILY_UNAVAILABLE",
+                "queried_at": queried_at,
+                "error": f"XposedOrNot no disponible temporalmente (HTTP {resp.status_code}).",
+                "data": None,
+            }
+        return {
+            "source": "XposedOrNot",
+            "endpoint": "domain-breaches",
+            "status": "PARTIAL",
+            "queried_at": queried_at,
+            "error": f"Respuesta inesperada de XposedOrNot (HTTP {resp.status_code}).",
+            "data": None,
         }

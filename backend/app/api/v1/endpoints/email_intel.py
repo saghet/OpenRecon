@@ -261,3 +261,53 @@ def get_investigation_graph(inv_id: str):
         return {"nodes": nodes, "edges": edges, "total_nodes": len(nodes), "total_edges": len(edges)}
     finally:
         conn.close()
+
+
+@router.get("/compare")
+def compare_investigations(left_id: str, right_id: str):
+    """Compare two Email Intelligence investigations to detect new or removed leaks."""
+    conn = get_db()
+    try:
+        left_inv = conn.execute("SELECT id, target_email, created_at FROM email_intel_investigations WHERE id = ?", (left_id,)).fetchone()
+        right_inv = conn.execute("SELECT id, target_email, created_at FROM email_intel_investigations WHERE id = ?", (right_id,)).fetchone()
+        if not left_inv or not right_inv:
+            raise HTTPException(status_code=404, detail="Una o ambas investigaciones no existen.")
+
+        def _fetch_leaks(inv_id: str):
+            rows = conn.execute(
+                "SELECT source_type, stealer_family, date_compromised, data_classes_json FROM email_intel_leaks WHERE investigation_id = ?",
+                (inv_id,),
+            ).fetchall()
+            return {
+                (r["stealer_family"] or "", r["source_type"] or ""): {
+                    "breach_name": r["stealer_family"],
+                    "source_type": r["source_type"],
+                    "date_compromised": r["date_compromised"],
+                }
+                for r in rows
+            }
+
+        left_map = _fetch_leaks(left_id)
+        right_map = _fetch_leaks(right_id)
+        new_keys = sorted(set(right_map.keys()) - set(left_map.keys()))
+        removed_keys = sorted(set(left_map.keys()) - set(right_map.keys()))
+        common_keys = sorted(set(left_map.keys()) & set(right_map.keys()))
+        return {
+            "left_id": left_id,
+            "right_id": right_id,
+            "left_email": left_inv["target_email"],
+            "right_email": right_inv["target_email"],
+            "new_leaks": [right_map[k] for k in new_keys],
+            "removed_leaks": [left_map[k] for k in removed_keys],
+            "unchanged_count": len(common_keys),
+        }
+    finally:
+        conn.close()
+
+
+@router.get("/xposedornot/domain-breaches")
+async def get_xposedornot_domain_breaches():
+    """Query XposedOrNot CXO / Enterprise domain-breaches endpoint using configured XPOSEDORNOT_API_KEY."""
+    from app.services.email_intel.xposedornot_connector import XposedOrNotConnector
+    connector = XposedOrNotConnector()
+    return await connector.query_domain_breaches()

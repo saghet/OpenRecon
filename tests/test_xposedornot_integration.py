@@ -163,6 +163,114 @@ class TestXposedOrNotIntegration(unittest.TestCase):
         self.assertIn("XposedOrNot", exp)
         self.assertIn("vigente", exp)
 
+    def test_07_ttl_cache_hit_and_error_non_caching(self):
+        XposedOrNotConnector.clear_cache()
+        connector = XposedOrNotConnector(cache_ttl_seconds=60)
+
+        mock_404 = MagicMock(status_code=404, text='{"Error":"Not found"}')
+        with patch("httpx.AsyncClient") as client_cls:
+            inst = client_cls.return_value.__aenter__.return_value
+            inst.get = AsyncMock(return_value=mock_404)
+            first = asyncio.run(connector.search_email("cache-test@example.com"))
+            second = asyncio.run(connector.search_email("cache-test@example.com"))
+
+        self.assertEqual(first["status"], "NO_MATCHES")
+        self.assertFalse(first.get("from_cache", False))
+        self.assertEqual(second["status"], "NO_MATCHES")
+        self.assertTrue(second.get("from_cache", False))
+        self.assertEqual(inst.get.await_count, 1)
+
+        # Errors must never be cached
+        mock_429 = MagicMock(status_code=429, text="rate limit")
+        with patch("httpx.AsyncClient") as client_cls:
+            inst = client_cls.return_value.__aenter__.return_value
+            inst.get = AsyncMock(return_value=mock_429)
+            err1 = asyncio.run(connector.search_email("err-test@example.com"))
+            err2 = asyncio.run(connector.search_email("err-test@example.com"))
+
+        self.assertEqual(err1["status"], "RATE_LIMITED")
+        self.assertEqual(err2["status"], "RATE_LIMITED")
+        self.assertEqual(inst.get.await_count, 2)
+
+    def test_08_query_domain_breaches_states(self):
+        connector = XposedOrNotConnector()
+        with patch.dict(os.environ, {}, clear=True):
+            res_missing = asyncio.run(connector.query_domain_breaches())
+        self.assertEqual(res_missing["status"], "KEY_NOT_CONFIGURED")
+
+        mock_401 = MagicMock(status_code=401, text='{"error":"Unauthorized"}')
+        with patch("httpx.AsyncClient") as client_cls:
+            client_cls.return_value.__aenter__.return_value.post = AsyncMock(return_value=mock_401)
+            res_401 = asyncio.run(connector.query_domain_breaches(api_key="bad-key"))
+        self.assertEqual(res_401["status"], "INVALID_KEY")
+
+        mock_200 = MagicMock(
+            status_code=200,
+            json=lambda: {"status": "success", "metrics": {"Breach_Summary": {"Total": 2}}},
+        )
+        with patch("httpx.AsyncClient") as client_cls:
+            post_mock = AsyncMock(return_value=mock_200)
+            client_cls.return_value.__aenter__.return_value.post = post_mock
+            res_200 = asyncio.run(connector.query_domain_breaches(api_key="valid-key"))
+        self.assertEqual(res_200["status"], "COMPLETED")
+        self.assertEqual(res_200["data"]["metrics"]["Breach_Summary"]["Total"], 2)
+        sent_headers = post_mock.call_args.kwargs["headers"]
+        self.assertEqual(sent_headers["x-api-key"], "valid-key")
+        self.assertEqual(sent_headers["Content-Length"], "0")
+
+    def test_09_compare_investigations_endpoint(self):
+        import sqlite3
+        import tempfile
+        from app.api.v1.endpoints import email_intel as ei_ep
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False)
+        tmp.close()
+        try:
+            conn = sqlite3.connect(tmp.name)
+            conn.row_factory = sqlite3.Row
+            conn.executescript(
+                """
+                CREATE TABLE email_intel_investigations (
+                    id TEXT PRIMARY KEY,
+                    target_email TEXT,
+                    created_at TEXT
+                );
+                CREATE TABLE email_intel_leaks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    investigation_id TEXT,
+                    source_type TEXT,
+                    stealer_family TEXT,
+                    date_compromised TEXT,
+                    data_classes_json TEXT
+                );
+                INSERT INTO email_intel_investigations VALUES ('inv-1', 'user@corp.com', '2026-11-01T00:00:00Z');
+                INSERT INTO email_intel_investigations VALUES ('inv-2', 'user@corp.com', '2026-11-14T00:00:00Z');
+                INSERT INTO email_intel_leaks (investigation_id, source_type, stealer_family, date_compromised, data_classes_json)
+                VALUES ('inv-1', 'BREACH_XPOSEDORNOT', 'OldBreach', '2020-01-01', '[]');
+                INSERT INTO email_intel_leaks (investigation_id, source_type, stealer_family, date_compromised, data_classes_json)
+                VALUES ('inv-2', 'BREACH_XPOSEDORNOT', 'OldBreach', '2020-01-01', '[]');
+                INSERT INTO email_intel_leaks (investigation_id, source_type, stealer_family, date_compromised, data_classes_json)
+                VALUES ('inv-2', 'BREACH_XPOSEDORNOT', 'NewBreach2026', '2026-05-01', '[]');
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            def _get_test_db():
+                c = sqlite3.connect(tmp.name)
+                c.row_factory = sqlite3.Row
+                return c
+
+            with patch.object(ei_ep, "get_db", side_effect=_get_test_db):
+                diff = ei_ep.compare_investigations("inv-1", "inv-2")
+
+            self.assertEqual(diff["unchanged_count"], 1)
+            self.assertEqual(len(diff["new_leaks"]), 1)
+            self.assertEqual(diff["new_leaks"][0]["breach_name"], "NewBreach2026")
+            self.assertEqual(diff["removed_leaks"], [])
+        finally:
+            os.unlink(tmp.name)
+
 
 if __name__ == "__main__":
     unittest.main()
