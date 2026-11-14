@@ -144,8 +144,23 @@
         <!-- Correlation Graph + Indicators Table -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-                <h3 class="text-sm font-bold text-slate-100 mb-3"><i class="fa-solid fa-diagram-project text-cyan-400 mr-2"></i>Grafo de Correlación CTI</h3>
-                <div id="di-correlation-graph" class="h-80 bg-slate-950 rounded-xl border border-slate-800"></div>
+                <div class="flex items-center justify-between mb-3">
+                    <h3 class="text-sm font-bold text-slate-100"><i class="fa-solid fa-diagram-project text-cyan-400 mr-2"></i>Grafo de Correlación CTI</h3>
+                    <div class="flex items-center gap-2">
+                        <button onclick="if(diNetwork) diNetwork.fit({animation:true})" title="Centrar grafo" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700">
+                            <i class="fa-solid fa-crosshairs"></i>
+                        </button>
+                        <button onclick="domainIntelOpenGraphModal()" class="px-3 py-1 rounded-lg bg-cyan-600/20 hover:bg-cyan-600/40 text-xs text-cyan-300 border border-cyan-700/60 flex items-center gap-1.5 font-semibold">
+                            <i class="fa-solid fa-expand"></i> Ampliar y Manipular
+                        </button>
+                    </div>
+                </div>
+                <div class="relative group">
+                    <div id="di-correlation-graph" class="h-80 bg-slate-950 rounded-xl border border-slate-800 cursor-pointer"></div>
+                    <button onclick="domainIntelOpenGraphModal()" class="absolute bottom-3 right-3 px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-cyan-600 text-[11px] text-slate-200 border border-slate-700 shadow-lg backdrop-blur transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-up-right-and-down-left-from-center text-cyan-400"></i> Clic para abrir en pantalla completa
+                    </button>
+                </div>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
                 <h3 class="text-sm font-bold text-slate-100 mb-3"><i class="fa-solid fa-list-check text-amber-400 mr-2"></i>Indicadores Relacionados</h3>
@@ -156,6 +171,52 @@
                         </thead>
                         <tbody id="di-indicators-tbody" class="divide-y divide-slate-800/60 text-slate-300"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Interactive Graph Modal -->
+    <div id="di-graph-modal" class="hidden fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl flex-1 flex flex-col overflow-hidden shadow-2xl">
+            <div class="px-5 py-3 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 bg-slate-900/95">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-diagram-project text-cyan-400 text-lg"></i>
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-100">Explorador Interactivo de Correlación CTI</h3>
+                        <p id="di-modal-subtitle" class="text-[11px] text-slate-400 font-mono">Selecciona cualquier nodo o arista para inspeccionar su procedencia y evidencia</p>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <input id="di-graph-search" type="text" oninput="domainIntelSearchGraphNode(this.value)" placeholder="Buscar nodo (IP, subdominio...)"
+                           class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 w-48 focus:outline-none focus:border-cyan-500">
+                    <button onclick="diModalZoom(1.25)" title="Acercar" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                    <button onclick="diModalZoom(0.8)" title="Alejar" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                    <button onclick="if(diModalNetwork) diModalNetwork.fit({animation:true})" title="Centrar" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 border border-slate-700"><i class="fa-solid fa-crosshairs mr-1"></i>Centrar</button>
+                    <button id="di-btn-layout" onclick="domainIntelToggleLayout()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-cyan-300 border border-slate-700">Layout: Fuerza</button>
+                    <button id="di-btn-physics" onclick="domainIntelTogglePhysics()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-emerald-300 border border-slate-700">Física: ON</button>
+                    <button id="di-btn-edge-labels" onclick="domainIntelToggleEdgeLabels()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700">Etiquetas: OFF</button>
+                    <button onclick="domainIntelExportGraphPNG()" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-semibold"><i class="fa-solid fa-image mr-1"></i>PNG</button>
+                    <button onclick="domainIntelCloseGraphModal()" class="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-600 text-xs text-white font-semibold"><i class="fa-solid fa-xmark mr-1"></i>Cerrar</button>
+                </div>
+            </div>
+            <div id="di-graph-filters" class="px-5 py-2 border-b border-slate-800 bg-slate-950/60 flex flex-wrap items-center gap-2 text-xs"></div>
+            <div class="flex-1 flex min-h-0 relative">
+                <div id="di-modal-graph-canvas" class="flex-1 bg-slate-950 relative"></div>
+                <div class="absolute bottom-3 left-3 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2 text-[11px] text-slate-300 flex flex-wrap gap-3 pointer-events-none backdrop-blur">
+                    <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-cyan-500 mr-1"></span>Dominio</span>
+                    <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-blue-500 mr-1"></span>IP</span>
+                    <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-indigo-400 mr-1"></span>Subdominio</span>
+                    <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 mr-1"></span>NS</span>
+                    <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1"></span>MX</span>
+                    <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-purple-500 mr-1"></span>Certificado</span>
+                    <span><span class="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 mr-1"></span>Amenaza/Malware</span>
+                </div>
+                <div class="w-80 border-l border-slate-800 bg-slate-900/95 p-4 overflow-y-auto flex flex-col gap-3">
+                    <div class="text-xs font-bold uppercase text-slate-400 tracking-wider">Inspector de Entidad</div>
+                    <div id="di-graph-inspector" class="text-xs text-slate-300 space-y-2">
+                        <p class="text-slate-500">Haz clic sobre un nodo o una línea de relación en el grafo para ver sus detalles, fuente y nivel de confianza.</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -402,12 +463,236 @@ function domainIntelRenderInvestigation(inv) {
         </tr>`).join('') || '<tr><td colspan="4" class="py-3 text-slate-500">Sin indicadores relacionados.</td></tr>';
 
     // Graph
+    diLastGraphRaw = inv.correlation_graph || { nodes: [], edges: [] };
+    diLastDomainTitle = inv.normalized_domain || '';
     const graphBox = document.getElementById('di-correlation-graph');
-    if (typeof vis !== 'undefined' && inv.correlation_graph) {
-        const nodes = new vis.DataSet((inv.correlation_graph.nodes || []).map(n => ({ id: n.id, label: n.label, group: n.type })));
-        const edges = new vis.DataSet((inv.correlation_graph.edges || []).map(e => ({ from: e.from, to: e.to, label: e.relationship, arrows: 'to' })));
-        diNetwork = new vis.Network(graphBox, { nodes, edges }, { physics: { stabilization: true }, nodes: { font: { color: '#e2e8f0', size: 11 } }, edges: { font: { color: '#94a3b8', size: 9 } } });
+    if (typeof vis !== 'undefined' && diLastGraphRaw) {
+        diNetwork = diRenderVisGraph(graphBox, diLastGraphRaw, { compact: true, showEdgeLabels: false });
+        graphBox.ondblclick = () => domainIntelOpenGraphModal();
+        if (diNetwork) {
+            diNetwork.on('click', (params) => {
+                if (!params.nodes.length && !params.edges.length) domainIntelOpenGraphModal();
+            });
+        }
     }
+}
+
+let diLastGraphRaw = null;
+let diLastDomainTitle = '';
+let diModalNetwork = null;
+let diModalNodesDS = null;
+let diModalEdgesDS = null;
+let diModalPhysicsOn = true;
+let diModalHierarchical = false;
+let diModalEdgeLabels = false;
+let diModalActiveFilter = 'ALL';
+
+const DI_NODE_PALETTE = {
+    DOMAIN:       { color: '#06b6d4', border: '#67e8f9', shape: 'hexagon', size: 24 },
+    IP:           { color: '#3b82f6', border: '#93c5fd', shape: 'diamond', size: 17 },
+    SUBDOMAIN:    { color: '#818cf8', border: '#c7d2fe', shape: 'dot', size: 13 },
+    NAMESERVER:   { color: '#f59e0b', border: '#fcd34d', shape: 'triangle', size: 15 },
+    MX:           { color: '#10b981', border: '#6ee7b7', shape: 'triangleDown', size: 15 },
+    CERT:         { color: '#a855f7', border: '#d8b4fe', shape: 'square', size: 13 },
+    ASN:          { color: '#0ea5e9', border: '#7dd3fc', shape: 'box', size: 14 },
+    MALWARE:      { color: '#ef4444', border: '#fca5a5', shape: 'star', size: 20 },
+    THREAT_ACTOR: { color: '#dc2626', border: '#fecaca', shape: 'star', size: 20 },
+    URL:          { color: '#f43f5e', border: '#fda4af', shape: 'dot', size: 15 },
+    PULSE:        { color: '#ec4899', border: '#f9a8d4', shape: 'dot', size: 15 },
+};
+
+function diShortLabel(text, maxLen = 24) {
+    const s = String(text || '');
+    return s.length > maxLen ? s.slice(0, maxLen - 1) + '…' : s;
+}
+
+function diRenderVisGraph(container, rawGraph, opts = {}) {
+    if (!container || typeof vis === 'undefined') return null;
+    const filterType = opts.filterType || 'ALL';
+    const showEdgeLabels = Boolean(opts.showEdgeLabels);
+    const compact = Boolean(opts.compact);
+
+    const rawNodes = rawGraph.nodes || [];
+    const rawEdges = rawGraph.edges || [];
+
+    const filteredNodes = rawNodes.filter(n => {
+        if (filterType === 'ALL' || n.type === 'DOMAIN') return true;
+        if (filterType === 'THREAT') return ['MALWARE', 'THREAT_ACTOR', 'PULSE', 'URL'].includes(n.type);
+        return n.type === filterType;
+    });
+    const visibleIds = new Set(filteredNodes.map(n => n.id));
+    const filteredEdges = rawEdges.filter(e => visibleIds.has(e.from) && visibleIds.has(e.to));
+
+    const nodesDS = new vis.DataSet(filteredNodes.map(n => {
+        const st = DI_NODE_PALETTE[n.type] || { color: '#64748b', border: '#cbd5e1', shape: 'dot', size: 14 };
+        return {
+            id: n.id,
+            label: diShortLabel(n.label, compact ? 20 : 32),
+            fullLabel: n.label,
+            entityType: n.type,
+            metadata: n.metadata || {},
+            title: `${n.type}: ${n.label}`,
+            shape: st.shape,
+            size: st.size,
+            color: { background: st.color, border: st.border, highlight: { background: '#22d3ee', border: '#ffffff' } },
+            font: { color: '#e2e8f0', size: compact ? 10 : 12, face: 'ui-monospace, monospace', strokeWidth: 3, strokeColor: '#020617' },
+        };
+    }));
+
+    const edgesDS = new vis.DataSet(filteredEdges.map((e, idx) => ({
+        id: `e_${idx}`,
+        from: e.from,
+        to: e.to,
+        label: showEdgeLabels ? e.relationship : '',
+        rawRelationship: e.relationship,
+        confidence: e.confidence,
+        evidence: e.evidence,
+        title: `${e.relationship} (${e.confidence}%) — ${e.evidence || ''}`,
+        arrows: { to: { enabled: true, scaleFactor: 0.65 } },
+        color: { color: '#334155', highlight: '#22d3ee', hover: '#38bdf8' },
+        font: { color: '#94a3b8', size: 9, align: 'middle', strokeWidth: 2, strokeColor: '#020617' },
+        smooth: { type: 'continuous' },
+    })));
+
+    if (!compact) {
+        diModalNodesDS = nodesDS;
+        diModalEdgesDS = edgesDS;
+    }
+
+    const layoutOpt = opts.hierarchical
+        ? { hierarchical: { direction: 'UD', sortMethod: 'directed', levelSeparation: 140, nodeSpacing: 160 } }
+        : { improvedLayout: true };
+
+    const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
+        layout: layoutOpt,
+        interaction: { hover: true, tooltipDelay: 120, navigationButtons: false, keyboard: true },
+        physics: {
+            enabled: opts.physics !== false,
+            barnesHut: { gravitationalConstant: -4800, centralGravity: 0.25, springLength: 145, springConstant: 0.035, avoidOverlap: 0.75 },
+            stabilization: { iterations: 120, updateInterval: 25 },
+        },
+    });
+    network.once('stabilizationIterationsDone', () => {
+        network.fit({ animation: { duration: 300 } });
+    });
+    return network;
+}
+
+function domainIntelOpenGraphModal() {
+    if (!diLastGraphRaw) return;
+    document.getElementById('di-graph-modal').classList.remove('hidden');
+    document.getElementById('di-modal-subtitle').textContent = `Objetivo: ${diLastDomainTitle} · ${(diLastGraphRaw.nodes || []).length} nodos · ${(diLastGraphRaw.edges || []).length} relaciones`;
+    diModalActiveFilter = 'ALL';
+    diRenderModalFilterButtons();
+    diRebuildModalGraph();
+}
+
+function domainIntelCloseGraphModal() {
+    document.getElementById('di-graph-modal').classList.add('hidden');
+}
+
+function diRenderModalFilterButtons() {
+    const counts = { ALL: (diLastGraphRaw.nodes || []).length };
+    (diLastGraphRaw.nodes || []).forEach(n => {
+        const key = ['MALWARE', 'THREAT_ACTOR', 'PULSE', 'URL'].includes(n.type) ? 'THREAT' : n.type;
+        if (key !== 'DOMAIN') counts[key] = (counts[key] || 0) + 1;
+    });
+    const labels = { ALL: 'Todos', IP: 'IPs', SUBDOMAIN: 'Subdominios', CERT: 'Certificados', NAMESERVER: 'NS', MX: 'MX', THREAT: 'Amenazas' };
+    document.getElementById('di-graph-filters').innerHTML = Object.keys(labels)
+        .filter(k => k === 'ALL' || counts[k])
+        .map(k => {
+            const active = diModalActiveFilter === k;
+            const cls = active ? 'bg-cyan-600 text-white border-cyan-500' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800';
+            return `<button onclick="diSetModalFilter('${k}')" class="px-2.5 py-1 rounded-lg border ${cls}">${labels[k]} (${counts[k] || 0})</button>`;
+        }).join('');
+}
+
+function diSetModalFilter(filterKey) {
+    diModalActiveFilter = filterKey;
+    diRenderModalFilterButtons();
+    diRebuildModalGraph();
+}
+
+function diRebuildModalGraph() {
+    const box = document.getElementById('di-modal-graph-canvas');
+    diModalNetwork = diRenderVisGraph(box, diLastGraphRaw, {
+        compact: false,
+        filterType: diModalActiveFilter,
+        physics: diModalPhysicsOn,
+        hierarchical: diModalHierarchical,
+        showEdgeLabels: diModalEdgeLabels,
+    });
+    if (!diModalNetwork) return;
+
+    diModalNetwork.on('click', (params) => {
+        const insp = document.getElementById('di-graph-inspector');
+        if (params.nodes.length > 0 && diModalNodesDS) {
+            const node = diModalNodesDS.get(params.nodes[0]);
+            const connEdges = (diModalEdgesDS ? diModalEdgesDS.get() : []).filter(e => e.from === node.id || e.to === node.id);
+            const relHtml = connEdges.slice(0, 8).map(e => `<div class="p-2 rounded bg-slate-950 border border-slate-800 text-[11px]"><div class="text-cyan-300 font-mono">${diEscape(e.rawRelationship)} (${e.confidence}%)</div><div class="text-slate-400">${diEscape(e.evidence)}</div></div>`).join('');
+            insp.innerHTML = `
+                <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
+                    <div class="text-[10px] font-mono text-cyan-400 uppercase">${diEscape(node.entityType)}</div>
+                    <div class="font-mono text-slate-100 break-all font-semibold">${diEscape(node.fullLabel)}</div>
+                    <button onclick="navigator.clipboard?.writeText('${diEscape(node.fullLabel)}')" class="mt-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-200"><i class="fa-regular fa-copy mr-1"></i>Copiar valor</button>
+                </div>
+                <div class="text-[11px] font-semibold text-slate-400">Relaciones (${connEdges.length})</div>
+                <div class="space-y-1.5">${relHtml || '<span class="text-slate-500">Sin relaciones visibles</span>'}</div>`;
+        } else if (params.edges.length > 0 && diModalEdgesDS) {
+            const edge = diModalEdgesDS.get(params.edges[0]);
+            insp.innerHTML = `
+                <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
+                    <div class="text-[10px] font-mono text-amber-400">RELACIÓN</div>
+                    <div class="font-mono text-slate-100 font-semibold">${diEscape(edge.rawRelationship)}</div>
+                    <div><strong>Confianza:</strong> ${edge.confidence}%</div>
+                    <div class="text-slate-300"><strong>Evidencia:</strong> ${diEscape(edge.evidence || 'Sin detalle')}</div>
+                </div>`;
+        }
+    });
+}
+
+function diModalZoom(factor) {
+    if (!diModalNetwork) return;
+    const scale = diModalNetwork.getScale();
+    diModalNetwork.moveTo({ scale: Math.max(0.15, Math.min(3.5, scale * factor)), animation: { duration: 180 } });
+}
+
+function domainIntelTogglePhysics() {
+    diModalPhysicsOn = !diModalPhysicsOn;
+    document.getElementById('di-btn-physics').textContent = `Física: ${diModalPhysicsOn ? 'ON' : 'OFF'}`;
+    if (diModalNetwork) diModalNetwork.setOptions({ physics: { enabled: diModalPhysicsOn } });
+}
+
+function domainIntelToggleLayout() {
+    diModalHierarchical = !diModalHierarchical;
+    document.getElementById('di-btn-layout').textContent = `Layout: ${diModalHierarchical ? 'Jerárquico' : 'Fuerza'}`;
+    diRebuildModalGraph();
+}
+
+function domainIntelToggleEdgeLabels() {
+    diModalEdgeLabels = !diModalEdgeLabels;
+    document.getElementById('di-btn-edge-labels').textContent = `Etiquetas: ${diModalEdgeLabels ? 'ON' : 'OFF'}`;
+    diRebuildModalGraph();
+}
+
+function domainIntelSearchGraphNode(query) {
+    if (!diModalNetwork || !diModalNodesDS) return;
+    const q = query.trim().toLowerCase();
+    if (!q) return;
+    const match = diModalNodesDS.get().find(n => String(n.fullLabel || '').toLowerCase().includes(q));
+    if (match) {
+        diModalNetwork.selectNodes([match.id]);
+        diModalNetwork.focus(match.id, { scale: 1.3, animation: { duration: 300 } });
+    }
+}
+
+function domainIntelExportGraphPNG() {
+    const canvas = document.querySelector('#di-modal-graph-canvas canvas');
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `openrecon_graph_${diLastDomainTitle || 'cti'}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
 }
 
 async function domainIntelLoadHistory() {
