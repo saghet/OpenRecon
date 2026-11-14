@@ -11,6 +11,7 @@ from app.services.engines.http_engine import HTTPEngine
 from app.services.engines.port_engine import PortEngine
 from app.services.engines.drp_engine import DRPEngine
 from app.services.engines.nuclei_engine import NucleiEngine
+from app.services.domain_intel.service import DomainIntelligenceService
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class ScannerOrchestrator:
         self.port_engine = PortEngine()
         self.drp_engine = DRPEngine()
         self.nuclei_engine = NucleiEngine()
+        self.domain_intel = DomainIntelligenceService(db)
 
     async def execute_scan(self, scan_job_id: int):
         scan_job = self.db.query(ScanJob).filter(ScanJob.id == scan_job_id).first()
@@ -197,6 +199,20 @@ class ScannerOrchestrator:
                         scan_job.processed_targets += 1
                         self.db.commit()
 
+                        # Enriquecimiento EASM con Domain Intelligence (respetando caché, sin bloquear el escaneo)
+                        if is_live:
+                            try:
+                                await self.domain_intel.investigate(
+                                    organization_id=org_id,
+                                    target=hostname,
+                                    use_cache=True,
+                                    trigger_source="EASM",
+                                    asset_id=asset.id,
+                                    enabled_providers=["rdap_whois", "virustotal", "otx", "dns", "urlhaus"],
+                                )
+                            except Exception as di_err:
+                                logger.warning(f"Domain Intelligence EASM enrichment skipped for {hostname}: {di_err}")
+
                     # 3. DRP Scan (Typosquatting & Lookalike Domains)
                     if scan_job.scan_type in [ScanType.EASM_FULL, ScanType.DRP_SCAN]:
                         drp_results = await self.drp_engine.scan_typosquatting(domain)
@@ -218,6 +234,18 @@ class ScannerOrchestrator:
                                 )
                                 self.db.add(drp_record)
                                 total_drp_found += 1
+
+                                # Enriquecer DRP con WHOIS/RDAP, MX/DNS, CT, OTX y VT sin auto-clasificar phishing sin evidencia
+                                try:
+                                    await self.domain_intel.investigate(
+                                        organization_id=org_id,
+                                        target=target_val,
+                                        use_cache=True,
+                                        trigger_source="DRP",
+                                        enabled_providers=["rdap_whois", "virustotal", "otx", "dns", "crt_sh"],
+                                    )
+                                except Exception as drp_di_err:
+                                    logger.warning(f"Domain Intelligence DRP enrichment skipped for {target_val}: {drp_di_err}")
                         self.db.commit()
 
             # Finish job

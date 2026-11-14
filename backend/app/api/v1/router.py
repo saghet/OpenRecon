@@ -11,7 +11,8 @@ from app.api.v1.endpoints import (
     correlation,
     risk,
     security,
-    email_intel
+    email_intel,
+    domain_intel
 )
 
 api_router = APIRouter()
@@ -24,6 +25,7 @@ api_router.include_router(opencti.router, prefix="/opencti", tags=["OpenCTI & ST
 api_router.include_router(darkweb.router, prefix="/darkweb", tags=["Dark Web & Ransomware Intelligence"])
 api_router.include_router(darkintel.router, prefix="/darkintel", tags=["DARK INTELLIGENCE Enterprise Engine"])
 api_router.include_router(email_intel.router, prefix="/email-intel", tags=["EMAIL INTELLIGENCE OSINT Engine"])
+api_router.include_router(domain_intel.router, prefix="/domain-intel", tags=["DOMAIN INTELLIGENCE OSINT & CTI Engine"])
 api_router.include_router(cti.router, prefix="/cti", tags=["Threat Intelligence Feeds & MISP"])
 api_router.include_router(correlation.router, prefix="/correlation", tags=["Multidimensional Graph Correlation"])
 api_router.include_router(risk.router, prefix="/risk", tags=["Intelligent Risk & Posture Scoring"])

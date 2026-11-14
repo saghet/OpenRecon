@@ -460,7 +460,7 @@
                 activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
             }
 
-            const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel'];
+            const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel', 'domainintel'];
             allTabs.forEach(t => {
                 const el = document.getElementById(`tab-content-${t}`);
                 if (el) el.classList.toggle('hidden', t !== tabId);
@@ -734,6 +734,11 @@
 
             <!-- Category: THREAT INTEL & DRP -->
             <div class="forti-nav-group-title">Threat Intelligence & DRP</div>
+            <button onclick="switchTab('domainintel')" id="tab-btn-domainintel" class="forti-nav-item" data-forti-tooltip="Domain Intelligence, RDAP, VT, OTX & CTI">
+                <i class="fa-solid fa-globe text-cyan-400"></i>
+                <span class="nav-label">Domain Intelligence</span>
+                <span id="nav-badge-domainintel" class="nav-badge bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">CTI</span>
+            </button>
             <button onclick="switchTab('darkintel')" id="tab-btn-darkintel" class="forti-nav-item" data-forti-tooltip="Dark Intelligence, Red Tor & Fugas">
                 <i class="fa-solid fa-user-secret text-cyan-400"></i>
                 <span class="nav-label">Dark Intelligence</span>
@@ -3162,6 +3167,9 @@
 
         <!-- TAB CONTENT: EMAIL INTELLIGENCE (ZEHEF OSINT) -->
         <?php include __DIR__ . '/email_intel.php'; ?>
+
+        <!-- TAB CONTENT: DOMAIN INTELLIGENCE -->
+        <?php include __DIR__ . '/domain_intel.php'; ?>
 
 </main>
 
@@ -8371,7 +8379,8 @@ function closeTakedownModal() {
         'cloud': { cat: 'Superficie de Ataque (EASM)', title: 'Auditoría de Exposición Cloud & Buckets' },
         'ai': { cat: 'Security Fabric & IA', title: 'Correlación de Evidencias Asistida por IA' },
         'darkintel': { cat: 'Threat Intelligence (CTI)', title: 'Dark Intelligence, Onion OSINT & CTI' },
-        'emailintel': { cat: 'OSINT & Identidades', title: 'Email Intelligence (Zehef OSINT)' }
+        'emailintel': { cat: 'OSINT & Identidades', title: 'Email Intelligence (Zehef OSINT)' },
+        'domainintel': { cat: 'Threat Intelligence (CTI)', title: 'Domain Intelligence, OSINT & Correlación' }
     };
 
     // Override switchTab with FortiOS sidebar navigation support
@@ -8394,7 +8403,7 @@ function closeTakedownModal() {
         if (bcMod) bcMod.innerText = meta.title;
 
         // 3. Toggle Visibility of 14 Tab Content Sections
-        const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel'];
+        const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel', 'domainintel'];
         allTabs.forEach(t => {
             const el = document.getElementById(`tab-content-${t}`);
             if (el) el.classList.toggle('hidden', t !== tabId);
@@ -8412,6 +8421,10 @@ function closeTakedownModal() {
         if (tabId === 'php2shell' && typeof updatePhp2shellSelectedSeed === 'function') updatePhp2shellSelectedSeed(activeSeed);
         if (tabId === 'darkintel' && typeof darkIntelLoadOverview === 'function') darkIntelLoadOverview();
         if (tabId === 'emailintel' && typeof emailIntelLoadOverview === 'function') emailIntelLoadOverview();
+        if (tabId === 'domainintel') {
+            if (typeof domainIntelLoadSeeds === 'function') domainIntelLoadSeeds();
+            if (typeof domainIntelLoadHistory === 'function') domainIntelLoadHistory();
+        }
 
         // Scroll main viewport to top on tab switch
         const vp = document.getElementById('forti-main-viewport');

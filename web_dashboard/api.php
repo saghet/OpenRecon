@@ -798,6 +798,18 @@ switch ($action) {
     case 'email_intel_correlate_ioc':
         handleEmailIntelCorrelateIoc($pdo);
         break;
+
+    // -------------------------------------------------------------
+    // DOMAIN INTELLIGENCE (OSINT & CTI Engine) Actions
+    // -------------------------------------------------------------
+    case 'domain_intel_investigate':
+    case 'domain_intel_list':
+    case 'domain_intel_get':
+    case 'domain_intel_credentials_get':
+    case 'domain_intel_credentials_set':
+    case 'domain_intel_export':
+        handleDomainIntelProxy($action, $pdo);
+        break;
     default:
         echo json_encode(['status' => 'ok', 'message' => 'OpenRecon API v1.0 running']);
         break;
@@ -7109,4 +7121,107 @@ function handleEmailIntelExport($pdo) {
         echo json_encode($inv, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
         exit(0);
     }
+}
+
+function handleDomainIntelProxy($action, $pdo = null) {
+    $base = 'http://127.0.0.1:8000/api/v1/domain-intel';
+    $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
+    $method = 'GET';
+    $url = $base;
+    $body = null;
+
+    if ($action === 'domain_intel_investigate') {
+        $method = 'POST';
+        $url = $base . '/investigate';
+        $rawBody = file_get_contents('php://input');
+        $payload = json_decode($rawBody ?: '{}', true);
+        if (!is_array($payload)) {
+            http_response_code(400);
+            echo json_encode(['detail' => 'Payload JSON inválido.']);
+            return;
+        }
+        $seedDomains = [];
+        if ($pdo) {
+            try {
+                $stmt = $pdo->query("SELECT domain FROM seeds");
+                foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $sd) {
+                    $cleanSd = strtolower(trim((string)$sd));
+                    if ($cleanSd !== '') $seedDomains[] = $cleanSd;
+                }
+            } catch (Exception $e) {}
+        }
+        if (empty($seedDomains)) {
+            http_response_code(403);
+            echo json_encode(['detail' => 'No hay semillas registradas en Semillas / Perímetro. Agrega al menos un dominio semilla antes de investigar.']);
+            return;
+        }
+        $targetRaw = strtolower(trim((string)($payload['target'] ?? '')));
+        $targetHost = $targetRaw;
+        if (strpos($targetRaw, '://') !== false) {
+            $parsedHost = parse_url($targetRaw, PHP_URL_HOST);
+            $targetHost = $parsedHost ? strtolower($parsedHost) : '';
+        }
+        $allowed = false;
+        foreach ($seedDomains as $sd) {
+            if ($targetHost === $sd || substr($targetHost, -strlen('.' . $sd)) === '.' . $sd) {
+                $allowed = true;
+                break;
+            }
+        }
+        if (!$allowed) {
+            http_response_code(403);
+            echo json_encode(['detail' => "Objetivo '{$targetRaw}' fuera de alcance (RoE). Solo se permite investigar dominios registrados en Semillas / Perímetro."]);
+            return;
+        }
+        $payload['enforce_roe_scope'] = true;
+        $payload['authorized_scope'] = array_values(array_unique($seedDomains));
+        $body = json_encode($payload);
+    } elseif ($action === 'domain_intel_list') {
+        $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 25;
+        $url = $base . '/investigations?organization_id=' . $orgId . '&limit=' . $limit;
+    } elseif ($action === 'domain_intel_get') {
+        $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        $url = $base . '/investigations/' . $id . '?organization_id=' . $orgId;
+    } elseif ($action === 'domain_intel_credentials_get') {
+        $url = $base . '/credentials/' . $orgId;
+    } elseif ($action === 'domain_intel_credentials_set') {
+        $method = 'POST';
+        $url = $base . '/credentials';
+        $body = file_get_contents('php://input');
+    } elseif ($action === 'domain_intel_export') {
+        $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+        $fmt = isset($_GET['format']) ? preg_replace('/[^a-z]/', '', $_GET['format']) : 'json';
+        $url = $base . '/investigations/' . $id . '/export?organization_id=' . $orgId . '&format=' . $fmt;
+    }
+
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 45);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+    if ($method === 'POST') {
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body ?: '{}');
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json', 'Accept: application/json']);
+    } else {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept: application/json']);
+    }
+
+    $resp = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($resp === false || $httpCode === 0) {
+        http_response_code(503);
+        echo json_encode(['detail' => 'Motor FastAPI (127.0.0.1:8000) no disponible. Inicia run_backend.bat. (' . $curlErr . ')']);
+        return;
+    }
+
+    http_response_code($httpCode);
+    if ($action === 'domain_intel_export') {
+        $fmt = isset($_GET['format']) ? $_GET['format'] : 'json';
+        if ($fmt === 'csv') header('Content-Type: text/csv; charset=utf-8');
+        elseif ($fmt === 'html') header('Content-Type: text/html; charset=utf-8');
+    }
+    echo $resp;
 }

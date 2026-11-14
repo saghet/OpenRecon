@@ -31,6 +31,17 @@ from app.models.email_intel import (
     RiskLevel,
     AccountCheckStatus,
 )
+from app.models.domain_intel import (
+    DomainInvestigation,
+    DomainProviderResult,
+    DomainIndicator,
+    DomainReputationHistory,
+    ProviderCredential,
+    IndicatorInputType,
+    ProviderQueryStatus,
+    DomainRiskTier,
+    RelationshipConfidenceType,
+)
 
 __all__ = [
     "Organization",
@@ -62,4 +73,13 @@ __all__ = [
     "CorroborationLevel",
     "IOCType",
     "InvestigationStatus",
+    "DomainInvestigation",
+    "DomainProviderResult",
+    "DomainIndicator",
+    "DomainReputationHistory",
+    "ProviderCredential",
+    "IndicatorInputType",
+    "ProviderQueryStatus",
+    "DomainRiskTier",
+    "RelationshipConfidenceType",
 ]
