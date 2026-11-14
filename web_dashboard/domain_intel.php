@@ -23,7 +23,7 @@
 
         <div class="mt-5 flex flex-col lg:flex-row gap-3">
             <div class="flex-1 flex flex-col sm:flex-row gap-2">
-                <select id="di-seed-select"
+                <select id="di-seed-select" onchange="domainIntelOnSeedChange()"
                         class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-100 focus:outline-none focus:border-cyan-500 font-mono">
                     <option value="">Cargando semillas autorizadas...</option>
                 </select>
@@ -224,7 +224,15 @@
 
     <!-- History Table -->
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-        <h3 class="text-sm font-bold text-slate-100 mb-3"><i class="fa-solid fa-clock-rotate-left text-slate-400 mr-2"></i>Historial de Investigaciones (Domain Intelligence)</h3>
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 class="text-sm font-bold text-slate-100">
+                <i class="fa-solid fa-clock-rotate-left text-slate-400 mr-2"></i>Historial de Investigaciones
+                <span id="di-history-scope-label" class="ml-2 px-2 py-0.5 text-[11px] font-mono rounded bg-slate-800 text-cyan-300 border border-slate-700">Semilla seleccionada</span>
+            </h3>
+            <button id="di-history-toggle-btn" onclick="domainIntelToggleHistoryScope()" class="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 border border-slate-700">
+                Ver todas las semillas
+            </button>
+        </div>
         <div class="overflow-x-auto">
             <table class="w-full text-xs text-left">
                 <thead class="text-slate-400 border-b border-slate-800">
@@ -266,6 +274,7 @@ async function domainIntelLoadSeeds() {
             return;
         }
         sel.innerHTML = unique.map(d => `<option value="${diEscape(d)}">${diEscape(d)}</option>`).join('');
+        domainIntelLoadHistory(diHistoryOnlySelected ? unique[0] : null);
     } catch (e) {
         sel.innerHTML = '<option value="">Error cargando semillas</option>';
     }
@@ -305,8 +314,9 @@ async function domainIntelRunInvestigation() {
 
     try {
         const data = await domainIntelInvestigateSingle(target, useCache);
+        diHistoryOnlySelected = true;
         domainIntelRenderInvestigation(data);
-        domainIntelLoadHistory();
+        domainIntelLoadHistory(target);
     } catch (err) {
         errBox.textContent = `Error: ${err.message}`;
         errBox.classList.remove('hidden');
@@ -357,7 +367,8 @@ async function domainIntelRunAllSeeds() {
         }
     }
 
-    await domainIntelLoadHistory();
+    diHistoryOnlySelected = false;
+    await domainIntelLoadHistory(null);
     progBox.classList.add('hidden');
     stopBtn.classList.add('hidden');
     document.getElementById('di-run-btn').disabled = false;
@@ -695,9 +706,35 @@ function domainIntelExportGraphPNG() {
     link.click();
 }
 
-async function domainIntelLoadHistory() {
+let diHistoryOnlySelected = true;
+
+function domainIntelOnSeedChange() {
+    if (diHistoryOnlySelected) {
+        const selected = document.getElementById('di-seed-select')?.value?.trim() || '';
+        domainIntelLoadHistory(selected || null);
+    }
+}
+
+function domainIntelToggleHistoryScope() {
+    diHistoryOnlySelected = !diHistoryOnlySelected;
+    const selected = document.getElementById('di-seed-select')?.value?.trim() || '';
+    domainIntelLoadHistory(diHistoryOnlySelected && selected ? selected : null);
+}
+
+async function domainIntelLoadHistory(filterDomain = undefined) {
     try {
-        const resp = await fetch(`${DI_GATEWAY_URL}?action=domain_intel_list&organization_id=${diGetOrgId()}&limit=25`);
+        const selected = document.getElementById('di-seed-select')?.value?.trim() || '';
+        const targetFilter = filterDomain !== undefined ? filterDomain : (diHistoryOnlySelected && selected ? selected : null);
+
+        const scopeLabel = document.getElementById('di-history-scope-label');
+        const toggleBtn = document.getElementById('di-history-toggle-btn');
+        if (scopeLabel) scopeLabel.textContent = targetFilter ? `Semilla: ${targetFilter}` : 'Todas las semillas';
+        if (toggleBtn) toggleBtn.textContent = targetFilter ? 'Ver todas las semillas' : 'Filtrar por semilla actual';
+
+        let url = `${DI_GATEWAY_URL}?action=domain_intel_list&organization_id=${diGetOrgId()}&limit=50`;
+        if (targetFilter) url += `&domain=${encodeURIComponent(targetFilter)}`;
+
+        const resp = await fetch(url);
         if (!resp.ok) return;
         const rows = await resp.json();
         const tbody = document.getElementById('di-history-tbody');
@@ -711,7 +748,7 @@ async function domainIntelLoadHistory() {
                 <td>${Math.round((r.confidence_score || 0) * 100)}%</td>
                 <td>${diEscape(r.created_at)}</td>
                 <td><button onclick="domainIntelOpenInvestigation(${r.id})" class="text-cyan-400 hover:underline">Ver</button></td>
-            </tr>`).join('') || '<tr><td colspan="8" class="py-3 text-slate-500">Sin investigaciones registradas.</td></tr>';
+            </tr>`).join('') || '<tr><td colspan="8" class="py-3 text-slate-500">Sin investigaciones registradas para esta selección de semillas.</td></tr>';
     } catch (_) {}
 }
 

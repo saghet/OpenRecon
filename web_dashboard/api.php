@@ -7123,9 +7123,39 @@ function handleEmailIntelExport($pdo) {
     }
 }
 
+function diGetAuthorizedSeeds($pdo) {
+    $seedDomains = [];
+    if ($pdo) {
+        try {
+            $stmt = $pdo->query("SELECT domain FROM seeds");
+            foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $sd) {
+                $cleanSd = strtolower(trim((string)$sd));
+                if ($cleanSd !== '') $seedDomains[] = $cleanSd;
+            }
+        } catch (Exception $e) {}
+    }
+    return array_values(array_unique($seedDomains));
+}
+
+function diIsDomainInSeeds($domain, $seedDomains) {
+    $targetHost = strtolower(trim((string)$domain));
+    if (strpos($targetHost, '://') !== false) {
+        $parsedHost = parse_url($targetHost, PHP_URL_HOST);
+        $targetHost = $parsedHost ? strtolower($parsedHost) : '';
+    }
+    if ($targetHost === '') return false;
+    foreach ($seedDomains as $sd) {
+        if ($targetHost === $sd || substr($targetHost, -strlen('.' . $sd)) === '.' . $sd) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function handleDomainIntelProxy($action, $pdo = null) {
     $base = 'http://127.0.0.1:8000/api/v1/domain-intel';
     $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
+    $seedDomains = diGetAuthorizedSeeds($pdo);
     $method = 'GET';
     $url = $base;
     $body = null;
@@ -7140,45 +7170,27 @@ function handleDomainIntelProxy($action, $pdo = null) {
             echo json_encode(['detail' => 'Payload JSON inválido.']);
             return;
         }
-        $seedDomains = [];
-        if ($pdo) {
-            try {
-                $stmt = $pdo->query("SELECT domain FROM seeds");
-                foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $sd) {
-                    $cleanSd = strtolower(trim((string)$sd));
-                    if ($cleanSd !== '') $seedDomains[] = $cleanSd;
-                }
-            } catch (Exception $e) {}
-        }
         if (empty($seedDomains)) {
             http_response_code(403);
             echo json_encode(['detail' => 'No hay semillas registradas en Semillas / Perímetro. Agrega al menos un dominio semilla antes de investigar.']);
             return;
         }
         $targetRaw = strtolower(trim((string)($payload['target'] ?? '')));
-        $targetHost = $targetRaw;
-        if (strpos($targetRaw, '://') !== false) {
-            $parsedHost = parse_url($targetRaw, PHP_URL_HOST);
-            $targetHost = $parsedHost ? strtolower($parsedHost) : '';
-        }
-        $allowed = false;
-        foreach ($seedDomains as $sd) {
-            if ($targetHost === $sd || substr($targetHost, -strlen('.' . $sd)) === '.' . $sd) {
-                $allowed = true;
-                break;
-            }
-        }
-        if (!$allowed) {
+        if (!diIsDomainInSeeds($targetRaw, $seedDomains)) {
             http_response_code(403);
             echo json_encode(['detail' => "Objetivo '{$targetRaw}' fuera de alcance (RoE). Solo se permite investigar dominios registrados en Semillas / Perímetro."]);
             return;
         }
         $payload['enforce_roe_scope'] = true;
-        $payload['authorized_scope'] = array_values(array_unique($seedDomains));
+        $payload['authorized_scope'] = $seedDomains;
         $body = json_encode($payload);
     } elseif ($action === 'domain_intel_list') {
-        $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 25;
+        $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 50;
+        $domainFilter = isset($_GET['domain']) ? trim((string)$_GET['domain']) : '';
         $url = $base . '/investigations?organization_id=' . $orgId . '&limit=' . $limit;
+        if ($domainFilter !== '') {
+            $url .= '&domain=' . urlencode($domainFilter);
+        }
     } elseif ($action === 'domain_intel_get') {
         $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         $url = $base . '/investigations/' . $id . '?organization_id=' . $orgId;
@@ -7215,6 +7227,32 @@ function handleDomainIntelProxy($action, $pdo = null) {
         http_response_code(503);
         echo json_encode(['detail' => 'Motor FastAPI (127.0.0.1:8000) no disponible. Inicia run_backend.bat. (' . $curlErr . ')']);
         return;
+    }
+
+    // Filtrar estrictamente historial y detalle para mostrar SOLO semillas autorizadas
+    if ($httpCode === 200 && $action === 'domain_intel_list') {
+        $rows = json_decode($resp, true);
+        if (is_array($rows)) {
+            $domainFilter = isset($_GET['domain']) ? strtolower(trim((string)$_GET['domain'])) : '';
+            $filtered = array_values(array_filter($rows, function ($row) use ($seedDomains, $domainFilter) {
+                $dom = strtolower(trim((string)($row['normalized_domain'] ?? '')));
+                if (!diIsDomainInSeeds($dom, $seedDomains)) return false;
+                if ($domainFilter !== '' && $dom !== $domainFilter) return false;
+                return true;
+            }));
+            http_response_code(200);
+            echo json_encode($filtered);
+            return;
+        }
+    }
+
+    if ($httpCode === 200 && $action === 'domain_intel_get') {
+        $obj = json_decode($resp, true);
+        if (is_array($obj) && !diIsDomainInSeeds($obj['normalized_domain'] ?? '', $seedDomains)) {
+            http_response_code(403);
+            echo json_encode(['detail' => 'Expediente fuera de las semillas autorizadas.']);
+            return;
+        }
     }
 
     http_response_code($httpCode);
