@@ -18,6 +18,11 @@ if (!empty($origin) && (in_array($origin, $allowedOrigins) || preg_match('/^http
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
+require_once __DIR__ . '/backend_autostart.php';
+$__reqAction = (string)($_GET['action'] ?? $_POST['action'] ?? '');
+$__needsFastApi = (strpos($__reqAction, 'email_intel') === 0 || strpos($__reqAction, 'domain_intel') === 0 || strpos($__reqAction, 'darkintel') === 0);
+ensure_fastapi_backend_running($__needsFastApi);
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
     exit(0);
 }

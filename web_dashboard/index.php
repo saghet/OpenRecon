@@ -1,3 +1,7 @@
+<?php
+require_once __DIR__ . '/backend_autostart.php';
+ensure_fastapi_backend_running(false);
+?>
 <!DOCTYPE html>
 <html lang="es" class="dark">
 <head>
