@@ -213,43 +213,47 @@ class EmailIntelOrchestrator:
 
     def _detect_new_breaches_note(self, conn, inv_id: str) -> str:
         """Compare current investigation leaks against the latest prior COMPLETED investigation for the same email."""
-        row = conn.execute(
-            "SELECT target_email FROM email_intel_investigations WHERE id = ?",
-            (inv_id,),
-        ).fetchone()
-        if not row:
-            return ""
-        target_email = row["target_email"]
-        prev = conn.execute(
-            """
-            SELECT id FROM email_intel_investigations
-            WHERE target_email = ? AND status = 'COMPLETED' AND id != ?
-            ORDER BY created_at DESC LIMIT 1
-            """,
-            (target_email, inv_id),
-        ).fetchone()
-        if not prev:
-            return ""
-        prev_id = prev["id"]
-        curr_leaks = {
-            (r["stealer_family"] or "", r["source_type"] or "")
-            for r in conn.execute(
-                "SELECT stealer_family, source_type FROM email_intel_leaks WHERE investigation_id = ?",
+        try:
+            row = conn.execute(
+                "SELECT target_email FROM email_intel_investigations WHERE id = ?",
                 (inv_id,),
-            ).fetchall()
-        }
-        prev_leaks = {
-            (r["stealer_family"] or "", r["source_type"] or "")
-            for r in conn.execute(
-                "SELECT stealer_family, source_type FROM email_intel_leaks WHERE investigation_id = ?",
-                (prev_id,),
-            ).fetchall()
-        }
-        new_ones = [name for name, _ in (curr_leaks - prev_leaks) if name]
-        if not new_ones:
+            ).fetchone()
+            if not row:
+                return ""
+            target_email = row["target_email"]
+            prev = conn.execute(
+                """
+                SELECT id FROM email_intel_investigations
+                WHERE target_email = ? AND status = 'COMPLETED' AND id != ?
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (target_email, inv_id),
+            ).fetchone()
+            if not prev:
+                return ""
+            prev_id = prev["id"]
+            curr_leaks = {
+                (r["source"] or "", r["leak_date"] or "")
+                for r in conn.execute(
+                    "SELECT source, leak_date FROM email_intel_leaks WHERE investigation_id = ?",
+                    (inv_id,),
+                ).fetchall()
+            }
+            prev_leaks = {
+                (r["source"] or "", r["leak_date"] or "")
+                for r in conn.execute(
+                    "SELECT source, leak_date FROM email_intel_leaks WHERE investigation_id = ?",
+                    (prev_id,),
+                ).fetchall()
+            }
+            new_ones = [src for src, _ in (curr_leaks - prev_leaks) if src]
+            if not new_ones:
+                return ""
+            sample = ", ".join(sorted(new_ones)[:4])
+            return f" Detectadas {len(new_ones)} filtración(es) nueva(s) respecto a investigación previa {prev_id} ({sample})."
+        except Exception as exc:
+            logger.warning(f"Historical breach comparison skipped for {inv_id}: {exc}")
             return ""
-        sample = ", ".join(sorted(new_ones)[:4])
-        return f" Detectadas {len(new_ones)} filtración(es) nueva(s) respecto a investigación previa {prev_id} ({sample})."
 
     def _finalize_investigation(self, inv_id: str, score: float, level: str, exp: str, findings_count: int):
         conn = self._get_connection()

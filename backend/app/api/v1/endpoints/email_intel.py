@@ -275,14 +275,15 @@ def compare_investigations(left_id: str, right_id: str):
 
         def _fetch_leaks(inv_id: str):
             rows = conn.execute(
-                "SELECT source_type, stealer_family, date_compromised, data_classes_json FROM email_intel_leaks WHERE investigation_id = ?",
+                "SELECT source, leak_date, exposed_data_types, verifiable_reference FROM email_intel_leaks WHERE investigation_id = ?",
                 (inv_id,),
             ).fetchall()
             return {
-                (r["stealer_family"] or "", r["source_type"] or ""): {
-                    "breach_name": r["stealer_family"],
-                    "source_type": r["source_type"],
-                    "date_compromised": r["date_compromised"],
+                (r["source"] or "", r["leak_date"] or ""): {
+                    "source": r["source"],
+                    "leak_date": r["leak_date"],
+                    "exposed_data_types": r["exposed_data_types"],
+                    "verifiable_reference": r["verifiable_reference"],
                 }
                 for r in rows
             }

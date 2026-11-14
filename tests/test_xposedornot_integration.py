@@ -238,19 +238,19 @@ class TestXposedOrNotIntegration(unittest.TestCase):
                 CREATE TABLE email_intel_leaks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     investigation_id TEXT,
-                    source_type TEXT,
-                    stealer_family TEXT,
-                    date_compromised TEXT,
-                    data_classes_json TEXT
+                    source TEXT,
+                    leak_date TEXT,
+                    exposed_data_types TEXT,
+                    verifiable_reference TEXT
                 );
                 INSERT INTO email_intel_investigations VALUES ('inv-1', 'user@corp.com', '2026-11-01T00:00:00Z');
                 INSERT INTO email_intel_investigations VALUES ('inv-2', 'user@corp.com', '2026-11-14T00:00:00Z');
-                INSERT INTO email_intel_leaks (investigation_id, source_type, stealer_family, date_compromised, data_classes_json)
-                VALUES ('inv-1', 'BREACH_XPOSEDORNOT', 'OldBreach', '2020-01-01', '[]');
-                INSERT INTO email_intel_leaks (investigation_id, source_type, stealer_family, date_compromised, data_classes_json)
-                VALUES ('inv-2', 'BREACH_XPOSEDORNOT', 'OldBreach', '2020-01-01', '[]');
-                INSERT INTO email_intel_leaks (investigation_id, source_type, stealer_family, date_compromised, data_classes_json)
-                VALUES ('inv-2', 'BREACH_XPOSEDORNOT', 'NewBreach2026', '2026-05-01', '[]');
+                INSERT INTO email_intel_leaks (investigation_id, source, leak_date, exposed_data_types, verifiable_reference)
+                VALUES ('inv-1', 'XposedOrNot · OldBreach', '2020-01-01', '["Email addresses"]', 'https://xposedornot.com/xposed#OldBreach');
+                INSERT INTO email_intel_leaks (investigation_id, source, leak_date, exposed_data_types, verifiable_reference)
+                VALUES ('inv-2', 'XposedOrNot · OldBreach', '2020-01-01', '["Email addresses"]', 'https://xposedornot.com/xposed#OldBreach');
+                INSERT INTO email_intel_leaks (investigation_id, source, leak_date, exposed_data_types, verifiable_reference)
+                VALUES ('inv-2', 'XposedOrNot · NewBreach2026', '2026-05-01', '["Email addresses", "Passwords"]', 'https://xposedornot.com/xposed#NewBreach2026');
                 """
             )
             conn.commit()
@@ -266,8 +266,67 @@ class TestXposedOrNotIntegration(unittest.TestCase):
 
             self.assertEqual(diff["unchanged_count"], 1)
             self.assertEqual(len(diff["new_leaks"]), 1)
-            self.assertEqual(diff["new_leaks"][0]["breach_name"], "NewBreach2026")
+            self.assertEqual(diff["new_leaks"][0]["source"], "XposedOrNot · NewBreach2026")
             self.assertEqual(diff["removed_leaks"], [])
+        finally:
+            os.unlink(tmp.name)
+
+    def test_10_orchestrator_consecutive_investigations_diff(self):
+        import sqlite3
+        import tempfile
+        from app.services.email_intel.orchestrator import EmailIntelOrchestrator
+
+        tmp = tempfile.NamedTemporaryFile(suffix=".sqlite", delete=False)
+        tmp.close()
+        try:
+            conn = sqlite3.connect(tmp.name)
+            conn.executescript(
+                """
+                CREATE TABLE email_intel_investigations (
+                    id TEXT PRIMARY KEY,
+                    target_email TEXT,
+                    status TEXT,
+                    progress INTEGER,
+                    exposure_score REAL,
+                    risk_level TEXT,
+                    risk_explanation TEXT,
+                    total_findings INTEGER,
+                    created_at TEXT,
+                    updated_at TEXT
+                );
+                CREATE TABLE email_intel_leaks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    investigation_id TEXT,
+                    source TEXT,
+                    leak_date TEXT
+                );
+                INSERT INTO email_intel_investigations VALUES
+                    ('EI-PREV-1', 'repeat@corp.com', 'COMPLETED', 100, 30.0, 'ELEVATED', 'Prev', 1, '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z'),
+                    ('EI-CURR-2', 'repeat@corp.com', 'RUNNING', 90, 0.0, 'INFORMATIVE', '', 0, '2026-11-14T00:00:00Z', '2026-11-14T00:00:00Z');
+                INSERT INTO email_intel_leaks (investigation_id, source, leak_date)
+                VALUES ('EI-PREV-1', 'XposedOrNot · OldBreach', '2020-01-01');
+                INSERT INTO email_intel_leaks (investigation_id, source, leak_date)
+                VALUES ('EI-CURR-2', 'XposedOrNot · OldBreach', '2020-01-01'),
+                       ('EI-CURR-2', 'XposedOrNot · FreshBreach2026', '2026-06-01');
+                """
+            )
+            conn.commit()
+            conn.close()
+
+            orch = EmailIntelOrchestrator()
+            orch.db_path = tmp.name
+            orch._finalize_investigation("EI-CURR-2", 65.0, "ELEVATED", "Base explanation.", 2)
+
+            verify_conn = sqlite3.connect(tmp.name)
+            verify_conn.row_factory = sqlite3.Row
+            row = verify_conn.execute(
+                "SELECT status, risk_explanation FROM email_intel_investigations WHERE id = 'EI-CURR-2'"
+            ).fetchone()
+            verify_conn.close()
+
+            self.assertEqual(row["status"], "COMPLETED")
+            self.assertIn("Detectadas 1 filtración(es) nueva(s)", row["risk_explanation"])
+            self.assertIn("FreshBreach2026", row["risk_explanation"])
         finally:
             os.unlink(tmp.name)
 
