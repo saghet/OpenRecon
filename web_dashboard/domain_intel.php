@@ -141,6 +141,18 @@
             </div>
         </div>
 
+        <!-- WebOSINT & Exposure Intelligence Panels -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                <h3 class="text-sm font-bold text-slate-100 mb-3"><i class="fa-solid fa-shield-halved text-rose-400 mr-2"></i>Exposición Externa: Puertos, CPE &amp; CVEs (Shodan + EPSS/KEV)</h3>
+                <div id="di-panel-shodan-cve" class="text-xs text-slate-300 space-y-2 max-h-64 overflow-y-auto"></div>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+                <h3 class="text-sm font-bold text-slate-100 mb-3"><i class="fa-solid fa-lock text-sky-400 mr-2"></i>Postura DNS, Cert Spotter, Exposición de Dominio &amp; Historial</h3>
+                <div id="di-panel-webosint-posture" class="text-xs text-slate-300 space-y-2 max-h-64 overflow-y-auto"></div>
+            </div>
+        </div>
+
         <!-- Correlation Graph + Indicators Table -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -462,6 +474,56 @@ function domainIntelRenderInvestigation(inv) {
         <div><strong>NS:</strong> ${diEscape((dnsData.NS || []).join(', ') || 'N/D')}</div>
         <div><strong>MX:</strong> ${diEscape((dnsData.MX || []).map(m => m.host || m).join(', ') || 'N/D')}</div>
         <div><strong>crt.sh Subdominios (${(ctData.subdomains || []).length}):</strong> ${diEscape((ctData.subdomains || []).slice(0, 10).join(', ') || 'N/D')}</div>`;
+
+    // WebOSINT Panel 1: Shodan InternetDB + EPSS / CISA KEV + IP/ASN
+    const shodan = byProv.shodan_internetdb;
+    const epss = byProv.epss_kev;
+    const ipAsn = byProv.ip_asn;
+    const shEl = document.getElementById('di-panel-shodan-cve');
+    if (shEl) {
+        const sData = shodan?.data || {};
+        const aData = ipAsn?.data || {};
+        const eList = (epss?.data?.enriched_cves || []);
+        const asnBadge = aData.asn
+            ? `${diEscape(aData.asn)} (${diEscape(aData.org || '')})${aData.is_shared_infrastructure ? ' · <span class="text-amber-300">Infraestructura compartida/CDN</span>' : ''}`
+            : 'N/D';
+        const portsStr = (sData.ports || []).length ? sData.ports.join(', ') : 'Sin puertos reportados';
+        const cpeStr = (sData.cpes || []).length ? sData.cpes.slice(0, 5).join(', ') : 'N/D';
+        const cveHtml = eList.length
+            ? eList.slice(0, 8).map(c => `<span class="inline-block mr-1.5 mb-1 px-2 py-0.5 rounded ${c.in_cisa_kev ? 'bg-rose-900/60 text-rose-200 border border-rose-500/50' : (c.likely_false_positive_or_low_priority ? 'bg-slate-800 text-slate-400' : 'bg-amber-900/50 text-amber-200')}">${diEscape(c.cve)} · EPSS ${(c.epss * 100).toFixed(1)}%${c.in_cisa_kev ? ' · CISA KEV' : ''}</span>`).join('')
+            : '<span class="text-slate-400">Sin CVEs asociados</span>';
+        shEl.innerHTML = `
+            <div><strong>IP / ASN:</strong> ${asnBadge}</div>
+            <div><strong>Shodan InternetDB (${diEscape(shodan?.status || 'N/D')}):</strong> Puertos: <span class="font-mono text-cyan-300">${diEscape(portsStr)}</span></div>
+            <div><strong>CPEs:</strong> <span class="font-mono">${diEscape(cpeStr)}</span></div>
+            <div class="pt-1"><strong>CVEs (EPSS / CISA KEV):</strong><div class="mt-1">${cveHtml}</div></div>`;
+    }
+
+    // WebOSINT Panel 2: DNS Security, Cert Spotter, Domain Exposure & Historical Diff
+    const dnsSec = byProv.dns_security;
+    const cs = byProv.cert_spotter;
+    const domExp = byProv.domain_exposure;
+    const postEl = document.getElementById('di-panel-webosint-posture');
+    if (postEl) {
+        const ds = dnsSec?.data || {};
+        const badge = (ok, label) => `<span class="px-1.5 py-0.5 rounded text-[10px] mr-1 ${ok ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-700/50' : 'bg-slate-800 text-slate-400 border border-slate-700'}">${label}: ${ok ? 'OK' : 'NO'}</span>`;
+        const emailCorr = domExp?.data?.email_intel_correlation || {};
+        const hist = inv.summary?.historical_diff || {};
+        const histText = hist.has_previous
+            ? `vs #${hist.previous_investigation_id}: +${(hist.added || []).length} / -${(hist.removed || []).length} cambios`
+            : 'Primer expediente del dominio';
+        postEl.innerHTML = `
+            <div><strong>Postura DNS (${ds.dns_security_score ?? 0}/100):</strong>
+                ${badge(ds.spf?.present, 'SPF')}
+                ${badge(ds.dmarc?.present, 'DMARC')}
+                ${badge(ds.dkim?.present, 'DKIM')}
+                ${badge(ds.dnssec?.enabled, 'DNSSEC')}
+                ${badge(ds.caa?.present, 'CAA')}
+            </div>
+            <div><strong>Cert Spotter (${diEscape(cs?.status || 'N/D')}):</strong> ${(cs?.data?.certificates || []).length} certificados · ${(cs?.data?.subdomains || []).length} subdominios</div>
+            <div><strong>Exposición (EmailIntel ↔ Dominio):</strong> ${(emailCorr.investigated_emails || []).length} correos · ${emailCorr.total_leaks || 0} filtraciones | LunarCyber: ${diEscape(domExp?.data?.lunarcyber_status || 'N/D')}</div>
+            <div><strong>Historial de Cambios:</strong> ${diEscape(histText)}</div>`;
+    }
 
     // Indicators Table
     const tbody = document.getElementById('di-indicators-tbody');

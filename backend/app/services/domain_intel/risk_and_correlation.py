@@ -106,6 +106,105 @@ def build_domain_correlation_graph(
         mal = tf_res.data.get("malware_printable") or tf_res.data.get("threat_type") or "IoC"
         _register("MALWARE", str(mal), "threatfox", "THREATFOX_IOC", RelationshipConfidenceType.CONFIRMED, int(tf_res.data.get("confidence_level") or 75), "Coincidencia directa en ThreatFox")
 
+    # 7. Cert Spotter (complemento CT)
+    cs_res = provider_results.get("cert_spotter")
+    if cs_res and cs_res.status == ProviderQueryStatus.SUCCESS:
+        for sub in cs_res.data.get("subdomains", [])[:20]:
+            if sub != target_domain:
+                _register("SUBDOMAIN", sub, "cert_spotter", "HAS_CERT_SAN", RelationshipConfidenceType.OBSERVED, 80, "Subdominio observado en Cert Spotter")
+        for cert in cs_res.data.get("certificates", [])[:8]:
+            cid = cert.get("id") or cert.get("tbs_sha256")
+            _register("CERT", f"cs:{cid}", "cert_spotter", "ISSUED_CERT", RelationshipConfidenceType.OBSERVED, 85, f"Emisor: {cert.get('issuer_name')}")
+
+    # 8. IP / ASN (con regla anti-falso positivo para infraestructura compartida)
+    ip_asn_res = provider_results.get("ip_asn")
+    if ip_asn_res and ip_asn_res.status == ProviderQueryStatus.SUCCESS:
+        asn = ip_asn_res.data.get("asn")
+        org = ip_asn_res.data.get("org") or "Unknown"
+        ip_val = ip_asn_res.data.get("ip")
+        is_shared = bool(ip_asn_res.data.get("is_shared_infrastructure"))
+        if asn:
+            rel_type = RelationshipConfidenceType.INSUFFICIENT_EVIDENCE if is_shared else RelationshipConfidenceType.OBSERVED
+            ev = (
+                f"Infraestructura compartida/CDN detectada ({org}); no implica propiedad común."
+                if is_shared
+                else f"ASN reportado por ipinfo ({org}) para IP {ip_val}"
+            )
+            nid = f"asn_{asn}"
+            graph.add_node(nid, f"{asn} ({org})", "ASN", {"source": "ip_asn", "shared": is_shared})
+            src_node = f"ip_{ip_val}" if ip_val and f"ip_{ip_val}" in graph.nodes else root_id
+            graph.add_edge(src_node, nid, "BELONGS_TO_ASN", confidence=40 if is_shared else 85, evidence=ev)
+            indicators.append({
+                "indicator_type": "ASN",
+                "indicator_value": f"{asn} ({org})",
+                "source": "ip_asn",
+                "relationship_type": rel_type,
+                "confidence": 40 if is_shared else 85,
+                "evidence": ev,
+            })
+
+    # 9. Shodan InternetDB (Puertos, Servicios/CPE, CVEs)
+    shodan_res = provider_results.get("shodan_internetdb")
+    if shodan_res and shodan_res.status == ProviderQueryStatus.SUCCESS:
+        ip_val = shodan_res.data.get("ip")
+        src_node = f"ip_{ip_val}" if ip_val and f"ip_{ip_val}" in graph.nodes else root_id
+        for port in (shodan_res.data.get("ports") or [])[:20]:
+            pid = f"service_{ip_val}_{port}"
+            graph.add_node(pid, f"Port {port}/tcp", "SERVICE", {"source": "shodan_internetdb", "port": port})
+            graph.add_edge(src_node, pid, "EXPOSES_PORT", confidence=85, evidence="Puerto observado en Shodan InternetDB (pasivo)")
+            indicators.append({
+                "indicator_type": "SERVICE",
+                "indicator_value": f"{ip_val}:{port}/tcp",
+                "source": "shodan_internetdb",
+                "relationship_type": RelationshipConfidenceType.OBSERVED,
+                "confidence": 85,
+                "evidence": "Puerto expuesto reportado por Shodan InternetDB",
+            })
+        for cve in (shodan_res.data.get("vulns") or [])[:20]:
+            cid = f"cve_{cve}"
+            graph.add_node(cid, cve, "CVE", {"source": "shodan_internetdb"})
+            graph.add_edge(src_node, cid, "POTENTIAL_CVE", confidence=65, evidence="CVE inferido por banner/CPE en Shodan InternetDB (requiere verificación EPSS/KEV)")
+            indicators.append({
+                "indicator_type": "CVE",
+                "indicator_value": cve,
+                "source": "shodan_internetdb",
+                "relationship_type": RelationshipConfidenceType.INFERRED,
+                "confidence": 65,
+                "evidence": "CVE reportado por Shodan InternetDB",
+            })
+
+    # 10. Domain Exposure (cruce con Email Intelligence)
+    exp_res = provider_results.get("domain_exposure")
+    if exp_res and exp_res.status == ProviderQueryStatus.SUCCESS:
+        corr = exp_res.data.get("email_intel_correlation") or {}
+        for inv in (corr.get("investigated_emails") or [])[:10]:
+            email_val = inv.get("target_email")
+            if email_val:
+                eid = f"email_{email_val}"
+                graph.add_node(eid, email_val, "EMAIL", {"source": "email_intel", "risk": inv.get("risk_level")})
+                graph.add_edge(root_id, eid, "CORRELATED_EMAIL", confidence=90, evidence=f"Expediente EmailIntel {inv.get('id')}")
+                indicators.append({
+                    "indicator_type": "EMAIL",
+                    "indicator_value": email_val,
+                    "source": "domain_exposure",
+                    "relationship_type": RelationshipConfidenceType.CONFIRMED,
+                    "confidence": 90,
+                    "evidence": f"Correo investigado en Email Intelligence ({inv.get('risk_level')})",
+                })
+        for lk in (corr.get("leaks") or [])[:10]:
+            src_name = lk.get("source") or "Breach"
+            lid = f"exposure_{src_name}"
+            graph.add_node(lid, src_name, "EXPOSURE", {"source": "domain_exposure", "date": lk.get("leak_date")})
+            graph.add_edge(root_id, lid, "DOMAIN_EXPOSURE", confidence=85, evidence=f"Exposición detectada en {src_name}")
+            indicators.append({
+                "indicator_type": "EXPOSURE",
+                "indicator_value": src_name,
+                "source": "domain_exposure",
+                "relationship_type": RelationshipConfidenceType.OBSERVED,
+                "confidence": 85,
+                "evidence": f"Filtración asociada al dominio ({lk.get('leak_date') or 'fecha N/D'})",
+            })
+
     return {"nodes": list(graph.nodes.values()), "edges": graph.edges}, indicators
 
 
@@ -201,6 +300,43 @@ def assess_domain_risk(
                     negative_evidences.append({"source": "rdap_whois", "detail": f"Dominio recién registrado ({age_days} días)."})
             except Exception:
                 pass
+
+    # 5. Shodan InternetDB + EPSS / CISA KEV (mitigación de falsos positivos de CVE)
+    epss_kev = provider_results.get("epss_kev")
+    if epss_kev and epss_kev.status == ProviderQueryStatus.SUCCESS:
+        kev_count = int(epss_kev.data.get("kev_count", 0))
+        high_epss = int(epss_kev.data.get("high_epss_count", 0))
+        total_cves = len(epss_kev.data.get("enriched_cves", []))
+        if kev_count > 0:
+            external_points += 35.0
+            negative_evidences.append({"source": "epss_kev", "detail": f"{kev_count} CVE(s) confirmados en catálogo CISA KEV (explotación conocida)."})
+        elif high_epss > 0:
+            external_points += 15.0
+            negative_evidences.append({"source": "epss_kev", "detail": f"{high_epss} CVE(s) con EPSS >= 0.20 reportados por banner/CPE."})
+        elif total_cves > 0:
+            positive_evidences.append({"source": "epss_kev", "detail": f"{total_cves} CVE(s) inferidos por Shodan con EPSS bajo (<0.05) y fuera de CISA KEV (baja probabilidad / posible falso positivo de banner)."})
+
+    # 6. Postura DNS Security
+    dns_sec = provider_results.get("dns_security")
+    if dns_sec and dns_sec.status == ProviderQueryStatus.SUCCESS:
+        spf_ok = bool((dns_sec.data.get("spf") or {}).get("present"))
+        dmarc_ok = bool((dns_sec.data.get("dmarc") or {}).get("present"))
+        if not spf_ok and not dmarc_ok:
+            external_points += 5.0
+            negative_evidences.append({"source": "dns_security", "detail": "Sin registros SPF ni DMARC configurados (riesgo de suplantación/spoofing)."})
+
+    # 7. Exposición de Dominio (cruce EmailIntel)
+    dom_exp = provider_results.get("domain_exposure")
+    if dom_exp and dom_exp.status == ProviderQueryStatus.SUCCESS:
+        leaks_total = int(((dom_exp.data.get("email_intel_correlation") or {}).get("total_leaks")) or 0)
+        if leaks_total > 0:
+            external_points += 15.0
+            negative_evidences.append({"source": "domain_exposure", "detail": f"{leaks_total} filtración(es) correlacionada(s) desde Email Intelligence para correos del dominio."})
+
+    # 8. Infraestructura compartida (anti-falso positivo)
+    ip_asn = provider_results.get("ip_asn")
+    if ip_asn and ip_asn.status == ProviderQueryStatus.SUCCESS and ip_asn.data.get("is_shared_infrastructure"):
+        limitations.append(f"Infraestructura compartida/CDN detectada ({ip_asn.data.get('org')}): no inferir propiedad común por IP o certificado.")
 
     confidence_score = round(available_sources / max(1, total_sources), 2)
     external_reputation_score = min(100.0, round(external_points, 1)) if available_sources > 0 else None

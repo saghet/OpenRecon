@@ -36,6 +36,15 @@ from app.services.domain_intel.risk_and_correlation import (
     assess_domain_risk,
     build_domain_correlation_graph,
 )
+from app.services.domain_intel.webosint_adapters import (
+    CertSpotterConnector,
+    DNSSecurityConnector,
+    DomainExposureConnector,
+    EPSSAndKEVEnricher,
+    IPASNConnector,
+    ShodanInternetDBConnector,
+    WhoisFreaksHistoryConnector,
+)
 
 SUPPORTED_PROVIDERS = [
     "rdap_whois",
@@ -46,6 +55,13 @@ SUPPORTED_PROVIDERS = [
     "urlhaus",
     "threatfox",
     "abuseipdb",
+    "shodan_internetdb",
+    "epss_kev",
+    "cert_spotter",
+    "ip_asn",
+    "dns_security",
+    "domain_exposure",
+    "whois_history",
 ]
 
 
@@ -61,6 +77,13 @@ class DomainIntelligenceService:
         self.otx = AlienVaultOTXConnector()
         self.dns_ct = DNSAndCTConnector()
         self.cti = ComplementaryCTIConnector()
+        self.shodan = ShodanInternetDBConnector()
+        self.epss_kev = EPSSAndKEVEnricher()
+        self.cert_spotter = CertSpotterConnector()
+        self.ip_asn = IPASNConnector()
+        self.dns_security = DNSSecurityConnector()
+        self.domain_exposure = DomainExposureConnector()
+        self.whois_history = WhoisFreaksHistoryConnector()
 
     def _get_provider_keys(self, organization_id: int) -> Dict[str, Optional[str]]:
         keys: Dict[str, Optional[str]] = {
@@ -69,6 +92,8 @@ class DomainIntelligenceService:
             "abuseipdb": os.getenv("ABUSEIPDB_API_KEY"),
             "urlhaus": os.getenv("URLHAUS_API_KEY"),
             "threatfox": os.getenv("THREATFOX_API_KEY"),
+            "cert_spotter": os.getenv("CERTSPOTTER_API_KEY"),
+            "whois_history": os.getenv("WHOIS_FREAKS_API_KEY"),
         }
         creds = (
             self.db.query(ProviderCredential)
@@ -182,6 +207,22 @@ class DomainIntelligenceService:
             tasks["urlhaus"] = self._run_limited("urlhaus", self.cti.query_urlhaus(normalized_domain, keys.get("urlhaus")))
         if "threatfox" in active_set:
             tasks["threatfox"] = self._run_limited("threatfox", self.cti.query_threatfox(normalized_domain, keys.get("threatfox")))
+        if "cert_spotter" in active_set:
+            tasks["cert_spotter"] = self._run_limited(
+                "cert_spotter", self.cert_spotter.query(normalized_domain, keys.get("cert_spotter"))
+            )
+        if "dns_security" in active_set:
+            tasks["dns_security"] = self._run_limited(
+                "dns_security", self.dns_security.query(normalized_domain, input_type)
+            )
+        if "domain_exposure" in active_set:
+            tasks["domain_exposure"] = self._run_limited(
+                "domain_exposure", self.domain_exposure.query(normalized_domain)
+            )
+        if "whois_history" in active_set:
+            tasks["whois_history"] = self._run_limited(
+                "whois_history", self.whois_history.query(normalized_domain, keys.get("whois_history"))
+            )
 
         keys_order = list(tasks.keys())
         responses_list = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -197,16 +238,39 @@ class DomainIntelligenceService:
             else:
                 provider_results[pname] = resp
 
-        # AbuseIPDB sobre la IP directa o primera IP A resuelta
+        # Resolver IP objetivo para AbuseIPDB, Shodan InternetDB e IP/ASN
+        target_ip = normalized_domain if input_type in (IndicatorInputType.IPV4, IndicatorInputType.IPV6) else None
+        if not target_ip and "dns" in provider_results and provider_results["dns"].status == ProviderQueryStatus.SUCCESS:
+            a_recs = provider_results["dns"].data.get("A", [])
+            if a_recs:
+                target_ip = a_recs[0]
+
+        ip_tasks: Dict[str, Any] = {}
         if "abuseipdb" in active_set:
-            target_ip = normalized_domain if input_type in (IndicatorInputType.IPV4, IndicatorInputType.IPV6) else None
-            if not target_ip and "dns" in provider_results and provider_results["dns"].status == ProviderQueryStatus.SUCCESS:
-                a_recs = provider_results["dns"].data.get("A", [])
-                if a_recs:
-                    target_ip = a_recs[0]
-            provider_results["abuseipdb"] = await self._run_limited(
-                "abuseipdb", self.cti.query_abuseipdb(target_ip, keys.get("abuseipdb"))
-            )
+            ip_tasks["abuseipdb"] = self._run_limited("abuseipdb", self.cti.query_abuseipdb(target_ip, keys.get("abuseipdb")))
+        if "shodan_internetdb" in active_set:
+            ip_tasks["shodan_internetdb"] = self._run_limited("shodan_internetdb", self.shodan.query(target_ip))
+        if "ip_asn" in active_set:
+            ip_tasks["ip_asn"] = self._run_limited("ip_asn", self.ip_asn.query(target_ip))
+
+        if ip_tasks:
+            ip_keys = list(ip_tasks.keys())
+            ip_resps = await asyncio.gather(*ip_tasks.values(), return_exceptions=True)
+            for pname, resp in zip(ip_keys, ip_resps):
+                if isinstance(resp, Exception):
+                    provider_results[pname] = ProviderResponse(
+                        provider_name=pname,
+                        status=ProviderQueryStatus.CONNECTION_ERROR,
+                        error_message=str(resp),
+                    )
+                else:
+                    provider_results[pname] = resp
+
+        # Enriquecimiento EPSS + CISA KEV sobre CVEs detectados por Shodan InternetDB
+        if "epss_kev" in active_set:
+            shodan_res = provider_results.get("shodan_internetdb")
+            cves = (shodan_res.data.get("vulns", []) if shodan_res and shodan_res.status == ProviderQueryStatus.SUCCESS else [])
+            provider_results["epss_kev"] = await self._run_limited("epss_kev", self.epss_kev.enrich_cves(cves))
 
         # 4. Correlación y Risk Assessment explicable
         graph_data, indicators = build_domain_correlation_graph(normalized_domain, provider_results)
@@ -256,11 +320,14 @@ class DomainIntelligenceService:
             )
         )
 
+        historical_diff = self._compute_historical_diff(organization_id, normalized_domain, investigation.id, indicators)
+
         summary_payload = {
             "positive_evidences": risk_eval["positive_evidences"],
             "negative_evidences": risk_eval["negative_evidences"],
             "sources_consulted": risk_eval["sources_consulted"],
             "indicators_count": len(indicators),
+            "historical_diff": historical_diff,
         }
 
         investigation.status = "COMPLETED"
@@ -282,3 +349,42 @@ class DomainIntelligenceService:
     async def _run_limited(self, provider_name: str, coro: Any) -> ProviderResponse:
         await self._rate_limiter.wait(provider_name)
         return await coro
+
+    def _compute_historical_diff(
+        self,
+        organization_id: int,
+        normalized_domain: str,
+        current_inv_id: int,
+        current_indicators: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Detecta cambios de DNS, IP, ASN, puertos y subdominios respecto al expediente previo."""
+        prev_inv = (
+            self.db.query(DomainInvestigation)
+            .filter(
+                DomainInvestigation.organization_id == organization_id,
+                DomainInvestigation.normalized_domain == normalized_domain,
+                DomainInvestigation.status == "COMPLETED",
+                DomainInvestigation.id != current_inv_id,
+            )
+            .order_by(DomainInvestigation.created_at.desc())
+            .first()
+        )
+        if not prev_inv:
+            return {"has_previous": False, "added": [], "removed": []}
+
+        prev_set = {
+            (ind.indicator_type, ind.indicator_value)
+            for ind in prev_inv.indicators
+        }
+        curr_set = {
+            (ind["indicator_type"], ind["indicator_value"])
+            for ind in current_indicators
+        }
+        added = [{"type": t, "value": v} for t, v in sorted(curr_set - prev_set)]
+        removed = [{"type": t, "value": v} for t, v in sorted(prev_set - curr_set)]
+        return {
+            "has_previous": True,
+            "previous_investigation_id": prev_inv.id,
+            "added": added[:40],
+            "removed": removed[:40],
+        }
