@@ -72,6 +72,10 @@
                 <option value="abuseipdb">AbuseIPDB</option>
                 <option value="urlhaus">URLhaus</option>
                 <option value="threatfox">ThreatFox</option>
+                <option value="cert_spotter">Cert Spotter (CT)</option>
+                <option value="whois_history">WhoisFreaks (Historial WHOIS)</option>
+                <option value="whois_xml">WhoisXML (Reputación)</option>
+                <option value="hackertarget">HackerTarget (Reverse IP)</option>
             </select>
             <input id="di-cred-key" type="password" placeholder="Pegar API Key..." class="md:col-span-2 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
             <button onclick="domainIntelSaveCredential()" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold">Guardar Cifrada</button>

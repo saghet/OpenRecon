@@ -19,9 +19,11 @@ from app.services.domain_intel.webosint_adapters import (
     DNSSecurityConnector,
     DomainExposureConnector,
     EPSSAndKEVEnricher,
+    HackerTargetReverseIPConnector,
     IPASNConnector,
     ShodanInternetDBConnector,
     WhoisFreaksHistoryConnector,
+    WhoisXMLReputationConnector,
 )
 
 
@@ -156,6 +158,69 @@ class TestDomainIntelWebOSINT(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             res = asyncio.run(wf.query("example.com"))
         self.assertEqual(res.status, ProviderQueryStatus.KEY_NOT_CONFIGURED)
+
+    def test_08_whoisxml_and_hackertarget_shared_hosting(self):
+        wx = WhoisXMLReputationConnector()
+        with patch.dict(os.environ, {}, clear=True):
+            res_missing = asyncio.run(wx.query("example.com"))
+        self.assertEqual(res_missing.status, ProviderQueryStatus.KEY_NOT_CONFIGURED)
+
+        ht = HackerTargetReverseIPConnector()
+        mock_ht = MagicMock(status_code=200, text="a.com\nb.com\nc.com\nd.com\ne.com\n")
+        with patch("app.services.domain_intel.webosint_adapters.safe_http_get_with_retry", new=AsyncMock(return_value=mock_ht)):
+            res_ht = asyncio.run(ht.query("93.184.216.34"))
+        self.assertEqual(res_ht.status, ProviderQueryStatus.SUCCESS)
+        self.assertTrue(res_ht.data["shared_hosting_warning"])
+        self.assertEqual(res_ht.data["co_hosted_count"], 5)
+
+    def test_09_end_to_end_service_persistence_and_historical_diff(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.core.database import Base
+        import app.models  # noqa: F401
+        from app.services.domain_intel.service import DomainIntelligenceService
+
+        engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+        Base.metadata.create_all(bind=engine)
+        SessionLocal = sessionmaker(bind=engine)
+        db = SessionLocal()
+        try:
+            svc = DomainIntelligenceService(db)
+            with (
+                patch("app.services.domain_intel.service.enforce_anti_ssrf_and_dns_rebinding", return_value=None),
+                patch.object(svc.rdap, "query", new=AsyncMock(return_value=ProviderResponse("rdap_whois", ProviderQueryStatus.SUCCESS, {"nameservers": ["ns1.lab.test"]}))),
+                patch.object(svc.dns_ct, "query_dns", new=AsyncMock(return_value=ProviderResponse("dns", ProviderQueryStatus.SUCCESS, {"A": ["93.184.216.34"], "NS": ["ns1.lab.test"], "MX": []}))),
+                patch.object(svc.dns_ct, "query_ct", new=AsyncMock(return_value=ProviderResponse("crt_sh", ProviderQueryStatus.NO_DATA))),
+                patch.object(svc.cert_spotter, "query", new=AsyncMock(return_value=ProviderResponse("cert_spotter", ProviderQueryStatus.NO_DATA))),
+                patch.object(svc.dns_security, "query", new=AsyncMock(return_value=ProviderResponse("dns_security", ProviderQueryStatus.SUCCESS, {"spf": {"present": True}, "dmarc": {"present": True}, "dns_security_score": 55}))),
+                patch.object(svc.domain_exposure, "query", new=AsyncMock(return_value=ProviderResponse("domain_exposure", ProviderQueryStatus.SUCCESS, {"email_intel_correlation": {"total_leaks": 0, "investigated_emails": []}}))),
+                patch.object(svc.shodan, "query", new=AsyncMock(return_value=ProviderResponse("shodan_internetdb", ProviderQueryStatus.SUCCESS, {"ip": "93.184.216.34", "ports": [443], "vulns": [], "cpes": []}))),
+                patch.object(svc.ip_asn, "query", new=AsyncMock(return_value=ProviderResponse("ip_asn", ProviderQueryStatus.SUCCESS, {"ip": "93.184.216.34", "asn": "AS15133", "org": "AS15133 Edgecast", "is_shared_infrastructure": False}))),
+                patch.object(svc.hackertarget, "query", new=AsyncMock(return_value=ProviderResponse("hackertarget", ProviderQueryStatus.NO_DATA))),
+            ):
+                inv1 = asyncio.run(svc.investigate(
+                    organization_id=1,
+                    target="lab-domain.com",
+                    use_cache=False,
+                    enabled_providers=["rdap_whois", "dns", "crt_sh", "cert_spotter", "dns_security", "domain_exposure", "shodan_internetdb", "ip_asn", "epss_kev", "hackertarget"],
+                ))
+                self.assertEqual(inv1.status, "COMPLETED")
+                s1 = json.loads(inv1.summary_json)
+                self.assertFalse(s1["historical_diff"]["has_previous"])
+
+                # Second run with new port 8443 -> historical_diff detects change
+                with patch.object(svc.shodan, "query", new=AsyncMock(return_value=ProviderResponse("shodan_internetdb", ProviderQueryStatus.SUCCESS, {"ip": "93.184.216.34", "ports": [443, 8443], "vulns": [], "cpes": []}))):
+                    inv2 = asyncio.run(svc.investigate(
+                        organization_id=1,
+                        target="lab-domain.com",
+                        use_cache=False,
+                        enabled_providers=["rdap_whois", "dns", "crt_sh", "cert_spotter", "dns_security", "domain_exposure", "shodan_internetdb", "ip_asn", "epss_kev", "hackertarget"],
+                    ))
+                s2 = json.loads(inv2.summary_json)
+                self.assertTrue(s2["historical_diff"]["has_previous"])
+                self.assertTrue(any("8443" in a["value"] for a in s2["historical_diff"]["added"]))
+        finally:
+            db.close()
 
 
 if __name__ == "__main__":

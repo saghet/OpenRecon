@@ -41,9 +41,11 @@ from app.services.domain_intel.webosint_adapters import (
     DNSSecurityConnector,
     DomainExposureConnector,
     EPSSAndKEVEnricher,
+    HackerTargetReverseIPConnector,
     IPASNConnector,
     ShodanInternetDBConnector,
     WhoisFreaksHistoryConnector,
+    WhoisXMLReputationConnector,
 )
 
 SUPPORTED_PROVIDERS = [
@@ -62,6 +64,8 @@ SUPPORTED_PROVIDERS = [
     "dns_security",
     "domain_exposure",
     "whois_history",
+    "whois_xml",
+    "hackertarget",
 ]
 
 
@@ -84,6 +88,8 @@ class DomainIntelligenceService:
         self.dns_security = DNSSecurityConnector()
         self.domain_exposure = DomainExposureConnector()
         self.whois_history = WhoisFreaksHistoryConnector()
+        self.whois_xml = WhoisXMLReputationConnector()
+        self.hackertarget = HackerTargetReverseIPConnector()
 
     def _get_provider_keys(self, organization_id: int) -> Dict[str, Optional[str]]:
         keys: Dict[str, Optional[str]] = {
@@ -94,6 +100,8 @@ class DomainIntelligenceService:
             "threatfox": os.getenv("THREATFOX_API_KEY"),
             "cert_spotter": os.getenv("CERTSPOTTER_API_KEY"),
             "whois_history": os.getenv("WHOIS_FREAKS_API_KEY"),
+            "whois_xml": os.getenv("WHOIS_XML_API_KEY"),
+            "hackertarget": os.getenv("HACKERTARGET_API_KEY"),
         }
         creds = (
             self.db.query(ProviderCredential)
@@ -223,6 +231,10 @@ class DomainIntelligenceService:
             tasks["whois_history"] = self._run_limited(
                 "whois_history", self.whois_history.query(normalized_domain, keys.get("whois_history"))
             )
+        if "whois_xml" in active_set:
+            tasks["whois_xml"] = self._run_limited(
+                "whois_xml", self.whois_xml.query(normalized_domain, keys.get("whois_xml"))
+            )
 
         keys_order = list(tasks.keys())
         responses_list = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -252,6 +264,10 @@ class DomainIntelligenceService:
             ip_tasks["shodan_internetdb"] = self._run_limited("shodan_internetdb", self.shodan.query(target_ip))
         if "ip_asn" in active_set:
             ip_tasks["ip_asn"] = self._run_limited("ip_asn", self.ip_asn.query(target_ip))
+        if "hackertarget" in active_set:
+            ip_tasks["hackertarget"] = self._run_limited(
+                "hackertarget", self.hackertarget.query(target_ip, keys.get("hackertarget"))
+            )
 
         if ip_tasks:
             ip_keys = list(ip_tasks.keys())

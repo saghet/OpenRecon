@@ -584,3 +584,102 @@ class WhoisFreaksHistoryConnector:
             return ProviderResponse("whois_history", ProviderQueryStatus.CONNECTION_ERROR, error_message=str(exc))
         except ValueError:
             return ProviderResponse("whois_history", ProviderQueryStatus.MALFORMED_RESPONSE, error_message="JSON inválido WhoisFreaks")
+
+
+class WhoisXMLReputationConnector:
+    """Reputación de dominio vía WhoisXML API v2 (requiere WHOIS_XML_API_KEY)."""
+
+    async def query(self, domain: str, api_key: Optional[str] = None) -> ProviderResponse:
+        t0 = time.perf_counter()
+        resolved_key = (api_key or os.getenv("WHOIS_XML_API_KEY") or "").strip()
+        if not resolved_key:
+            return ProviderResponse(
+                provider_name="whois_xml",
+                status=ProviderQueryStatus.KEY_NOT_CONFIGURED,
+                error_message="WHOIS_XML_API_KEY no configurada (omitido por configuración).",
+                latency_ms=0,
+            )
+
+        url = "https://domain-reputation.whoisxmlapi.com/api/v2"
+        params = {"apiKey": resolved_key, "domainName": domain}
+        try:
+            resp = await safe_http_get_with_retry(url, params=params, timeout=10.0, max_retries=1)
+            lat = int((time.perf_counter() - t0) * 1000)
+            if resp.status_code in (401, 403):
+                return ProviderResponse("whois_xml", ProviderQueryStatus.INVALID_KEY, error_message=f"WhoisXML HTTP {resp.status_code}", latency_ms=lat)
+            if resp.status_code == 429:
+                return ProviderResponse("whois_xml", ProviderQueryStatus.RATE_LIMITED, error_message="WhoisXML HTTP 429", latency_ms=lat)
+            if resp.status_code >= 400:
+                return ProviderResponse("whois_xml", ProviderQueryStatus.CONNECTION_ERROR, error_message=f"WhoisXML HTTP {resp.status_code}", latency_ms=lat)
+
+            payload = resp.json()
+            return ProviderResponse(
+                provider_name="whois_xml",
+                status=ProviderQueryStatus.SUCCESS,
+                data={
+                    "source": "whois_xml",
+                    "queried_at": _now_iso(),
+                    "observed_at": _now_iso(),
+                    "reputation_score": payload.get("reputationScore"),
+                    "mode": payload.get("mode"),
+                    "test_results": (payload.get("testResults") or [])[:15],
+                    "confidence": 85,
+                },
+                latency_ms=lat,
+            )
+        except httpx.TimeoutException:
+            return ProviderResponse("whois_xml", ProviderQueryStatus.TIMEOUT, error_message="Timeout WhoisXML")
+        except (httpx.RequestError, DomainSecurityError) as exc:
+            return ProviderResponse("whois_xml", ProviderQueryStatus.CONNECTION_ERROR, error_message=str(exc))
+        except ValueError:
+            return ProviderResponse("whois_xml", ProviderQueryStatus.MALFORMED_RESPONSE, error_message="JSON inválido WhoisXML")
+
+
+class HackerTargetReverseIPConnector:
+    """Reverse IP pasivo vía HackerTarget (con aviso de hosting compartido)."""
+
+    def __init__(self, cache: Optional[DomainIntelCache] = None):
+        self.cache = cache or DomainIntelCache("hackertarget_reverse_ip")
+
+    async def query(self, ip: Optional[str], api_key: Optional[str] = None) -> ProviderResponse:
+        t0 = time.perf_counter()
+        if not ip:
+            return ProviderResponse("hackertarget", ProviderQueryStatus.NO_DATA, error_message="Sin IP para Reverse IP.")
+
+        cached = self.cache.get(ip)
+        if cached is not None:
+            return ProviderResponse("hackertarget", ProviderQueryStatus.SUCCESS, data=cached, from_cache=True, latency_ms=int((time.perf_counter() - t0) * 1000))
+
+        params: Dict[str, Any] = {"q": ip}
+        resolved_key = (api_key or os.getenv("HACKERTARGET_API_KEY") or "").strip()
+        if resolved_key:
+            params["apikey"] = resolved_key
+
+        try:
+            resp = await safe_http_get_with_retry("https://api.hackertarget.com/reverseiplookup/", params=params, timeout=10.0, max_retries=1)
+            lat = int((time.perf_counter() - t0) * 1000)
+            text = (resp.text or "").strip()
+            if resp.status_code == 429 or "API count exceeded" in text:
+                return ProviderResponse("hackertarget", ProviderQueryStatus.RATE_LIMITED, error_message="HackerTarget cuota excedida", latency_ms=lat)
+            if "No DNS A records found" in text:
+                return ProviderResponse("hackertarget", ProviderQueryStatus.NO_DATA, data={"ip": ip, "co_hosted_domains": []}, latency_ms=lat)
+            if resp.status_code >= 400 or text.startswith("error"):
+                return ProviderResponse("hackertarget", ProviderQueryStatus.CONNECTION_ERROR, error_message=text[:150] or f"HTTP {resp.status_code}", latency_ms=lat)
+
+            domains = [line.strip().lower() for line in text.splitlines() if line.strip() and "." in line]
+            data = {
+                "source": "hackertarget",
+                "queried_at": _now_iso(),
+                "observed_at": _now_iso(),
+                "ip": ip,
+                "co_hosted_count": len(domains),
+                "co_hosted_domains": domains[:30],
+                "shared_hosting_warning": len(domains) > 3,
+                "confidence": 65,
+            }
+            self.cache.set(ip, data, ttl_seconds=1800)
+            return ProviderResponse("hackertarget", ProviderQueryStatus.SUCCESS, data=data, latency_ms=lat)
+        except httpx.TimeoutException:
+            return ProviderResponse("hackertarget", ProviderQueryStatus.TIMEOUT, error_message="Timeout HackerTarget")
+        except (httpx.RequestError, DomainSecurityError) as exc:
+            return ProviderResponse("hackertarget", ProviderQueryStatus.CONNECTION_ERROR, error_message=str(exc))
