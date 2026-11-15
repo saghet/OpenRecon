@@ -205,6 +205,16 @@ def build_domain_correlation_graph(
                 "evidence": f"Filtración asociada al dominio ({lk.get('leak_date') or 'fecha N/D'})",
             })
 
+    # 11. HackerTarget Reverse IP (co-alojamiento NO implica propiedad común)
+    ht_res = provider_results.get("hackertarget")
+    if ht_res and ht_res.status == ProviderQueryStatus.SUCCESS:
+        is_shared = bool(ht_res.data.get("shared_hosting_warning"))
+        for co_dom in (ht_res.data.get("co_hosted_domains") or [])[:10]:
+            if co_dom and co_dom != target_domain:
+                rel = RelationshipConfidenceType.INSUFFICIENT_EVIDENCE if is_shared else RelationshipConfidenceType.OBSERVED
+                ev = "Co-alojamiento en misma IP (infraestructura compartida; no implica propiedad común)" if is_shared else "Dominio co-alojado en la misma IP"
+                _register("CO_HOSTED_DOMAIN", co_dom, "hackertarget", "SHARES_IP_WITH", rel, 35 if is_shared else 65, ev)
+
     return {"nodes": list(graph.nodes.values()), "edges": graph.edges}, indicators
 
 
@@ -337,6 +347,14 @@ def assess_domain_risk(
     ip_asn = provider_results.get("ip_asn")
     if ip_asn and ip_asn.status == ProviderQueryStatus.SUCCESS and ip_asn.data.get("is_shared_infrastructure"):
         limitations.append(f"Infraestructura compartida/CDN detectada ({ip_asn.data.get('org')}): no inferir propiedad común por IP o certificado.")
+
+    # 9. WhoisXML Domain Reputation (si está configurado)
+    wx = provider_results.get("whois_xml")
+    if wx and wx.status == ProviderQueryStatus.SUCCESS and wx.data.get("reputation_score") is not None:
+        rep_score = float(wx.data["reputation_score"])
+        if rep_score < 50.0:
+            external_points += 20.0
+            negative_evidences.append({"source": "whois_xml", "detail": f"Reputación WhoisXML baja ({rep_score}/100)."})
 
     confidence_score = round(available_sources / max(1, total_sources), 2)
     external_reputation_score = min(100.0, round(external_points, 1)) if available_sources > 0 else None
