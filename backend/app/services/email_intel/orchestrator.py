@@ -21,6 +21,8 @@ from app.services.email_intel.email_generator import EmailGenerator
 from app.services.email_intel.domain_intel_engine import DomainIntelEngine
 from app.services.email_intel.risk_scorer import RiskScorer
 from app.services.email_intel.schemas import InvestigationCreateRequest
+from app.core.evidence_sanitizer import EvidenceSanitizer
+from app.core.security_guard import SecurityGovernanceGuard
 
 logger = logging.getLogger("email_intel.orchestrator")
 
@@ -100,6 +102,7 @@ class EmailIntelOrchestrator:
             conn.close()
 
         ACTIVE_TASKS[inv_id] = {"status": "RUNNING", "cancel_requested": False, "pause_requested": False}
+        SecurityGovernanceGuard.register_active_task(inv_id, "email_intel", target_email)
         self._update_status(inv_id, "RUNNING", 5)
 
         try:
@@ -148,10 +151,12 @@ class EmailIntelOrchestrator:
             logger.error(f"Error in investigation {inv_id}: {e}", exc_info=True)
             self._update_status(inv_id, "FAILED", 100, str(e))
         finally:
+            SecurityGovernanceGuard.complete_active_task(inv_id)
             if inv_id in ACTIVE_TASKS:
                 del ACTIVE_TASKS[inv_id]
 
     def pause_investigation(self, inv_id: str) -> bool:
+        SecurityGovernanceGuard.request_task_control(inv_id, "pause")
         if inv_id in ACTIVE_TASKS:
             ACTIVE_TASKS[inv_id]["pause_requested"] = True
             self._update_status(inv_id, "PAUSED")
@@ -159,12 +164,20 @@ class EmailIntelOrchestrator:
         return False
 
     def cancel_investigation(self, inv_id: str) -> bool:
+        SecurityGovernanceGuard.request_task_control(inv_id, "cancel")
         if inv_id in ACTIVE_TASKS:
             ACTIVE_TASKS[inv_id]["cancel_requested"] = True
         self._update_status(inv_id, "CANCELLED")
         return True
 
     def _check_cancelled(self, inv_id: str) -> bool:
+        ctrl = SecurityGovernanceGuard.get_task_control_state(inv_id)
+        if ctrl.get("kill_switch") or ctrl.get("cancel_requested"):
+            self._update_status(inv_id, "CANCELLED")
+            return True
+        if ctrl.get("pause_requested"):
+            self._update_status(inv_id, "PAUSED")
+            return True
         task = ACTIVE_TASKS.get(inv_id)
         if not task:
             return True
@@ -323,7 +336,8 @@ class EmailIntelOrchestrator:
                         """,
                         (
                             ev_id, inv_id, ev["source_type"], ev["source_name"],
-                            ev["collected_at_utc"], ev["raw_content_preview"][:1000],
+                            ev["collected_at_utc"],
+                            EvidenceSanitizer.sanitize_raw_content(ev.get("raw_content_preview", ""), max_chars=1000),
                             ev["content_sha256"], f"SHA256:{ev['content_sha256'][:16]}",
                             ev["validation_status"], ev["confidence_score"]
                         )
@@ -383,7 +397,8 @@ class EmailIntelOrchestrator:
                             """,
                             (
                                 ev_id, inv_id, ev["source_type"], ev["source_name"],
-                                ev["collected_at_utc"], ev["raw_content_preview"][:1000],
+                                ev["collected_at_utc"],
+                                EvidenceSanitizer.sanitize_raw_content(ev.get("raw_content_preview", ""), max_chars=1000),
                                 ev["content_sha256"], f"SHA256:{ev['content_sha256'][:16]}",
                                 ev["validation_status"], ev["confidence_score"]
                             )
@@ -426,7 +441,8 @@ class EmailIntelOrchestrator:
                             """,
                             (
                                 ev_id, inv_id, ev["source_type"], ev["source_name"],
-                                ev["collected_at_utc"], ev["raw_content_preview"][:1000],
+                                ev["collected_at_utc"],
+                                EvidenceSanitizer.sanitize_raw_content(ev.get("raw_content_preview", ""), max_chars=1000),
                                 ev["content_sha256"], f"SHA256:{ev['content_sha256'][:16]}",
                                 ev["validation_status"], ev["confidence_score"]
                             )

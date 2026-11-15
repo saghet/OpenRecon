@@ -234,6 +234,12 @@ def upsert_provider_credential(payload: ProviderCredentialUpsert, db: Session = 
 
     db.commit()
     db.refresh(cred)
+    # Invalidar caché de investigaciones previas para que la nueva API Key surta efecto inmediato
+    db.query(DomainInvestigation).filter(
+        DomainInvestigation.organization_id == payload.organization_id,
+        DomainInvestigation.cache_expires_at != None,
+    ).update({DomainInvestigation.cache_expires_at: None}, synchronize_session=False)
+    db.commit()
     return ProviderCredentialStatusOut(
         provider_name=cred.provider_name,
         is_configured=True,

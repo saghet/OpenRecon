@@ -381,8 +381,9 @@ def probe(connect_host: str, port: int, scheme: str, timeout: float,
     kwargs = {"timeout": timeout}
     if scheme == "https":
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE  # scanning: no validamos cert
+        ctx.check_hostname = True
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         kwargs["context"] = ctx
 
     def _do(method):
@@ -644,8 +645,9 @@ def _http_request(connect_host, port, scheme, timeout, method, path, headers, bo
     kwargs = {"timeout": timeout}
     if scheme == "https":
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        ctx.check_hostname = True
+        ctx.verify_mode = ssl.CERT_REQUIRED
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         kwargs["context"] = ctx
     conn = conn_cls(connect_host, port, **kwargs)
     try:

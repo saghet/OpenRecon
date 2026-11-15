@@ -74,7 +74,8 @@ class AhmiaAdapter:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
         try:
-            async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+            from app.core.tls_config import get_httpx_verify
+            async with httpx.AsyncClient(timeout=10.0, verify=get_httpx_verify()) as client:
                 resp = await client.get(url, headers=headers)
                 if resp.status_code == 200:
                     results = self._parse_ahmia_html(resp.text, limit)

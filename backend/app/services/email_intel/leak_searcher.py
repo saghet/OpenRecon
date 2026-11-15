@@ -13,6 +13,7 @@ from typing import List, Dict, Any, Tuple
 from datetime import datetime, timezone
 from app.services.email_intel.zehef_adapter import ZehefAdapter
 from app.services.email_intel.xposedornot_connector import XposedOrNotConnector
+from app.core.evidence_sanitizer import EvidenceSanitizer
 
 logger = logging.getLogger("email_intel.leak_searcher")
 
@@ -44,12 +45,13 @@ class LeakSearcher:
                 )
                 raw_text = res.text
                 sha256 = self.adapter.calculate_sha256(raw_text)
+                sanitized_preview = EvidenceSanitizer.sanitize_raw_content(raw_text, max_chars=500)
 
                 evidences.append({
                     "source_type": "BREACH_INFO_STEALER",
                     "source_name": "HudsonRock Cavalier",
                     "collected_at_utc": datetime.now(timezone.utc).isoformat(),
-                    "raw_content_preview": raw_text[:500],
+                    "raw_content_preview": sanitized_preview,
                     "content_sha256": sha256,
                     "validation_status": "CORROBORATED" if res.status_code == 200 else "ERROR",
                     "confidence_score": 0.95 if res.status_code == 200 else 0.0

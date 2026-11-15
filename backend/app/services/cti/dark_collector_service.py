@@ -341,7 +341,8 @@ class DarkCollectorService:
         """
         posts_data = []
         try:
-            async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
+            from app.core.tls_config import get_httpx_verify
+            async with httpx.AsyncClient(timeout=15.0, verify=get_httpx_verify()) as client:
                 resp = await client.get(self.primary_feed_url)
                 if resp.status_code == 200:
                     data = resp.json()

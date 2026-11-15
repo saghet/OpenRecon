@@ -7,7 +7,7 @@ Provides path tracing, confidence evaluation, and temporal relationship analysis
 
 import logging
 from typing import Dict, List, Optional, Any, Set
-from datetime import datetime
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +39,12 @@ class CorrelationGraphEngine:
                 "label": label,
                 "type": node_type,
                 "metadata": metadata or {},
-                "first_seen": datetime.utcnow().isoformat(),
-                "last_seen": datetime.utcnow().isoformat()
+                "first_seen": datetime.now(timezone.utc).isoformat(),
+                "last_seen": datetime.now(timezone.utc).isoformat()
             }
             self._adjacency[node_id] = set()
         else:
-            self.nodes[node_id]["last_seen"] = datetime.utcnow().isoformat()
+            self.nodes[node_id]["last_seen"] = datetime.now(timezone.utc).isoformat()
             if metadata:
                 self.nodes[node_id]["metadata"].update(metadata)
 
@@ -54,27 +54,38 @@ class CorrelationGraphEngine:
         target_id: str,
         relationship: str,
         confidence: int = 100,
-        evidence: Optional[str] = None
+        evidence: Optional[str] = None,
+        source: str = "OpenRecon",
+        is_inferred: Optional[bool] = None,
     ) -> None:
         """
-        Connect two entities with a typed directed edge and confidence level (0-100).
+        Connect two entities with a typed directed edge, source attribution,
+        evidence reference, confidence level (0-100), and inferred vs confirmed flag.
         """
         if source_id in self.nodes and target_id in self.nodes:
+            clamped_conf = max(0, min(100, confidence))
+            inferred_flag = bool(is_inferred) if is_inferred is not None else (clamped_conf < 80)
             # Check duplicate edge
             for e in self.edges:
                 if e["from"] == source_id and e["to"] == target_id and e["relationship"] == relationship:
-                    e["last_verified"] = datetime.utcnow().isoformat()
-                    e["confidence"] = confidence
+                    e["last_verified"] = datetime.now(timezone.utc).isoformat()
+                    e["confidence"] = clamped_conf
+                    e["source"] = source
+                    e["is_inferred"] = inferred_flag
+                    if evidence:
+                        e["evidence"] = evidence
                     return
 
             edge = {
                 "from": source_id,
                 "to": target_id,
                 "relationship": relationship,
-                "confidence": max(0, min(100, confidence)),
+                "confidence": clamped_conf,
+                "source": source,
+                "is_inferred": inferred_flag,
                 "evidence": evidence or "",
-                "created_at": datetime.utcnow().isoformat(),
-                "last_verified": datetime.utcnow().isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "last_verified": datetime.now(timezone.utc).isoformat()
             }
             self.edges.append(edge)
             self._adjacency[source_id].add(target_id)

@@ -2,6 +2,7 @@ from app.models.organization import Organization, Seed, SeedType
 from app.models.asset import Asset, AssetType
 from app.models.exposure import PortService, Vulnerability, DigitalRiskFinding, SeverityLevel, RiskType
 from app.models.scan import ScanJob, ScanType, ScanStatus
+from app.models.evidence import EvidenceRecord, EvidenceAuditLog, FindingValidationState
 from app.models.darkintel import (
     DarkEvidenceVault,
     DarkSource,

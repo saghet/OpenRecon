@@ -283,7 +283,8 @@ class TorSecurityGuard:
         proxy_url = cls.get_socks_proxy_url(tor_proxy)
         try:
             start_time = time.time()
-            transport = httpx.AsyncHTTPTransport(proxy=proxy_url, verify=False)
+            from app.core.tls_config import get_httpx_verify
+            transport = httpx.AsyncHTTPTransport(proxy=proxy_url, verify=get_httpx_verify())
             async with httpx.AsyncClient(transport=transport, timeout=8.0) as client:
                 resp = await client.get(probe_url)
                 latency = int((time.time() - start_time) * 1000)

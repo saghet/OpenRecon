@@ -54,8 +54,12 @@ function executeProbingHttp($url, $options = []) {
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+    $customCa = getenv('OPENRECON_CA_BUNDLE');
+    if ($customCa && is_file($customCa)) {
+        curl_setopt($ch, CURLOPT_CAINFO, $customCa);
+    }
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $followRedirects);
     curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
     curl_setopt($ch, CURLOPT_USERAGENT, "OpenRecon-VulnValidator/2.0 (EASM-Integrity-Agent; +https://openrecon.security)");

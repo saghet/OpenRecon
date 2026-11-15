@@ -259,7 +259,8 @@ class DarkSearchEngine:
         results = []
         ahmia_url = f"https://ahmia.fi/search/?q={quote_plus(query)}"
         try:
-            async with httpx.AsyncClient(timeout=8.0, verify=False) as client:
+            from app.core.tls_config import get_httpx_verify
+            async with httpx.AsyncClient(timeout=8.0, verify=get_httpx_verify()) as client:
                 resp = await client.get(ahmia_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
                 if resp.status_code == 200:
                     html = resp.text

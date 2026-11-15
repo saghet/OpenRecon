@@ -9,6 +9,9 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import httpx
 
+from app.core.config import settings
+from app.core.tls_config import get_httpx_verify
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,15 +22,20 @@ class MISPClient:
 
     def __init__(
         self,
-        base_url: str = "https://misp.local",
+        base_url: Optional[str] = None,
         auth_key: Optional[str] = None,
         timeout: float = 8.0,
-        verify_ssl: bool = False
+        verify_ssl: bool = True,
+        ca_bundle: Optional[str] = None,
     ):
-        self.base_url = base_url.rstrip("/")
-        self.auth_key = auth_key or ""
+        if not verify_ssl:
+            raise ValueError("TLS verification cannot be disabled in MISPClient. Use ca_bundle for private CAs.")
+        resolved_url = base_url or settings.MISP_URL or "https://misp.local"
+        self.base_url = resolved_url.rstrip("/")
+        self.auth_key = auth_key or settings.MISP_KEY or ""
         self.timeout = timeout
-        self.verify_ssl = verify_ssl
+        self.ca_bundle = ca_bundle
+        self.verify_ssl = get_httpx_verify(ca_bundle=ca_bundle)
 
     def _get_headers(self) -> Dict[str, str]:
         headers = {

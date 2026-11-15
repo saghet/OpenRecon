@@ -5,6 +5,32 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 
 ---
 
+## [3.0.0-alpha] — 2026-11-14
+### 🛡️ Hardening P0, Consolidación Arquitectónica, GitHub/Web Intel, STIX/TAXII y Motor Anti-FP
+
+#### Añadido (Added)
+- **Seguridad Crítica P0:**
+  - `backend/app/core/tls_config.py`: Verificación TLS 1.2+ obligatoria, gestión de CA bundle (`CUSTOM_CA_BUNDLE`) y detección de certificados inválidos/expirados.
+  - `backend/app/core/auth.py`: Autenticación por token (`X-OpenRecon-Token` / `Bearer`) en rutas críticas (`/api/v1/security/kill-switch/*`, `/api/v1/scans/*`).
+  - `SecretRedactingFilter` y `sanitize_evidence_payload()` en `backend/app/core/evidence_sanitizer.py` para redacción automática de secretos en evidencias y logs.
+  - Kill-Switch distribuido en `backend/app/core/security_guard.py` (Redis + persistencia SQL) con control de tareas distribuidas y protección Anti-DNS-Rebinding / redirecciones.
+- **Arquitectura & Observabilidad:**
+  - Migraciones versionadas con Alembic (`backend/alembic/`) y endurecimiento de `database.py` (PostgreSQL pooling + SQLite WAL/FK + `enforce_org_isolation()`).
+  - Arquitectura estándar de conectores (`backend/app/services/connectors/`) y motor central de evidencias (`backend/app/services/evidence/manager.py`).
+  - Observabilidad (`backend/app/core/observability.py`): `CorrelationIdMiddleware`, `JsonLogFormatter` y endpoint Prometheus `GET /metrics`.
+- **Inteligencia, CTI y Anti-Falsos Positivos:**
+  - `EmailVerificationClassifier`, `GitHubIntelConnector`, `WebSecurityAnalyzer`, `STIX21TaxiiService`, `VulnIntelEnrichmentService` y `AntiFalsePositiveEngine` (8 etapas con guardrail estricto sobre IA).
+  - Acceso directo en `web_dashboard/domain_intel.php` para configurar la API Key cifrada de **VirusTotal** ante `KEY_NOT_CONFIGURED`, con feedback visual, invalidación automática de caché de investigaciones previas al guardar credenciales en `POST /api/v1/domain-intel/credentials` y re-consulta automática del objetivo activo.
+- **Documentación y Suites de Pruebas:**
+  - `docs/AUDIT_OPENRECON_3.md`, `docs/SECURITY_HARDENING_REPORT.md`, `docs/ARCHITECTURE_REVIEW.md`, `docs/EMAIL_INTELLIGENCE_REVIEW.md`, `docs/CTI_AND_CORRELATION_REVIEW.md`, `docs/ANTI_FALSE_POSITIVE_STRATEGY.md`, `docs/OPENRECON_QA_STRATEGY.md`, `docs/THIRD_PARTY_LICENSE_AUDIT.md`, `docs/OPENRECON_3_ROADMAP.md`.
+  - Nuevas suites: `tests/security/test_p0_security_hardening.py`, `tests/integration/test_phase2_architecture.py`, `tests/integration/test_phase3_intelligence.py`, `tests/integration/test_phase4_cti_and_afp.py`, `tests/e2e/test_e2e_workflows_and_performance.py`.
+
+#### Corregido (Fixed)
+- Eliminados todos los bypasses TLS (`verify=False`, `CERT_NONE`, `CURLOPT_SSL_VERIFYPEER=false`) en backend Python y gateway PHP.
+- Corregido CORS comodín con credenciales en `backend/app/main.py` y corregida instalación de binarios ProjectDiscovery en `backend/Dockerfile`.
+
+---
+
 ## [2.1.0] — 2026-11-14
 ### 🔍 Expansión OSINT: Domain Intelligence, Email Intelligence, LoginRecon AI & PHP2Shell
 

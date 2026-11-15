@@ -11,6 +11,9 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import httpx
 
+from app.core.config import settings
+from app.core.tls_config import get_httpx_verify
+
 logger = logging.getLogger(__name__)
 
 
@@ -21,16 +24,21 @@ class OpenCTIClient:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:8080",
+        base_url: Optional[str] = None,
         api_token: Optional[str] = None,
         timeout: float = 8.0,
-        verify_ssl: bool = False
+        verify_ssl: bool = True,
+        ca_bundle: Optional[str] = None,
     ):
-        self.base_url = base_url.rstrip("/")
+        if not verify_ssl:
+            raise ValueError("TLS verification cannot be disabled in OpenCTIClient. Use ca_bundle for private CAs.")
+        resolved_url = base_url or settings.OPENCTI_URL or "http://localhost:8080"
+        self.base_url = resolved_url.rstrip("/")
         self.graphql_url = f"{self.base_url}/graphql"
-        self.api_token = api_token or ""
+        self.api_token = api_token or settings.OPENCTI_TOKEN or ""
         self.timeout = timeout
-        self.verify_ssl = verify_ssl
+        self.ca_bundle = ca_bundle
+        self.verify_ssl = get_httpx_verify(ca_bundle=ca_bundle)
         self.is_connected = False
         self._last_health_check: Optional[datetime] = None
 

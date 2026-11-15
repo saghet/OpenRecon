@@ -905,7 +905,7 @@ function scanCloudExposure($pdo) {
         $ch = curl_init($tgt['url']);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 4);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_USERAGENT, 'OpenRecon-CloudAuditor/1.0');
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -1176,7 +1176,7 @@ function enrichCveWithCti($pdo) {
     $ch = curl_init("https://api.first.org/data/v1/epss?cve=" . urlencode($cveId));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_USERAGENT, "OpenRecon-EASM/1.0");
     $res = curl_exec($ch);
     curl_close($ch);
@@ -2020,7 +2020,7 @@ function passiveEnumerateSubdomains($rootDomain) {
     $ch = curl_init("https://api.hackertarget.com/hostsearch/?q=" . urlencode($rootDomain));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
     $htRes = curl_exec($ch);
     curl_close($ch);
@@ -2042,7 +2042,7 @@ function passiveEnumerateSubdomains($rootDomain) {
     $ch = curl_init("https://rapiddns.io/subdomain/" . urlencode($rootDomain) . "?page=1");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
     $rapidRes = curl_exec($ch);
     curl_close($ch);
@@ -2064,7 +2064,7 @@ function passiveEnumerateSubdomains($rootDomain) {
     $ch = curl_init("https://crt.sh/?q=%25." . urlencode($rootDomain) . "&output=json");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
     $crtJson = curl_exec($ch);
     curl_close($ch);
@@ -2203,7 +2203,7 @@ function syncCtiFeeds($pdo) {
     $ch = curl_init("https://raw.githubusercontent.com/joshhighet/ransomwatch/main/posts.json");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 10);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_USERAGENT, "OpenRecon-CTI/1.0");
     $rwJson = curl_exec($ch);
     curl_close($ch);
@@ -2260,7 +2260,7 @@ function syncCtiFeeds($pdo) {
     $ch = curl_init("https://feodotracker.abuse.ch/downloads/ipblocklist.json");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     $feodoJson = curl_exec($ch);
     curl_close($ch);
 
@@ -2287,7 +2287,7 @@ function syncCtiFeeds($pdo) {
     $ch = curl_init("https://rules.emergingthreats.net/blockrules/compromised-ips.txt");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_USERAGENT, "OpenRecon-CTI/1.0");
     $etTxt = curl_exec($ch);
     curl_close($ch);
@@ -2316,7 +2316,7 @@ function syncCtiFeeds($pdo) {
     $ch = curl_init("https://raw.githubusercontent.com/stamparm/ipsum/master/ipsum.txt");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 8);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_USERAGENT, "OpenRecon-CTI/1.0");
     $ipsumTxt = curl_exec($ch);
     curl_close($ch);
@@ -2808,7 +2808,7 @@ function runScan($pdo) {
                     curl_setopt($chCanary, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($chCanary, CURLOPT_TIMEOUT, 2.5);
                     curl_setopt($chCanary, CURLOPT_FOLLOWLOCATION, false);
-                    curl_setopt($chCanary, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($chCanary, CURLOPT_SSL_VERIFYPEER, true);
                     curl_setopt($chCanary, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
                     $canaryBody = curl_exec($chCanary);
                     $canaryCode = curl_getinfo($chCanary, CURLINFO_HTTP_CODE);
@@ -2823,7 +2823,7 @@ function runScan($pdo) {
                         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
                         curl_setopt($ch, CURLOPT_TIMEOUT, 2.5);
                         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
                         curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 OpenRecon/1.0");
                         $epBody = curl_exec($ch);
                         $epCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -3182,7 +3182,7 @@ function auditDomainDnsSecurity($domain, $pdo, &$vulnsCount, &$assetsCount) {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 2.5,
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_USERAGENT => 'Mozilla/5.0 OpenRecon/1.0'
     ]);
     $secBody = curl_exec($chSec);
@@ -3346,8 +3346,8 @@ function probeHttp($host) {
     curl_setopt($ch, CURLOPT_TIMEOUT, 3);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
     curl_setopt($ch, CURLOPT_HTTPHEADER, ["Origin: https://evil-attacker.com"]);
     curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/1.0");
 
@@ -3448,8 +3448,8 @@ function strixPocTest($pdo) {
     curl_setopt($ch, CURLINFO_HEADER_OUT, true);
     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
     curl_setopt($ch, CURLOPT_USERAGENT, "Strix-PoC-Validator/1.0 (OpenRecon-Pentest-Suite)");
 
     if (!empty($customHeaders)) {
@@ -3503,7 +3503,7 @@ function strixPocTest($pdo) {
         }
 
         $curlCmd = "curl -v -k --connect-timeout 6 -X {$method} \"{$url}\"";
-        $pyScript = "import requests\n\ntry:\n    res = requests.request('{$method}', '{$url}', timeout=6, verify=False)\n    print('Status:', res.status_code)\nexcept requests.exceptions.RequestException as e:\n    print(f'Error de conexión detectado: {e}')";
+        $pyScript = "import requests\n\ntry:\n    res = requests.request('{$method}', '{$url}', timeout=6, verify=True)\n    print('Status:', res.status_code)\nexcept requests.exceptions.RequestException as e:\n    print(f'Error de conexión detectado: {e}')";
 
         echo json_encode([
             'success' => true,
@@ -3582,7 +3582,7 @@ function strixPocTest($pdo) {
         $curlCmd .= " -d '" . addslashes($postBody) . "'";
     }
 
-    $pyScript = "import requests\n\nurl = '{$url}'\nheaders = " . json_encode($customHeaders) . "\nresponse = requests.request('{$method}', url, headers=headers, verify=False)\nprint('Status:', response.status_code)\nprint(response.text[:500])";
+    $pyScript = "import requests\n\nurl = '{$url}'\nheaders = " . json_encode($customHeaders) . "\nresponse = requests.request('{$method}', url, headers=headers, verify=True)\nprint('Status:', response.status_code)\nprint(response.text[:500])";
 
     echo json_encode([
         'success' => true,
@@ -3638,7 +3638,7 @@ function strixRouteFuzz($pdo) {
     $chC = curl_init($canaryUrl);
     curl_setopt($chC, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($chC, CURLOPT_TIMEOUT, 3);
-    curl_setopt($chC, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($chC, CURLOPT_SSL_VERIFYPEER, true);
     $canaryBody = curl_exec($chC);
     $canaryCode = curl_getinfo($chC, CURLINFO_HTTP_CODE);
     $canaryErr = curl_error($chC);
@@ -3694,7 +3694,7 @@ function strixRouteFuzz($pdo) {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 2.5);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
         $body = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -3834,7 +3834,7 @@ function strixCorsTest($pdo) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, ["Origin: {$testOrigin}"]);
     $resp = curl_exec($ch);
     $size = curl_getinfo($ch, CURLINFO_HEADER_SIZE);
@@ -4154,8 +4154,8 @@ function autoPentestXRunPipeline($pdo) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
     curl_setopt($ch, CURLOPT_USERAGENT, 'AutoPentestX-Orchestrator/2.0 (OpenRecon Audit Suite)');
     $resp = curl_exec($ch);
@@ -4264,7 +4264,7 @@ function autoPentestXRunPipeline($pdo) {
     curl_setopt($chOpt, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($chOpt, CURLOPT_HEADER, true);
     curl_setopt($chOpt, CURLOPT_TIMEOUT, 4);
-    curl_setopt($chOpt, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($chOpt, CURLOPT_SSL_VERIFYPEER, true);
     $respOpt = curl_exec($chOpt);
     $optHeaders = substr($respOpt, 0, curl_getinfo($chOpt, CURLINFO_HEADER_SIZE));
     curl_close($chOpt);
@@ -4283,7 +4283,7 @@ function autoPentestXRunPipeline($pdo) {
     curl_setopt($chTrace, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($chTrace, CURLOPT_HEADER, true);
     curl_setopt($chTrace, CURLOPT_TIMEOUT, 4);
-    curl_setopt($chTrace, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($chTrace, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($chTrace, CURLOPT_HTTPHEADER, ["X-AutoPentestX-Canary: TraceProbeTest"]);
     $respTrace = curl_exec($chTrace);
     $codeTrace = curl_getinfo($chTrace, CURLINFO_HTTP_CODE);
@@ -4309,7 +4309,7 @@ function autoPentestXRunPipeline($pdo) {
     curl_setopt($chPut, CURLOPT_POSTFIELDS, 'AutoPentestX Probe Check');
     curl_setopt($chPut, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($chPut, CURLOPT_TIMEOUT, 4);
-    curl_setopt($chPut, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($chPut, CURLOPT_SSL_VERIFYPEER, true);
     curl_exec($chPut);
     $codePut = curl_getinfo($chPut, CURLINFO_HTTP_CODE);
     curl_close($chPut);
@@ -4353,7 +4353,7 @@ function autoPentestXRunPipeline($pdo) {
         $chF = curl_init("{$targetUrl}{$route}");
         curl_setopt($chF, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($chF, CURLOPT_TIMEOUT, 3);
-        curl_setopt($chF, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($chF, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($chF, CURLOPT_FOLLOWLOCATION, false);
         $bodyF = curl_exec($chF);
         $codeF = curl_getinfo($chF, CURLINFO_HTTP_CODE);
@@ -4471,7 +4471,7 @@ function autoPentestXHttpMethods($pdo) {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HEADER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 4);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch, CURLOPT_USERAGENT, 'AutoPentestX-MethodAuditor/1.0');
         if ($m === 'TRACE') {
             curl_setopt($ch, CURLOPT_HTTPHEADER, ["X-AutoPentestX-Probe: True"]);
@@ -4860,7 +4860,7 @@ function loginReconProbeGitHub($username) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 4);
     curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
@@ -4884,7 +4884,7 @@ function loginReconProbeGitHub($username) {
         curl_setopt($chR, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($chR, CURLOPT_TIMEOUT, 4);
         curl_setopt($chR, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
-        curl_setopt($chR, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($chR, CURLOPT_SSL_VERIFYPEER, true);
         $reposResp = curl_exec($chR);
         curl_close($chR);
         
@@ -4899,7 +4899,7 @@ function loginReconProbeGitHub($username) {
                     curl_setopt($chC, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($chC, CURLOPT_TIMEOUT, 4);
                     curl_setopt($chC, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
-                    curl_setopt($chC, CURLOPT_SSL_VERIFYPEER, false);
+                    curl_setopt($chC, CURLOPT_SSL_VERIFYPEER, true);
                     $cResp = curl_exec($chC);
                     curl_close($chC);
                     
@@ -4943,7 +4943,7 @@ function loginReconProbeGravatar($identifier) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 3);
     curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenRecon/2.0');
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
@@ -4967,7 +4967,7 @@ function loginReconProbeGravatar($identifier) {
             $chImg = curl_init("https://www.gravatar.com/avatar/" . $imgHash . "?d=404");
             curl_setopt($chImg, CURLOPT_NOBODY, true);
             curl_setopt($chImg, CURLOPT_TIMEOUT, 2);
-            curl_setopt($chImg, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($chImg, CURLOPT_SSL_VERIFYPEER, true);
             curl_exec($chImg);
             $imgCode = curl_getinfo($chImg, CURLINFO_HTTP_CODE);
             curl_close($chImg);
@@ -5180,8 +5180,8 @@ function loginReconSearch($pdo) {
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 3);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
             curl_setopt($ch, CURLOPT_MAXREDIRS, 3);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
             curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
             curl_setopt($ch, CURLOPT_HTTPHEADER, ['Accept-Language: en-US,en;q=0.9']);
             curl_multi_add_handle($mh, $ch);
@@ -5316,7 +5316,7 @@ function loginReconSearch($pdo) {
                             curl_setopt($dmCh, CURLOPT_RETURNTRANSFER, true);
                             curl_setopt($dmCh, CURLOPT_USERAGENT, 'Mozilla/5.0');
                             curl_setopt($dmCh, CURLOPT_TIMEOUT, 3);
-                            curl_setopt($dmCh, CURLOPT_SSL_VERIFYPEER, false);
+                            curl_setopt($dmCh, CURLOPT_SSL_VERIFYPEER, true);
                             $dmResp = curl_exec($dmCh);
                             $dmCode = curl_getinfo($dmCh, CURLINFO_HTTP_CODE);
                             curl_close($dmCh);
@@ -5852,7 +5852,7 @@ function handleOpenCTIStatus($pdo) {
     $ch = curl_init("$endpoint/graphql");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['query' => '{ about { version } }']));
     curl_setopt($ch, CURLOPT_HTTPHEADER, [

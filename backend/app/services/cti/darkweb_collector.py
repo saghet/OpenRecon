@@ -48,8 +48,9 @@ class DarkWebCollector:
         Collect announced corporate victims from global ransomware extortion sites.
         """
         try:
+            from app.core.tls_config import get_httpx_verify
             proxies = {"all://": self.tor_proxy} if self.tor_proxy else None
-            async with httpx.AsyncClient(timeout=self.timeout, proxies=proxies, verify=False) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, proxies=proxies, verify=get_httpx_verify()) as client:
                 resp = await client.get(self.primary_feed_url)
                 if resp.status_code == 200:
                     data = resp.json()
@@ -71,8 +72,9 @@ class DarkWebCollector:
         Retrieve catalog of active extortion groups and their operational status.
         """
         try:
+            from app.core.tls_config import get_httpx_verify
             proxies = {"all://": self.tor_proxy} if self.tor_proxy else None
-            async with httpx.AsyncClient(timeout=self.timeout, proxies=proxies, verify=False) as client:
+            async with httpx.AsyncClient(timeout=self.timeout, proxies=proxies, verify=get_httpx_verify()) as client:
                 resp = await client.get(self.groups_feed_url)
                 if resp.status_code == 200:
                     data = resp.json()

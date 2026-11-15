@@ -542,11 +542,12 @@ class AccountSearcher:
             return self._exception_finding("Instagram", e)
 
     def _create_evidence(self, source: str, kind: str, content: str, sha: str, success: bool):
+        from app.core.evidence_sanitizer import EvidenceSanitizer
         return {
             "source_type": f"ACCOUNT_{kind}",
             "source_name": source,
             "collected_at_utc": datetime.now(timezone.utc).isoformat(),
-            "raw_content_preview": content[:500],
+            "raw_content_preview": EvidenceSanitizer.sanitize_raw_content(content, max_chars=500),
             "content_sha256": sha,
             "validation_status": "CORROBORATED" if success else "INCONCLUSIVE",
             "confidence_score": 0.85 if success else 0.2

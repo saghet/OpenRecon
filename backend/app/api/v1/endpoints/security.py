@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 from typing import Optional, List, Dict, Any
+from app.core.auth import require_api_token
 from app.core.security_guard import SecurityGovernanceGuard
 
 router = APIRouter()
@@ -14,37 +15,47 @@ async def get_kill_switch_status():
 
 
 @router.post("/kill-switch/trigger", summary="Trigger Emergency Kill Switch")
-async def trigger_kill_switch(payload: Dict[str, Any] = Body(...)):
+async def trigger_kill_switch(
+    payload: Dict[str, Any] = Body(...),
+    operator: str = Depends(require_api_token),
+):
     """
     Halts all active scans and external probing immediately.
     """
     reason = payload.get("reason", "Operator Emergency Halt")
-    SecurityGovernanceGuard.trigger_emergency_kill_switch(reason)
+    triggered_by = payload.get("triggered_by") or operator
+    details = SecurityGovernanceGuard.trigger_emergency_kill_switch(reason, triggered_by=triggered_by)
     return {
         "status": "TRIGGERED",
         "message": "Emergency Kill Switch is now ACTIVE. All network tasks aborted.",
-        "details": SecurityGovernanceGuard.is_kill_switch_active()
+        "details": details
     }
 
 
 @router.post("/kill-switch/reset", summary="Reset Emergency Kill Switch")
-async def reset_kill_switch():
+async def reset_kill_switch(operator: str = Depends(require_api_token)):
     """
     Resets the kill switch allowing scanning tasks to proceed normally.
     """
-    SecurityGovernanceGuard.reset_emergency_kill_switch()
+    details = SecurityGovernanceGuard.reset_emergency_kill_switch(reset_by=operator)
     return {
         "status": "RESET",
         "message": "Emergency Kill Switch has been deactivated.",
-        "details": SecurityGovernanceGuard.is_kill_switch_active()
+        "details": details
     }
 
 
 @router.post("/validate-target", summary="Validate target against Anti-SSRF and RoE")
 async def validate_target(payload: Dict[str, Any]):
     """
-    Checks target IP/hostname against loopback, private networks, cloud metadata, and RoE scope.
+    Checks target IP/hostname against loopback, private networks, cloud metadata, DNS rebinding, and RoE scope.
     """
     target = payload.get("target", "")
     authorized_scope = payload.get("authorized_scope")
-    return SecurityGovernanceGuard.validate_target_safety(target, authorized_scope)
+    roe_metadata = payload.get("roe_metadata")
+    return SecurityGovernanceGuard.validate_target_safety(
+        target,
+        authorized_scope=authorized_scope,
+        resolve_dns=True,
+        roe_metadata=roe_metadata,
+    )

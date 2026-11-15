@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
+from app.core.auth import require_api_token
 from app.core.database import get_db, SessionLocal
-from app.models.organization import Organization
+from app.core.security_guard import SecurityGovernanceGuard
+from app.models.organization import Organization, Seed
 from app.models.scan import ScanJob, ScanStatus, ScanType
 from app.schemas.scan import ScanJobCreate, ScanJobResponse
 from app.services.scanner_orchestrator import ScannerOrchestrator
@@ -23,11 +25,39 @@ async def run_scan_in_background(scan_job_id: int):
 def launch_scan(
     scan_in: ScanJobCreate,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _operator: str = Depends(require_api_token),
 ):
+    ks = SecurityGovernanceGuard.is_kill_switch_active()
+    if ks.get("active"):
+        raise HTTPException(
+            status_code=status.HTTP_423_LOCKED,
+            detail=f"Scan rejected: Emergency Kill Switch is ACTIVE ({ks.get('reason')})",
+        )
+
     org = db.query(Organization).filter(Organization.id == scan_in.organization_id).first()
     if not org:
         raise HTTPException(status_code=404, detail="Organization not found")
+
+    active_seeds = db.query(Seed).filter(Seed.organization_id == org.id, Seed.is_active == 1).all()
+    if not active_seeds:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="RoE Violation: Organization has no active authorized seeds.",
+        )
+
+    authorized_scope = [s.value for s in active_seeds]
+    for s in active_seeds:
+        check = SecurityGovernanceGuard.validate_target_safety(
+            s.value,
+            authorized_scope=authorized_scope,
+            resolve_dns=True,
+        )
+        if not check.get("safe"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"RoE / Anti-SSRF Violation for seed '{s.value}': {check.get('reason')}",
+            )
 
     job = ScanJob(
         organization_id=scan_in.organization_id,

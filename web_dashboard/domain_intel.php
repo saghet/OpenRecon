@@ -80,6 +80,7 @@
             <input id="di-cred-key" type="password" placeholder="Pegar API Key..." class="md:col-span-2 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200">
             <button onclick="domainIntelSaveCredential()" class="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold">Guardar Cifrada</button>
         </div>
+        <div id="di-cred-feedback" class="hidden text-xs rounded-lg px-3 py-2"></div>
     </div>
 
     <!-- Results Container -->
@@ -132,7 +133,12 @@
                 <div id="di-panel-rdap" class="text-xs text-slate-300 space-y-1.5"></div>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-                <h3 class="text-sm font-bold text-slate-100 mb-3"><i class="fa-solid fa-shield-virus text-rose-400 mr-2"></i>VirusTotal (Consulta Pasiva)</h3>
+                <div class="flex items-center justify-between gap-2 mb-3">
+                    <h3 class="text-sm font-bold text-slate-100"><i class="fa-solid fa-shield-virus text-rose-400 mr-2"></i>VirusTotal (Consulta Pasiva)</h3>
+                    <button type="button" onclick="domainIntelOpenProviderKeyModal('virustotal')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-medium text-amber-300 transition">
+                        <i class="fa-solid fa-key mr-1"></i>Configurar API Key
+                    </button>
+                </div>
                 <div id="di-panel-vt" class="text-xs text-slate-300 space-y-1.5"></div>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -263,6 +269,7 @@
 <script>
 const DI_GATEWAY_URL = 'api.php';
 let diCurrentInvestigationId = null;
+let diCurrentTarget = null;
 let diNetwork = null;
 let diSeedsList = [];
 let diStopBatchFlag = false;
@@ -401,6 +408,7 @@ function domainIntelRenderInvestigation(inv) {
     document.getElementById('di-results-container').classList.remove('hidden');
 
     document.getElementById('di-risk-tier').textContent = inv.risk_tier;
+    diCurrentTarget = inv.normalized_domain || inv.target_input || null;
     document.getElementById('di-target-meta').textContent = `${inv.normalized_domain} · ${inv.input_type} · ${inv.trigger_source}`;
     document.getElementById('di-ext-score').textContent = inv.external_reputation_score !== null ? `${inv.external_reputation_score} / 100` : 'N/A';
     document.getElementById('di-tech-score').textContent = inv.technical_risk_score !== null ? `${inv.technical_risk_score}` : 'Sin activo vinculado';
@@ -452,6 +460,14 @@ function domainIntelRenderInvestigation(inv) {
                 <span class="text-amber-400">Suspicious: ${s.suspicious ?? 0}</span>
                 <span class="text-emerald-400">Harmless: ${s.harmless ?? 0}</span>
                 <span class="text-slate-400">Undetected: ${s.undetected ?? 0}</span>
+            </div>`;
+    } else if (vt && vt.status === 'KEY_NOT_CONFIGURED') {
+        vtEl.innerHTML = `
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-amber-300">Estado: ${diEscape(vt.status)} — ${diEscape(vt.error_message || 'API Key de VirusTotal no configurada.')}</span>
+                <button type="button" onclick="domainIntelOpenProviderKeyModal('virustotal')" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold transition">
+                    <i class="fa-solid fa-key mr-1"></i>Configurar API Key de VirusTotal
+                </button>
             </div>`;
     } else {
         vtEl.innerHTML = `<span class="text-slate-400">Estado: ${diEscape(vt?.status || 'NO_CONSULTADO')} — ${diEscape(vt?.error_message || '')}</span>`;
@@ -837,6 +853,21 @@ function domainIntelToggleKeysModal() {
     if (!el.classList.contains('hidden')) domainIntelLoadCredentials();
 }
 
+function domainIntelOpenProviderKeyModal(providerName) {
+    const el = document.getElementById('di-keys-panel');
+    if (el.classList.contains('hidden')) {
+        el.classList.remove('hidden');
+    }
+    const sel = document.getElementById('di-cred-provider');
+    if (sel && providerName) {
+        sel.value = providerName;
+    }
+    domainIntelLoadCredentials();
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const keyInput = document.getElementById('di-cred-key');
+    if (keyInput) setTimeout(() => keyInput.focus(), 250);
+}
+
 async function domainIntelLoadCredentials() {
     const resp = await fetch(`${DI_GATEWAY_URL}?action=domain_intel_credentials_get&organization_id=${diGetOrgId()}`);
     if (!resp.ok) return;
@@ -851,15 +882,48 @@ async function domainIntelLoadCredentials() {
 async function domainIntelSaveCredential() {
     const provider_name = document.getElementById('di-cred-provider').value;
     const api_key = document.getElementById('di-cred-key').value.trim();
-    if (!api_key) return;
+    const fb = document.getElementById('di-cred-feedback');
+    if (!api_key) {
+        if (fb) {
+            fb.className = 'text-xs rounded-lg px-3 py-2 bg-rose-950/60 border border-rose-800 text-rose-300';
+            fb.textContent = 'Ingresa una API Key válida antes de guardar.';
+        }
+        return;
+    }
     const resp = await fetch(`${DI_GATEWAY_URL}?action=domain_intel_credentials_set&organization_id=${diGetOrgId()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ organization_id: diGetOrgId(), provider_name, api_key, is_enabled: true })
     });
     if (resp.ok) {
+        const saved = await resp.json();
         document.getElementById('di-cred-key').value = '';
+        if (fb) {
+            fb.className = 'text-xs rounded-lg px-3 py-2 bg-emerald-950/60 border border-emerald-800 text-emerald-300';
+            fb.textContent = diCurrentTarget
+                ? `API Key de ${saved.provider_name} guardada y cifrada (${saved.masked_hint}). Actualizando análisis de ${diCurrentTarget}...`
+                : `API Key de ${saved.provider_name} guardada y cifrada (${saved.masked_hint}).`;
+        }
         domainIntelLoadCredentials();
+        if (diCurrentTarget) {
+            try {
+                const fresh = await domainIntelInvestigateSingle(diCurrentTarget, false);
+                domainIntelRenderInvestigation(fresh);
+                domainIntelLoadHistory(diHistoryOnlySelected ? diCurrentTarget : null);
+                if (fb) {
+                    fb.textContent = `API Key de ${saved.provider_name} guardada y cifrada (${saved.masked_hint}). Panel actualizado para ${diCurrentTarget}.`;
+                }
+            } catch (e) {
+                if (fb) {
+                    fb.className = 'text-xs rounded-lg px-3 py-2 bg-amber-950/60 border border-amber-800 text-amber-300';
+                    fb.textContent = `API Key guardada (${saved.masked_hint}), pero falló la actualización automática: ${e.message}`;
+                }
+            }
+        }
+    } else if (fb) {
+        const err = await resp.json().catch(() => ({}));
+        fb.className = 'text-xs rounded-lg px-3 py-2 bg-rose-950/60 border border-rose-800 text-rose-300';
+        fb.textContent = err.detail || 'No se pudo guardar la API Key.';
     }
 }
 </script>

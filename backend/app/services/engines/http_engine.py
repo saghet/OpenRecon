@@ -4,6 +4,7 @@ import socket
 from datetime import datetime
 from typing import Dict, Any, Optional
 import httpx
+from app.core.tls_config import get_httpx_verify, probe_tls_certificate
 
 
 class HTTPEngine:
@@ -26,18 +27,22 @@ class HTTPEngine:
             "server": None,
             "tech_stack": [],
             "ssl_issuer": None,
-            "ssl_expiry": None
+            "ssl_expiry": None,
+            "tls_valid": None,
+            "tls_error": None,
         }
 
-        # Check SSL details directly if HTTPS
+        # Check SSL details directly if HTTPS using strict certificate verification
         if is_ssl:
             ssl_info = self.get_ssl_info(host, port)
             result["ssl_issuer"] = ssl_info.get("issuer")
             result["ssl_expiry"] = ssl_info.get("expiry")
+            result["tls_valid"] = ssl_info.get("tls_valid")
+            result["tls_error"] = ssl_info.get("error")
 
-        # HTTP Probe
+        # HTTP Probe with mandatory TLS verification
         try:
-            async with httpx.AsyncClient(verify=False, timeout=self.timeout, follow_redirects=True) as client:
+            async with httpx.AsyncClient(verify=get_httpx_verify(), timeout=self.timeout, follow_redirects=False) as client:
                 headers = {"User-Agent": "OpenRecon-Scanner/1.0 (+https://github.com/openrecon/engine)"}
                 resp = await client.get(url, headers=headers)
                 result["status_code"] = resp.status_code
@@ -72,16 +77,11 @@ class HTTPEngine:
         return result
 
     def get_ssl_info(self, host: str, port: int) -> Dict[str, Optional[Any]]:
-        info = {"issuer": None, "expiry": None}
-        try:
-            context = ssl.create_default_context()
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-            with socket.create_connection((host, port), timeout=self.timeout) as sock:
-                with context.wrap_socket(sock, server_hostname=host) as ssock:
-                    cert = ssock.getpeercert(binary_form=True)
-                    # Simple extraction
-                    info["issuer"] = "Valid TLS Certificate"
-        except Exception:
-            pass
-        return info
+        tls_data = probe_tls_certificate(host, port, timeout=self.timeout)
+        return {
+            "issuer": tls_data.get("issuer"),
+            "expiry": tls_data.get("not_after"),
+            "tls_valid": tls_data.get("tls_valid"),
+            "expired": tls_data.get("expired"),
+            "error": tls_data.get("error"),
+        }
