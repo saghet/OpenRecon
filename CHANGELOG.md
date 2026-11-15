@@ -5,6 +5,35 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 
 ---
 
+## [2.1.0] — 2026-11-14
+### 🔍 Expansión OSINT: Domain Intelligence, Email Intelligence, LoginRecon AI & PHP2Shell
+
+#### Añadido (Added)
+- **Módulo Domain Intelligence (`backend/app/services/domain_intel/`, `web_dashboard/domain_intel.php`):**
+  - Pipeline OSINT & CTI bajo alcance estricto de semillas autorizadas (RoE), con vista filtrada por semilla individual o consolidada.
+  - Integración de adaptadores **WebOSINT**, **WhoisXML API** (con reglas de riesgo específicas), **HackerTarget Reverse IP** (con protección *shared-hosting guard*), verificación de seguridad DNS, **EPSS / CISA KEV** y correlación con **Email Intelligence**.
+  - Configuración de claves API desde UI y modal de grafo de correlación CTI interactivo a pantalla completa con filtros e inspector de nodos.
+- **Módulo Email Intelligence (`backend/app/services/email_intel/`, `web_dashboard/email_intel.php`):**
+  - Motor OSINT basado en **Zehef**, worker con polling en tiempo real y persistencia forense.
+  - Integración oficial de la API **XposedOrNot v1** en `LeakSearcher`, `RiskScorer` y UI, con caché TTL, endpoint `domain-breaches` y detección de diferencias históricas (*historical diff*).
+  - Grafo relacional interactivo con modo paneo manual (*hand pan*), zoom, expansión a pantalla completa, filtros e inspector.
+- **LoginRecon & Correlación Visual IA:**
+  - Expansión de superficie de reconocimiento a **100 plataformas** (incluyendo redes sociales, creadores, citas y canales de huella digital).
+  - Motor de correlación cruzada **Facebook AI** mediante visión por computadora (**pHash** y **SIFT**).
+- **Escáner PHP2Shell (`CVE-2026-109618` / `CVE-2026-109619`):**
+  - Integración del verificador PHP2Shell en la consola web junto a LoginRecon.
+- **Hardening Dark Web & DRP:**
+  - Herencia de dominio apex en DRP y Dark Web Watchdog, junto con el **Generador de Avisos de Incidente CSIRT**.
+- **Operación Transparente XAMPP/Apache (`web_dashboard/backend_autostart.php`):**
+  - Auto-arranque transparente del microservicio FastAPI desde el dashboard PHP.
+- **Nuevas Suites de Pruebas:**
+  - `tests/test_domain_intel_phase1.py`, `tests/test_domain_intel_suite.py`, `tests/test_domain_intel_webosint.py`, `tests/test_email_intel_suite.py`, `tests/test_xposedornot_integration.py`, `tests/test_email_intel_api.php`.
+
+#### Modificado (Changed)
+- **`README.md`:** Actualización integral de la documentación principal del proyecto en GitHub reflejando todas las capacidades implementadas (EASM, Validación Forense 5 Estados, Domain/Email Intelligence, DRP/LoginRecon, Dark Web/CTI, Grafo 8 Niveles, Risk Engine, RoE/Kill-Switch y Consola SOC).
+
+---
+
 ## [2.0.0] — 2026-11-11
 ### 🛡️ Evolución a Plataforma Integral de Ciberinteligencia (EASM + DRP + CTI)
 
