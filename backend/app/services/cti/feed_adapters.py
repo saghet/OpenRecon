@@ -6,8 +6,10 @@ Handles rate limiting, response normalization, and caching.
 
 import logging
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import httpx
+from app.core.tls_config import get_httpx_verify
+from app.services.connectors.base import BaseConnector, ConnectorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +43,7 @@ class AbuseIPDBAdapter(BaseFeedAdapter):
         }
         params = {"ipAddress": ip_address, "maxAgeInDays": 90, "verbose": True}
         try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
+            async with httpx.AsyncClient(timeout=6.0, verify=get_httpx_verify()) as client:
                 resp = await client.get(self.endpoint, headers=headers, params=params)
                 if resp.status_code == 200:
                     d = resp.json().get("data", {})
@@ -71,7 +73,7 @@ class URLhausAdapter(BaseFeedAdapter):
         if api_key:
             headers["Auth-Key"] = api_key
         try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
+            async with httpx.AsyncClient(timeout=6.0, verify=get_httpx_verify()) as client:
                 resp = await client.post(self.endpoint, data={"host": domain}, headers=headers)
                 if resp.status_code == 200:
                     d = resp.json()
@@ -105,7 +107,7 @@ class ThreatFoxAdapter(BaseFeedAdapter):
         if api_key:
             headers["Auth-Key"] = api_key
         try:
-            async with httpx.AsyncClient(timeout=6.0) as client:
+            async with httpx.AsyncClient(timeout=6.0, verify=get_httpx_verify()) as client:
                 resp = await client.post(self.endpoint, json=payload, headers=headers)
                 if resp.status_code == 200:
                     d = resp.json()

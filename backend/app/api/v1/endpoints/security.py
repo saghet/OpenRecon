@@ -25,10 +25,17 @@ async def trigger_kill_switch(
     reason = payload.get("reason", "Operator Emergency Halt")
     triggered_by = payload.get("triggered_by") or operator
     details = SecurityGovernanceGuard.trigger_emergency_kill_switch(reason, triggered_by=triggered_by)
+    stopped_scans = {"stopped_scan_ids": 0, "cancelled_tasks": 0, "terminated_processes": 0}
+    try:
+        from app.api.v1.endpoints.scans import cancel_all_active_scans
+        stopped_scans = cancel_all_active_scans()
+    except Exception:
+        pass
     return {
         "status": "TRIGGERED",
         "message": "Emergency Kill Switch is now ACTIVE. All network tasks aborted.",
-        "details": details
+        "details": details,
+        "stopped_scans": stopped_scans,
     }
 
 

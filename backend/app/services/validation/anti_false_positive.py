@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from app.core.evidence_sanitizer import EvidenceSanitizer
 from app.models.evidence import FindingValidationState
+from app.services.validation.finding_contract import compute_finding_fingerprint
 
 
 @dataclass
@@ -43,12 +44,18 @@ class AntiFalsePositiveEngine:
 
     def __init__(self) -> None:
         self._seen_fingerprints: Dict[str, str] = {}
+        self._preserved_evidences: Dict[str, List[Dict[str, Any]]] = {}
         self.decision_log: List[Dict[str, Any]] = []
 
     @staticmethod
     def _fingerprint(f: CandidateFinding) -> str:
-        raw = f"{f.organization_id}:{f.asset.lower().strip()}:{f.title.lower().strip()}:{f.detection_method}"
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+        return compute_finding_fingerprint(
+            organization_id=f.organization_id,
+            entity_type=str(f.metadata.get("entity_type", "asset")),
+            entity_value=f.asset,
+            finding_type=f.detection_method,
+            canonical_key=f.title,
+        )
 
     def process_finding(
         self,
@@ -67,16 +74,28 @@ class AntiFalsePositiveEngine:
         normalized_asset = candidate.asset.strip().lower()
         sanitized_evidence = EvidenceSanitizer.sanitize_raw_content(candidate.raw_evidence, max_chars=2048)
 
-        # Stage 3: Deduplication
+        # Stage 3: Deduplication (preserving independent evidence)
         fp = self._fingerprint(candidate)
+        ev_sha = hashlib.sha256(sanitized_evidence.encode("utf-8")).hexdigest()
+        ev_entry = {
+            "finding_id": candidate.finding_id,
+            "source": candidate.source,
+            "detection_method": candidate.detection_method,
+            "evidence_sha256": ev_sha,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
         if fp in self._seen_fingerprints:
+            self._preserved_evidences.setdefault(fp, []).append(ev_entry)
             return {
                 "finding_id": candidate.finding_id,
                 "duplicate_of": self._seen_fingerprints[fp],
+                "fingerprint": fp,
+                "preserved_evidence_count": len(self._preserved_evidences[fp]),
                 "state": FindingValidationState.PENDIENTE_DE_VERIFICACION.value,
                 "deduplicated": True,
             }
         self._seen_fingerprints[fp] = candidate.finding_id
+        self._preserved_evidences[fp] = [ev_entry]
 
         # Stage 4: Evidence Verification
         has_technical_evidence = bool(sanitized_evidence and len(sanitized_evidence.strip()) >= 10)

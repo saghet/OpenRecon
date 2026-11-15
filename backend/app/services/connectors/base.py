@@ -11,9 +11,17 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
+from app.core.observability import metrics_registry
 
 logger = logging.getLogger(__name__)
+
+
+class CircuitState(str, Enum):
+    CLOSED = "CLOSED"
+    OPEN = "OPEN"
+    HALF_OPEN = "HALF_OPEN"
 
 
 class ConnectorStatus(str, Enum):
@@ -32,6 +40,11 @@ class ConnectorConfig:
     timeout: float = 10.0
     rate_limit_rps: float = 5.0
     enabled: bool = True
+    max_retries: int = 1
+    backoff_base_seconds: float = 0.25
+    failure_threshold: int = 3
+    recovery_timeout_seconds: float = 30.0
+    cache_ttl_seconds: int = 0
     extra: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -58,6 +71,10 @@ class BaseConnector(ABC):
         )
         self._last_request_ts: float = 0.0
         self._rate_lock = asyncio.Lock()
+        self._circuit_state: CircuitState = CircuitState.CLOSED
+        self._consecutive_failures: int = 0
+        self._circuit_opened_at: float = 0.0
+        self._cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
 
     async def _respect_rate_limit(self) -> None:
         if self.config.rate_limit_rps <= 0:
@@ -110,50 +127,90 @@ class BaseConnector(ABC):
                 error="Connector is disabled.",
             )
 
-        await self._respect_rate_limit()
+        # Circuit breaker check
+        if self._circuit_state == CircuitState.OPEN:
+            if (time.monotonic() - self._circuit_opened_at) >= self.config.recovery_timeout_seconds:
+                self._circuit_state = CircuitState.HALF_OPEN
+            else:
+                metrics_registry.inc_provider_error(f"{self.config.connector_id}:circuit_open")
+                return NormalizedConnectorResult(
+                    connector_id=self.config.connector_id,
+                    source=self.config.source,
+                    target=target,
+                    success=False,
+                    status=ConnectorStatus.DEGRADED,
+                    error=f"Circuit breaker OPEN for '{self.config.connector_id}'.",
+                )
+
+        cache_key = f"{target}:{sorted(kwargs.items())}"
+        if self.config.cache_ttl_seconds > 0 and cache_key in self._cache:
+            exp_ts, cached_records = self._cache[cache_key]
+            if time.monotonic() < exp_ts:
+                return NormalizedConnectorResult(
+                    connector_id=self.config.connector_id,
+                    source=self.config.source,
+                    target=target,
+                    success=True,
+                    status=ConnectorStatus.READY,
+                    records=cached_records,
+                    latency_ms=0,
+                )
+
         t0 = time.monotonic()
-        try:
-            raw = await asyncio.wait_for(
-                self._fetch_raw(target, **kwargs),
-                timeout=self.config.timeout,
-            )
-            normalized = self.normalize(raw, target)
-            latency = int((time.monotonic() - t0) * 1000)
-            self.status = ConnectorStatus.READY
-            return NormalizedConnectorResult(
-                connector_id=self.config.connector_id,
-                source=self.config.source,
-                target=target,
-                success=True,
-                status=ConnectorStatus.READY,
-                records=normalized,
-                latency_ms=latency,
-            )
-        except asyncio.TimeoutError:
-            latency = int((time.monotonic() - t0) * 1000)
-            self.status = ConnectorStatus.DEGRADED
-            err = f"Connector '{self.config.connector_id}' timed out after {self.config.timeout}s"
-            logger.warning(err)
-            return NormalizedConnectorResult(
-                connector_id=self.config.connector_id,
-                source=self.config.source,
-                target=target,
-                success=False,
-                status=ConnectorStatus.DEGRADED,
-                error=err,
-                latency_ms=latency,
-            )
-        except Exception as exc:
-            latency = int((time.monotonic() - t0) * 1000)
-            self.status = ConnectorStatus.ERROR
-            err = f"Connector '{self.config.connector_id}' error: {exc}"
-            logger.warning(err)
-            return NormalizedConnectorResult(
-                connector_id=self.config.connector_id,
-                source=self.config.source,
-                target=target,
-                success=False,
-                status=ConnectorStatus.ERROR,
-                error=str(exc),
-                latency_ms=latency,
-            )
+        last_error: Optional[str] = None
+        last_status = ConnectorStatus.ERROR
+        attempts = max(1, 1 + self.config.max_retries)
+
+        for attempt in range(attempts):
+            await self._respect_rate_limit()
+            try:
+                raw = await asyncio.wait_for(
+                    self._fetch_raw(target, **kwargs),
+                    timeout=self.config.timeout,
+                )
+                normalized = self.normalize(raw, target)
+                latency = int((time.monotonic() - t0) * 1000)
+                metrics_registry.observe_task(f"connector:{self.config.connector_id}", (time.monotonic() - t0))
+                self.status = ConnectorStatus.READY
+                self._consecutive_failures = 0
+                self._circuit_state = CircuitState.CLOSED
+                if self.config.cache_ttl_seconds > 0:
+                    self._cache[cache_key] = (time.monotonic() + self.config.cache_ttl_seconds, normalized)
+                return NormalizedConnectorResult(
+                    connector_id=self.config.connector_id,
+                    source=self.config.source,
+                    target=target,
+                    success=True,
+                    status=ConnectorStatus.READY,
+                    records=normalized,
+                    latency_ms=latency,
+                )
+            except asyncio.TimeoutError:
+                last_status = ConnectorStatus.DEGRADED
+                last_error = f"Connector '{self.config.connector_id}' timed out after {self.config.timeout}s"
+                logger.warning(last_error)
+            except Exception as exc:
+                last_status = ConnectorStatus.ERROR
+                last_error = str(exc)
+                logger.warning(f"Connector '{self.config.connector_id}' error: {exc}")
+
+            if attempt < attempts - 1:
+                await asyncio.sleep(self.config.backoff_base_seconds * (2 ** attempt))
+
+        metrics_registry.inc_provider_error(self.config.connector_id)
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.config.failure_threshold:
+            self._circuit_state = CircuitState.OPEN
+            self._circuit_opened_at = time.monotonic()
+
+        self.status = last_status
+        latency = int((time.monotonic() - t0) * 1000)
+        return NormalizedConnectorResult(
+            connector_id=self.config.connector_id,
+            source=self.config.source,
+            target=target,
+            success=False,
+            status=last_status,
+            error=last_error,
+            latency_ms=latency,
+        )

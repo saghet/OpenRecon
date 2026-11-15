@@ -34,7 +34,8 @@ class STIX21TaxiiService:
         now_iso = now.isoformat().replace("+00:00", "Z")
         valid_until = (now + timedelta(days=default_ttl_days)).isoformat().replace("+00:00", "Z")
 
-        identity_id = "identity--d89e4719-f9c1-4b13-8d65-openreconplatform"
+        identity_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, "openrecon.platform")
+        identity_id = f"identity--{identity_uuid}"
         objects: List[Dict[str, Any]] = [
             {
                 "type": "identity",

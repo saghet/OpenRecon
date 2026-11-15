@@ -12,6 +12,12 @@ from app.services.engines.port_engine import PortEngine
 from app.services.engines.drp_engine import DRPEngine
 from app.services.engines.nuclei_engine import NucleiEngine
 from app.services.domain_intel.service import DomainIntelligenceService
+from app.services.evidence.manager import EvidenceManager
+from app.services.validation.anti_false_positive import AntiFalsePositiveEngine, CandidateFinding
+from app.services.validation.finding_contract import GlobalFindingDeduplicator, NormalizedFinding
+from app.services.cti.vuln_intel_enrichment import VulnIntelEnrichmentService
+from app.services.web_security.analyzer import WebSecurityAnalyzer
+from app.core.security_guard import SecurityGovernanceGuard
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +35,11 @@ class ScannerOrchestrator:
         self.drp_engine = DRPEngine()
         self.nuclei_engine = NucleiEngine()
         self.domain_intel = DomainIntelligenceService(db)
+        self.evidence_manager = EvidenceManager(db)
+        self.afp_engine = AntiFalsePositiveEngine()
+        self.deduplicator = GlobalFindingDeduplicator()
+        self.vuln_enrichment = VulnIntelEnrichmentService()
+        self.web_sec = WebSecurityAnalyzer()
 
     async def execute_scan(self, scan_job_id: int):
         scan_job = self.db.query(ScanJob).filter(ScanJob.id == scan_job_id).first()
@@ -177,17 +188,66 @@ class ScannerOrchestrator:
                                         self.db.add(vuln)
                                         total_vulns_found += 1
 
-                            # Nuclei validation if available
-                            if self.nuclei_engine.has_nuclei:
+                            # Nuclei validation if available (routed through AFP + EvidenceManager + Deduplicator)
+                            if self.nuclei_engine.has_nuclei and not SecurityGovernanceGuard.is_kill_switch_active().get("active"):
                                 nuclei_results = await self.nuclei_engine.scan_target(f"https://{hostname}")
                                 for nr in nuclei_results:
+                                    is_ver_only = bool(nr.get("is_version_only_indication"))
+                                    cand = CandidateFinding(
+                                        finding_id=f"NUC-{asset.id}-{nr.get('template_id', 'unk')}",
+                                        organization_id=org_id,
+                                        asset=hostname,
+                                        title=nr["title"],
+                                        severity=nr["severity"],
+                                        source="nuclei",
+                                        raw_evidence=nr.get("evidence") or nr.get("description") or nr["title"],
+                                        detection_method="nuclei_version_indication" if is_ver_only else "nuclei_template",
+                                        confidence=0.65 if is_ver_only else 0.85,
+                                        second_check_passed=None if is_ver_only else True,
+                                        metadata={"entity_type": "subdomain", "template_id": nr.get("template_id")},
+                                    )
+                                    afp_res = self.afp_engine.process_finding(cand)
+                                    norm_finding = NormalizedFinding(
+                                        organization_id=org_id,
+                                        entity_type="subdomain",
+                                        entity_value=hostname,
+                                        finding_type="vulnerability",
+                                        source="nuclei",
+                                        source_reference=nr.get("matched_at") or nr.get("template_id"),
+                                        severity=nr["severity"],
+                                        confidence=cand.confidence,
+                                        verification_status=afp_res["state"],
+                                        evidence=cand.raw_evidence,
+                                        canonical_key=nr.get("cve_id") or nr.get("template_id") or nr["title"],
+                                        normalized_data=nr,
+                                    )
+                                    dedup_res = self.deduplicator.ingest(norm_finding)
+                                    if dedup_res["deduplicated"]:
+                                        continue
+
+                                    epss_val = nr.get("epss_score")
+                                    if nr.get("cve_id") and epss_val is None:
+                                        epss_info = await self.vuln_enrichment.fetch_epss(nr["cve_id"])
+                                        epss_val = epss_info.get("epss")
+
+                                    self.evidence_manager.record_finding(
+                                        organization_id=org_id,
+                                        related_asset=hostname,
+                                        source="nuclei",
+                                        technical_evidence=cand.raw_evidence,
+                                        detection_method=cand.detection_method,
+                                        confidence_level=cand.confidence,
+                                        external_reference=nr.get("template_id"),
+                                        actor="scanner_orchestrator",
+                                    )
+
                                     v = Vulnerability(
                                         asset_id=asset.id,
                                         title=nr["title"],
                                         severity=getattr(SeverityLevel, nr["severity"], SeverityLevel.INFO),
                                         cve_id=nr["cve_id"],
                                         cvss_score=nr["cvss_score"],
-                                        epss_score=nr["epss_score"],
+                                        epss_score=epss_val,
                                         description=nr["description"],
                                         remediation=nr["remediation"],
                                         detector="nuclei",

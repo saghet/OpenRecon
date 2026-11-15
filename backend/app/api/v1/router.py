@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from app.core.auth import require_api_token
 from app.api.v1.endpoints import (
     organizations,
     assets,
@@ -15,7 +16,7 @@ from app.api.v1.endpoints import (
     domain_intel
 )
 
-api_router = APIRouter()
+api_router = APIRouter(dependencies=[Depends(require_api_token)])
 
 api_router.include_router(organizations.router, prefix="/organizations", tags=["Organizations & Seeds"])
 api_router.include_router(assets.router, prefix="/assets", tags=["Attack Surface Assets"])

@@ -1,10 +1,13 @@
 import asyncio
 import json
 import os
+import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
+
+from app.core.observability import metrics_registry
 
 from app.core.domain_security import (
     CredentialVault,
@@ -73,6 +76,10 @@ class DomainIntelligenceService:
     """Servicio central de investigación de dominios, IPs y URLs integrado con OpenRecon."""
 
     _rate_limiter = AsyncRateLimiter(min_interval_seconds=0.2)
+    _circuit_failures: Dict[str, int] = {}
+    _circuit_open_until: Dict[str, float] = {}
+    _FAILURE_THRESHOLD = 3
+    _RECOVERY_SECONDS = 30.0
 
     def __init__(self, db: Session):
         self.db = db
@@ -363,8 +370,42 @@ class DomainIntelligenceService:
         return investigation
 
     async def _run_limited(self, provider_name: str, coro: Any) -> ProviderResponse:
+        now = time.monotonic()
+        open_until = self._circuit_open_until.get(provider_name, 0.0)
+        if now < open_until:
+            if hasattr(coro, "close"):
+                coro.close()
+            metrics_registry.inc_provider_error(f"{provider_name}:circuit_open")
+            return ProviderResponse(
+                provider_name=provider_name,
+                status=ProviderQueryStatus.CONNECTION_ERROR,
+                error_message=f"Circuit breaker OPEN for provider '{provider_name}'",
+            )
+
         await self._rate_limiter.wait(provider_name)
-        return await coro
+        t0 = time.monotonic()
+        try:
+            resp = await coro
+            metrics_registry.observe_task(f"domain_provider:{provider_name}", time.monotonic() - t0)
+            if resp.status in (ProviderQueryStatus.CONNECTION_ERROR, ProviderQueryStatus.TIMEOUT):
+                self._circuit_failures[provider_name] = self._circuit_failures.get(provider_name, 0) + 1
+                metrics_registry.inc_provider_error(provider_name)
+                if self._circuit_failures[provider_name] >= self._FAILURE_THRESHOLD:
+                    self._circuit_open_until[provider_name] = time.monotonic() + self._RECOVERY_SECONDS
+            else:
+                self._circuit_failures[provider_name] = 0
+                self._circuit_open_until.pop(provider_name, None)
+            return resp
+        except Exception as exc:
+            self._circuit_failures[provider_name] = self._circuit_failures.get(provider_name, 0) + 1
+            metrics_registry.inc_provider_error(provider_name)
+            if self._circuit_failures[provider_name] >= self._FAILURE_THRESHOLD:
+                self._circuit_open_until[provider_name] = time.monotonic() + self._RECOVERY_SECONDS
+            return ProviderResponse(
+                provider_name=provider_name,
+                status=ProviderQueryStatus.CONNECTION_ERROR,
+                error_message=str(exc),
+            )
 
     def _compute_historical_diff(
         self,

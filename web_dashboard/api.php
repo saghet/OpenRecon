@@ -658,6 +658,9 @@ switch ($action) {
     case 'run_scan':
         runScan($pdo);
         break;
+    case 'stop_scan':
+        handleStopScan($pdo);
+        break;
     case 'strix_poc_test':
         strixPocTest($pdo);
         break;
@@ -6015,36 +6018,118 @@ function handleDarkWebCorrelate($pdo) {
     ]);
 }
 
+function forwardToFastApi($method, $path, $payload = null, $timeout = 10) {
+    $url = 'http://127.0.0.1:8000/api/v1' . $path;
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+
+    $headers = ['Accept: application/json'];
+    $apiToken = getenv('OPENRECON_API_TOKEN');
+    if ($apiToken !== false && $apiToken !== '') {
+        $headers[] = 'X-OpenRecon-Token: ' . $apiToken;
+    }
+
+    if (strtoupper($method) === 'POST') {
+        $headers[] = 'Content-Type: application/json';
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload !== null ? json_encode($payload) : '{}');
+    }
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $resp = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($resp === false || $httpCode === 0) {
+        return ['ok' => false, 'http_code' => 0, 'data' => null, 'error' => $err];
+    }
+    $decoded = json_decode($resp, true);
+    return [
+        'ok' => ($httpCode >= 200 && $httpCode < 300),
+        'http_code' => $httpCode,
+        'data' => is_array($decoded) ? $decoded : null,
+        'error' => null,
+    ];
+}
+
 function handleGetKillSwitch($pdo) {
+    $apiRes = forwardToFastApi('GET', '/security/kill-switch');
+    if ($apiRes['ok'] && is_array($apiRes['data'])) {
+        $isActive = (bool)($apiRes['data']['active'] ?? false);
+        echo json_encode([
+            'success' => true,
+            'is_active' => $isActive,
+            'triggered_at' => $apiRes['data']['triggered_at'] ?? null,
+            'reason' => $apiRes['data']['reason'] ?? null,
+            'authority' => 'fastapi',
+        ]);
+        return;
+    }
     $row = $pdo->query("SELECT * FROM kill_switch_state ORDER BY id DESC LIMIT 1")->fetch();
     $isActive = (bool)($row['is_active'] ?? 0);
     echo json_encode([
         'success' => true,
         'is_active' => $isActive,
         'triggered_at' => $row['triggered_at'] ?? null,
-        'reason' => $row['reason'] ?? null
+        'reason' => $row['reason'] ?? null,
+        'authority' => 'sqlite_fallback',
     ]);
 }
 
 function handleTriggerKillSwitch($pdo) {
     $reason = trim($_POST['reason'] ?? $_GET['reason'] ?? 'Parada manual de emergencia por el operador');
+    $apiRes = forwardToFastApi('POST', '/security/kill-switch/trigger?reason=' . urlencode($reason));
     $pdo->prepare("INSERT INTO kill_switch_state (is_active, triggered_at, reason) VALUES (1, CURRENT_TIMESTAMP, ?)")->execute([$reason]);
     logAuditAction($pdo, 'admin', 'KILL_SWITCH_TRIGGERED', 'ALL_SCANS', 'ALERT', $reason);
     echo json_encode([
         'success' => true,
         'status' => 'TRIGGERED',
         'message' => 'Parada de emergencia activada. Todas las sondas de escaneo suspendidas.',
-        'reason' => $reason
+        'reason' => $reason,
+        'fastapi_synced' => $apiRes['ok'],
     ]);
 }
 
 function handleResetKillSwitch($pdo) {
+    $apiRes = forwardToFastApi('POST', '/security/kill-switch/reset');
     $pdo->prepare("INSERT INTO kill_switch_state (is_active, triggered_at, reason) VALUES (0, CURRENT_TIMESTAMP, 'Reanudación normal')")->execute();
     logAuditAction($pdo, 'admin', 'KILL_SWITCH_RESET', 'ALL_SCANS', 'SUCCESS', 'Escaneos reanudados');
     echo json_encode([
         'success' => true,
         'status' => 'RESET',
-        'message' => 'Parada de emergencia desactivada. Operación normal restablecida.'
+        'message' => 'Parada de emergencia desactivada. Operación normal restablecida.',
+        'fastapi_synced' => $apiRes['ok'],
+    ]);
+}
+
+function handleStopScan($pdo) {
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $scanId = (int)($input['scan_id'] ?? ($_GET['scan_id'] ?? 0));
+    if ($scanId <= 0) {
+        http_response_code(400);
+        echo json_encode(['success' => false, 'error' => 'scan_id inválido']);
+        return;
+    }
+    $apiRes = forwardToFastApi('POST', "/scans/{$scanId}/stop");
+    if ($apiRes['ok']) {
+        logAuditAction($pdo, 'admin', 'SCAN_STOP', "SCAN_{$scanId}", 'SUCCESS', 'Escaneo detenido en FastAPI');
+        echo json_encode([
+            'success' => true,
+            'scan_id' => $scanId,
+            'fastapi_synced' => true,
+            'data' => $apiRes['data'] ?? [],
+        ]);
+        return;
+    }
+    http_response_code(502);
+    echo json_encode([
+        'success' => false,
+        'scan_id' => $scanId,
+        'fastapi_synced' => false,
+        'error' => $apiRes['error'] ?? 'FastAPI no disponible para detener escaneo',
     ]);
 }
 

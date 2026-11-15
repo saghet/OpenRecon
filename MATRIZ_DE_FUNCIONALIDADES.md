@@ -1,6 +1,6 @@
-# MATRIZ DE EQUIVALENCIA Y COMPARATIVA DE MERCADO — OPENRECON 2.0
+# MATRIZ DE EQUIVALENCIA Y COMPARATIVA DE MERCADO — OPENRECON 3.0
 > **Análisis Comparativo Frente a Soluciones Privativas y Open Source Líderes de la Industria**  
-> **Fecha de Publicación:** 11 de Noviembre de 2026
+> **Fecha de Actualización:** 15 de Noviembre de 2026 (v3.0.0-alpha)
 
 ---
 
@@ -24,7 +24,7 @@ A continuación se presenta la matriz detallada de capacidades frente a las plat
 
 ## 2. MATRIZ DE COMPARACIÓN FUNCIONAL
 
-| Capacidad / Módulo de Ciberseguridad | OpenRecon 2.0 | Fortinet FortiRecon | Recorded Future | Palo Alto Cortex Xpanse | CrowdStrike Falcon Exp. | SOCRadar | Cyble Vision | OpenCTI Platform |
+| Capacidad / Módulo de Ciberseguridad | OpenRecon 3.0 | Fortinet FortiRecon | Recorded Future | Palo Alto Cortex Xpanse | CrowdStrike Falcon Exp. | SOCRadar | Cyble Vision | OpenCTI Platform |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
 | **Modelo de Licenciamiento** | **Open Source (Libre)** | Privativo SaaS | Privativo SaaS | Privativo SaaS | Privativo SaaS | Privativo SaaS | Privativo SaaS | **Open Source (Apache 2.0)** |
 | **Soberanía y Despliegue On-Prem / VPC** | **SÍ (Total)** | No (Cloud única) | No (Cloud única) | No (Cloud única) | No (Cloud única) | No (Cloud única) | No (Cloud única) | **SÍ (Total)** |
@@ -49,7 +49,15 @@ A continuación se presenta la matriz detallada de capacidades frente a las plat
 | **Gobernanza de Alcance (RoE) y Escudo Anti-SSRF** | **SÍ (Estricto)** | No expuesto | No expuesto | No expuesto | No expuesto | No expuesto | No expuesto | No expuesto |
 | **Parada de Emergencia (Emergency Kill-Switch)** | **SÍ (1-Click)** | No | No | No | No | No | No | No |
 | **Centro de Reportes Ejecutivos (HTML, PDF, STIX)** | **SÍ** | SÍ | SÍ | SÍ | SÍ | SÍ | SÍ | SÍ |
-| **Consola SOC Unificada con 15 Módulos** | **SÍ** | SÍ | SÍ | SÍ | SÍ | SÍ | SÍ | SÍ |
+| **Consola SOC Unificada con 15+ Módulos** | **SÍ** | SÍ | SÍ | SÍ | SÍ | SÍ | SÍ | SÍ |
+| **Contrato Único de Hallazgos & Deduplicación SHA-256 (`NormalizedFinding`)** | **SÍ (Nativo)** | Parcial | Parcial | Parcial | Parcial | No | No | SÍ (STIX) |
+| **Pipeline Anti-Falsos Positivos de 8 Etapas + Guardrail IA** | **SÍ (Determinista)** | Parcial | No | Parcial | Parcial | No | No | No |
+| **Eliminación Automática de Wildcard DNS (`subfinder` + `amass` + `dnsx`)** | **SÍ** | SÍ | SÍ | SÍ | SÍ | SÍ | SÍ | No |
+| **CISA Vulnrichment (SSVC / CWE / CVSS) + `data_completeness`** | **SÍ** | Parcial | SÍ | SÍ | SÍ | Parcial | Parcial | SÍ |
+| **MISP Galaxy Local Versionado + Grafo con Evidencia** | **SÍ** | No | SÍ | No | No | Parcial | No | **SÍ** |
+| **Escaneo de Secretos Sandbox (`gitleaks`) + Domain/Email Intel (XposedOrNot v1 / Zehef)** | **SÍ** | SÍ | SÍ | Parcial | No | SÍ | SÍ | No |
+| **Resiliencia Circuit Breaker + Métricas Prometheus (`GET /metrics`)** | **SÍ** | No expuesto | No expuesto | No expuesto | No expuesto | No expuesto | No expuesto | Parcial |
+| **Contenedor Hardened (Non-Root + Binarios SHA-256 Pinned + Tor Aislado)** | **SÍ** | N/A (SaaS) | N/A (SaaS) | N/A (SaaS) | N/A (SaaS) | N/A (SaaS) | N/A (SaaS) | SÍ |
 
 ---
 

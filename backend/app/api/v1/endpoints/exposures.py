@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends
+import os
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Optional, Dict, Any
+from app.core.auth import require_api_token
 from app.core.database import get_db
+from app.core.security_guard import SecurityGovernanceGuard
 from app.models.asset import Asset
 from app.models.exposure import Vulnerability, DigitalRiskFinding, PortService, SeverityLevel
 from app.schemas.exposure import VulnerabilityResponse, DigitalRiskFindingResponse
+from app.services.evidence.manager import EvidenceManager
+from app.services.github_intel.scanner import GitHubIntelConnector
 
 router = APIRouter()
 
@@ -84,4 +89,69 @@ def get_exposure_stats(organization_id: int, db: Session = Depends(get_db)) -> D
             "medium": medium_vulns
         },
         "drp_active_threats": drp_threats
+    }
+
+
+@router.post("/secrets/scan")
+async def scan_secrets_exposure(
+    payload: Dict[str, Any],
+    db: Session = Depends(get_db),
+    operator: str = Depends(require_api_token),
+) -> Dict[str, Any]:
+    """
+    Executes passive secret exposure detection (GitHub REST API or sandboxed Gitleaks CLI).
+    Strictly blocks arbitrary server filesystem paths and active credential testing.
+    """
+    ks = SecurityGovernanceGuard.is_kill_switch_active()
+    if ks.get("active"):
+        raise HTTPException(status_code=503, detail=f"Emergency Kill-Switch active: {ks.get('reason')}")
+
+    org_id = int(payload.get("organization_id", 1))
+    mode = str(payload.get("mode", "github_org")).strip().lower()
+    ev_mgr = EvidenceManager(db)
+
+    if mode == "local_sandbox":
+        rel_repo = str(payload.get("repo_dir", "")).strip()
+        sandbox_base = os.getenv(
+            "OPENRECON_REPO_SANDBOX",
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "data", "repo_sandbox")),
+        )
+        os.makedirs(sandbox_base, exist_ok=True)
+        candidate_path = os.path.join(sandbox_base, rel_repo)
+        try:
+            res = GitHubIntelConnector.run_gitleaks_cli(
+                candidate_path,
+                allowed_base_dir=sandbox_base,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        for item in res.get("findings", []):
+            ev_mgr.record_finding(
+                organization_id=org_id,
+                related_asset=rel_repo or "sandbox",
+                source="gitleaks_cli",
+                technical_evidence=item.get("redacted_preview") or f"rule={item.get('rule')} sha256={item.get('secret_sha256')}",
+                detection_method="gitleaks_secret_scan",
+                confidence_level=0.6,
+                external_reference=item.get("commit"),
+                actor=operator,
+            )
+        db.commit()
+        return {"mode": "local_sandbox", "operator": operator, **res}
+
+    github_org = str(payload.get("target", "")).strip()
+    if not github_org:
+        raise HTTPException(status_code=400, detail="Missing 'target' GitHub organization/user.")
+    connector = GitHubIntelConnector()
+    res = await connector.execute(github_org)
+    return {
+        "mode": "github_org",
+        "operator": operator,
+        "success": res.success,
+        "status": res.status.value,
+        "findings": res.records,
+        "error": res.error,
     }

@@ -154,17 +154,74 @@ class GitHubIntelConnector(BaseConnector):
         return normalized
 
     @staticmethod
-    def run_gitleaks_cli(repo_path: str) -> Dict[str, Any]:
-        """Decoupled CLI wrapper for gitleaks (MIT) when installed locally."""
+    def run_gitleaks_cli(
+        repo_path: str,
+        allowed_base_dir: Optional[str] = None,
+        max_total_bytes: int = 50 * 1024 * 1024,
+        timeout: int = 60,
+    ) -> Dict[str, Any]:
+        """
+        Hardened decoupled CLI wrapper for gitleaks (MIT):
+        - Rejects path traversal and non-directory paths.
+        - Enforces allowed_base_dir sandbox when provided.
+        - Enforces repository size bounds and timeout.
+        - Never stores cleartext secrets (SHA-256 + redacted_preview only).
+        """
+        import os
+
+        if not repo_path or ".." in repo_path:
+            raise ValueError("Invalid repository path: traversal segments are forbidden.")
+
+        real_target = os.path.realpath(repo_path)
+        if allowed_base_dir:
+            real_base = os.path.realpath(allowed_base_dir)
+            if os.path.commonpath([real_base, real_target]) != real_base:
+                raise PermissionError("Repository path is outside the authorized sandbox directory.")
+
+        if not os.path.isdir(real_target):
+            raise ValueError("Target path must be an existing directory.")
+
+        total_size = 0
+        for root_dir, _dirs, files in os.walk(real_target):
+            for fname in files:
+                fpath = os.path.join(root_dir, fname)
+                try:
+                    total_size += os.path.getsize(fpath)
+                except OSError:
+                    continue
+                if total_size > max_total_bytes:
+                    raise ValueError(f"Repository exceeds maximum allowed scan size ({max_total_bytes} bytes).")
+
         if not shutil.which("gitleaks"):
             return {"available": False, "findings": [], "reason": "gitleaks binary not installed"}
-        proc = subprocess.run(
-            ["gitleaks", "detect", "--source", repo_path, "--no-banner", "--report-format", "json", "--report-path", "-"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        raw_out = proc.stdout.strip()
+
+        import tempfile
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tf:
+            report_file = tf.name
+
+        cmd = [
+            "gitleaks", "detect", "--source", real_target,
+            "--no-banner", "--no-color", "--report-format", "json", "--report-path", report_file,
+        ]
+        if not os.path.isdir(os.path.join(real_target, ".git")):
+            cmd.append("--no-git")
+
+        try:
+            subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            raw_out = ""
+            if os.path.exists(report_file):
+                with open(report_file, "r", encoding="utf-8", errors="ignore") as rf:
+                    raw_out = rf.read().strip()
+        finally:
+            try:
+                os.remove(report_file)
+            except OSError:
+                pass
         if not raw_out:
             return {"available": True, "findings": []}
         try:
@@ -175,6 +232,7 @@ class GitHubIntelConnector(BaseConnector):
         sanitized = []
         for item in items:
             secret_val = str(item.get("Secret") or "")
+            match_preview = EvidenceSanitizer.redact_secrets_in_text(str(item.get("Match") or "")[:160])
             sanitized.append(
                 {
                     "rule": item.get("RuleID"),
@@ -182,6 +240,7 @@ class GitHubIntelConnector(BaseConnector):
                     "commit": item.get("Commit"),
                     "lifecycle_state": SecretLifecycleState.UNVERIFIED.value,
                     "secret_sha256": hashlib.sha256(secret_val.encode("utf-8")).hexdigest() if secret_val else None,
+                    "redacted_preview": match_preview,
                     "active_usage_attempted": False,
                 }
             )

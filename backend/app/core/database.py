@@ -13,7 +13,13 @@ from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core.config import settings
 
-is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+database_url = settings.DATABASE_URL
+if database_url.startswith("postgresql://"):
+    database_url = "postgresql+psycopg2://" + database_url[len("postgresql://"):]
+elif database_url.startswith("postgres://"):
+    database_url = "postgresql+psycopg2://" + database_url[len("postgres://"):]
+
+is_sqlite = database_url.startswith("sqlite")
 
 engine_kwargs: dict[str, Any] = {
     "pool_pre_ping": True,
@@ -26,7 +32,7 @@ else:
     engine_kwargs["max_overflow"] = 20
     engine_kwargs["pool_recycle"] = 1800
 
-engine = create_engine(settings.DATABASE_URL, **engine_kwargs)
+engine = create_engine(database_url, **engine_kwargs)
 
 if is_sqlite:
     @event.listens_for(engine, "connect")

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, List, Dict, Any
 from app.services.cti.opencti_client import OpenCTIClient
+from app.services.cti.stix_taxii_service import STIX21TaxiiService
 
 router = APIRouter()
 opencti_client = OpenCTIClient()
@@ -52,12 +53,30 @@ async def correlate_ioc(value: str, ioc_type: str = "ipv4-addr"):
     return await opencti_client.correlate_ioc(value=value, ioc_type=ioc_type)
 
 
-@router.post("/export-stix", summary="Export assets and vulnerabilities to STIX 2.1 Bundle")
+@router.post("/export-stix", summary="Export assets, indicators and vulnerabilities to STIX 2.1 Bundle")
 async def export_to_stix_bundle(payload: Dict[str, Any]):
     """
     Converts perimeter telemetry into standardized STIX 2.1 JSON bundle.
+    Supports both legacy assets/vulnerabilities and normalized STIX 2.1 indicators with TLP.
     """
+    indicators = payload.get("indicators")
+    if isinstance(indicators, list) and indicators:
+        tlp = payload.get("tlp", "TLP:AMBER")
+        ttl_days = int(payload.get("default_ttl_days", 30))
+        return STIX21TaxiiService.build_stix21_bundle(indicators, tlp=tlp, default_ttl_days=ttl_days)
+
     assets = payload.get("assets", [])
     vulns = payload.get("vulnerabilities", [])
     bundle = opencti_client.convert_to_stix21_bundle(assets, vulns)
     return bundle
+
+
+@router.post("/import-stix", summary="Import and deduplicate a STIX 2.1 Bundle")
+async def import_stix_bundle(bundle: Dict[str, Any]):
+    """
+    Parses, normalizes TLP markings, and deduplicates incoming STIX 2.1 bundles.
+    """
+    try:
+        return STIX21TaxiiService.parse_and_deduplicate_stix_bundle(bundle)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))

@@ -31,20 +31,34 @@ class IntelligentRiskEngine:
     ) -> Dict[str, Any]:
         """
         Calculate individual vulnerability risk score (0-100) with detailed explanation.
+        Never silently treats missing signals as zero; records missing_signals and data_completeness.
         """
+        missing_signals: List[str] = []
+
         # 1. CVSS Base (0 - 10 -> normalized to 0 - 100)
-        cvss = float(vuln.get("cvss_score") or vuln.get("cvss") or 0.0)
-        if cvss == 0.0:
+        raw_cvss = vuln.get("cvss_score") if vuln.get("cvss_score") is not None else vuln.get("cvss")
+        if raw_cvss is None:
+            missing_signals.append("cvss_score")
             severity = str(vuln.get("severity", "MEDIUM")).upper()
             sev_map = {"CRITICAL": 9.5, "HIGH": 7.5, "MEDIUM": 5.0, "LOW": 2.5, "INFO": 0.5}
             cvss = sev_map.get(severity, 5.0)
+        else:
+            cvss = float(raw_cvss)
         score_cvss = min(100.0, cvss * 10.0)
 
         # 2. EPSS Score (0.0 - 1.0 -> 0 - 100)
-        epss = float(vuln.get("epss_score") or vuln.get("epss") or 0.0)
-        score_epss = min(100.0, epss * 100.0)
+        raw_epss = vuln.get("epss_score") if vuln.get("epss_score") is not None else vuln.get("epss")
+        if raw_epss is None:
+            missing_signals.append("epss_score")
+            epss = 0.0
+            score_epss = 0.0
+        else:
+            epss = float(raw_epss)
+            score_epss = min(100.0, epss * 100.0)
 
         # 3. CISA KEV (Boolean -> 0 or 100)
+        if "cisa_kev" not in vuln:
+            missing_signals.append("cisa_kev")
         in_cisa_kev = bool(vuln.get("cisa_kev", False))
         score_kev = 100.0 if in_cisa_kev else 0.0
 
@@ -92,13 +106,22 @@ class IntelligentRiskEngine:
             score_ransomware * self.weights["ransomware_threat"]
         )
 
+        # Asset criticality multiplier (CRITICAL=1.10, HIGH=1.05, MEDIUM=1.0, LOW=0.85)
+        crit_map = {"CRITICAL": 1.10, "HIGH": 1.05, "MEDIUM": 1.0, "LOW": 0.85}
+        asset_crit = str((asset or {}).get("criticality") or vuln.get("asset_criticality") or "MEDIUM").upper()
+        crit_mult = crit_map.get(asset_crit, 1.0)
+
+        # SSVC active exploitation boost from CISA Vulnrichment (if provided)
+        ssvc = vuln.get("ssvc") or {}
+        ssvc_boost = 1.08 if str(ssvc.get("Exploitation", "")).lower() == "active" else 1.0
+
         # Validation state adjustment multiplier
         if validation_state == "CONFIRMADA":
-            final_score = min(100.0, raw_score * 1.15)
+            final_score = min(100.0, raw_score * 1.15 * crit_mult * ssvc_boost)
         elif validation_state == "PROBABLE":
-            final_score = raw_score
+            final_score = min(100.0, raw_score * crit_mult * ssvc_boost)
         else:  # POTENCIAL or INFO_INSUFICIENTE
-            final_score = raw_score * 0.75
+            final_score = min(100.0, raw_score * 0.75 * crit_mult)
 
         final_score = round(final_score, 1)
 
@@ -114,10 +137,13 @@ class IntelligentRiskEngine:
         else:
             tier = "INFORMATIVO"
 
+        completeness = round((3 - len(missing_signals)) / 3.0, 2)
+        epss_text = f"{epss:.1%}" if "epss_score" not in missing_signals else "NO_DISPONIBLE"
+
         explanation = (
             f"Vulnerabilidad evaluada con severidad técnica CVSS {cvss}/10 "
-            f"({score_cvss:.0f} pts). Probabilidad de explotación EPSS {epss:.1%} "
-            f"({score_epss:.0f} pts). "
+            f"({score_cvss:.0f} pts). Probabilidad de explotación EPSS {epss_text} "
+            f"({score_epss:.0f} pts). Criticidad de activo: {asset_crit}. "
             f"{'Presente en catálogo CISA KEV bajo explotación activa en Internet. ' if in_cisa_kev else ''}"
             f"Estado de validación: {validation_state}."
         )
@@ -126,6 +152,11 @@ class IntelligentRiskEngine:
             "score": final_score,
             "tier": tier,
             "validation_state": validation_state,
+            "asset_criticality": asset_crit,
+            "cwe_id": vuln.get("cwe_id"),
+            "ssvc": ssvc,
+            "missing_signals": missing_signals,
+            "data_completeness": completeness,
             "explanation": explanation,
             "components": {
                 "cvss_component": round(score_cvss * self.weights["cvss_severity"], 1),

@@ -5,6 +5,29 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 
 ---
 
+## [3.0.0-alpha] — 2026-11-15
+### 🛡️ Cierre de Deuda Técnica P0/P1/P2, Contrato Único de Hallazgos, Motores Consolidados y Docker Hardened
+
+#### Añadido y Mejorado
+- **Seguridad y Gobernanza P0/P1:**
+  - Autenticación global `Depends(require_api_token)` aplicada a los 13 routers bajo `/api/v1/*` en `backend/app/api/v1/router.py`.
+  - Sanitización obligatoria en `PasteSearcher` (`EvidenceSanitizer.sanitize_raw_content`).
+  - Strangler Pattern para Kill-Switch unificado en `web_dashboard/api.php` (`forwardToFastApi` -> `/api/v1/security/kill-switch*`) con respaldo compatible en `openrecon.sqlite`.
+- **Contrato Único de Hallazgos y Deduplicación (`finding_contract.py`):**
+  - Esquema `NormalizedFinding` y `GlobalFindingDeduplicator` con `fingerprint` SHA-256 determinista conservando evidencias independientes de múltiples fuentes, conectado a `AntiFalsePositiveEngine` y `ScannerOrchestrator`.
+- **Motores EASM/DRP/CTI Consolidados:**
+  - `DNSEngine`: ejecución asíncrona no bloqueante, detección/eliminación de Wildcard DNS, preservación de procedencia y soporte `subfinder -json` + `amass -passive`.
+  - `HTTPEngine` (`projectdiscovery/httpx` JSONL), `PortEngine` (`projectdiscovery/naabu` TCP connect), `NucleiEngine` (v3 `-jsonl` + exclusión de tags destructivos + evidencia HTTP sanitizada) y `DRPEngine` (`dnstwist` + IDN punycode + evaluación multi-señal).
+  - `MISPGalaxyService` (`backend/app/services/cti/misp_galaxy.py`) con índice local versionado y aristas con evidencia en `CorrelationGraphEngine`.
+  - `VulnIntelEnrichmentService`: soporte CISA Vulnrichment (SSVC/CWE/CVSS) + `IntelligentRiskEngine` con trazabilidad de `missing_signals` y `data_completeness`.
+  - Endpoint protegido `POST /api/v1/exposures/secrets/scan` con `gitleaks` en sandbox y protección contra *path traversal*.
+- **Conectores y Docker:**
+  - `BaseConnector` y `DomainIntelligenceService._run_limited` equipados con reintentos, backoff exponencial, Circuit Breaker y métricas Prometheus.
+  - `backend/Dockerfile` con usuario no-root `openrecon`, `HEALTHCHECK` y versiones fijadas con verificación SHA-256 (`subfinder`, `dnsx`, `httpx`, `naabu`, `nuclei`, `gitleaks`, `dnstwist`).
+  - Nuevas suites: `tests/integration/test_master_improvement_program.py` y `tests/integration/test_p1_p2_debt_closure.py`.
+
+---
+
 ## [3.0.0-alpha] — 2026-11-14
 ### 🛡️ Hardening P0, Consolidación Arquitectónica, GitHub/Web Intel, STIX/TAXII y Motor Anti-FP
 

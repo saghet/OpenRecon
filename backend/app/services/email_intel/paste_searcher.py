@@ -10,6 +10,7 @@ import re
 import logging
 from typing import List, Dict, Any, Tuple
 from datetime import datetime, timezone
+from app.core.evidence_sanitizer import EvidenceSanitizer
 from app.services.email_intel.zehef_adapter import ZehefAdapter
 
 logger = logging.getLogger("email_intel.paste_searcher")
@@ -42,11 +43,12 @@ class PasteSearcher:
                     raw = r.text
                     sha = self.adapter.calculate_sha256(raw)
 
+                    sanitized_preview = EvidenceSanitizer.sanitize_raw_content(raw, max_chars=500)
                     ev = {
                         "source_type": "PASTE_PUBLIC_REPOSITORY",
                         "source_name": source_name,
                         "collected_at_utc": datetime.now(timezone.utc).isoformat(),
-                        "raw_content_preview": raw[:500],
+                        "raw_content_preview": sanitized_preview,
                         "content_sha256": sha,
                         "validation_status": "CORROBORATED" if r.status_code == 200 else "NO_MATCH",
                         "confidence_score": 0.85 if r.status_code == 200 else 0.1
