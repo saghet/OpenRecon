@@ -821,27 +821,27 @@ switch ($action) {
     case 'settings_overview':
         $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
         $res = forwardToFastApi('GET', '/settings/overview?organization_id=' . $orgId);
-        http_response_code($res['status'] ?: 502);
-        echo $res['raw'];
+        http_response_code($res['http_code'] ?: 502);
+        echo json_encode($res['data'] ?? ['detail' => $res['error'] ?? 'FastAPI unavailable']);
         break;
     case 'settings_runtime_update':
         $body = json_decode(file_get_contents('php://input'), true) ?: [];
         $res = forwardToFastApi('PUT', '/settings/runtime', $body);
-        http_response_code($res['status'] ?: 502);
-        echo $res['raw'];
+        http_response_code($res['http_code'] ?: 502);
+        echo json_encode($res['data'] ?? ['detail' => $res['error'] ?? 'FastAPI unavailable']);
         break;
     case 'web_recon_policy_get':
         $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
         $res = forwardToFastApi('GET', '/web-recon/policy/' . $orgId);
-        http_response_code($res['status'] ?: 502);
-        echo $res['raw'];
+        http_response_code($res['http_code'] ?: 502);
+        echo json_encode($res['data'] ?? ['detail' => $res['error'] ?? 'FastAPI unavailable']);
         break;
     case 'web_recon_policy_set':
         $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
         $body = json_decode(file_get_contents('php://input'), true) ?: [];
         $res = forwardToFastApi('PUT', '/web-recon/policy/' . $orgId, $body);
-        http_response_code($res['status'] ?: 502);
-        echo $res['raw'];
+        http_response_code($res['http_code'] ?: 502);
+        echo json_encode($res['data'] ?? ['detail' => $res['error'] ?? 'FastAPI unavailable']);
         break;
     default:
         echo json_encode(['status' => 'ok', 'message' => 'OpenRecon API v1.0 running']);
@@ -6056,9 +6056,9 @@ function forwardToFastApi($method, $path, $payload = null, $timeout = 10) {
         $headers[] = 'X-OpenRecon-Token: ' . $apiToken;
     }
 
-    if (strtoupper($method) === 'POST') {
+    if (in_array(strtoupper($method), ['POST', 'PUT', 'PATCH'], true)) {
         $headers[] = 'Content-Type: application/json';
-        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, strtoupper($method));
         curl_setopt($ch, CURLOPT_POSTFIELDS, $payload !== null ? json_encode($payload) : '{}');
     }
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
