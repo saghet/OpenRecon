@@ -14,7 +14,8 @@ from app.api.v1.endpoints import (
     security,
     email_intel,
     domain_intel,
-    web_recon
+    web_recon,
+    settings_hub
 )
 
 api_router = APIRouter(dependencies=[Depends(require_api_token)])
@@ -33,3 +34,4 @@ api_router.include_router(correlation.router, prefix="/correlation", tags=["Mult
 api_router.include_router(risk.router, prefix="/risk", tags=["Intelligent Risk & Posture Scoring"])
 api_router.include_router(security.router, prefix="/security", tags=["Security Governance & RoE Scope"])
 api_router.include_router(web_recon.router, prefix="/web-recon", tags=["Web Surface & Endpoint Recon"])
+api_router.include_router(settings_hub.router, prefix="/settings", tags=["Centralized Settings Hub"])

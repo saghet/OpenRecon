@@ -772,6 +772,11 @@ ensure_fastapi_backend_running(false);
                 <span class="nav-label">Alcance & RoE</span>
                 <span id="nav-badge-scope" class="nav-badge bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">198</span>
             </button>
+            <button onclick="switchTab('settings')" id="tab-btn-settings" class="forti-nav-item" data-forti-tooltip="Centro Unificado de Configuración Interna, Políticas RoE y APIs Externas">
+                <i class="fa-solid fa-sliders text-amber-400"></i>
+                <span class="nav-label">Configuración Global</span>
+                <span class="nav-badge bg-amber-950 text-amber-300 border border-amber-800 font-mono">HUB</span>
+            </button>
 
         </div>
 
@@ -3194,9 +3199,136 @@ ensure_fastapi_backend_running(false);
         <!-- TAB CONTENT: DOMAIN INTELLIGENCE -->
         <?php include __DIR__ . '/domain_intel.php'; ?>
 
-</main>
+        <!-- TAB CONTENT: Centralized Global Settings Hub -->
+        <section id="tab-content-settings" class="space-y-4 hidden">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-amber-400"></i>
+                        Centro Unificado de Configuración (Interna, Políticas RoE &amp; APIs Externas)
+                    </h3>
+                    <p class="text-xs text-slate-400">Gestión centralizada inspirada en DefectDojo / OpenCTI / FortiOS: parámetros operativos, políticas Safe-by-Default y credenciales cifradas (Fernet).</p>
+                </div>
+                <button onclick="loadGlobalSettingsHub()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-cyber-border text-xs font-semibold flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-rotate"></i>
+                    <span>Actualizar Estado</span>
+                </button>
+            </div>
 
-            </main>
+            <div id="settings-hub-feedback" class="hidden text-xs rounded-xl px-4 py-2.5 border"></div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <!-- 1. Configuración Interna & Gobernanza -->
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-microchip text-cyan-400"></i>
+                            Configuración Interna &amp; Gobernanza
+                        </h4>
+                        <span id="cfg-kill-switch-badge" class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800">KILL-SWITCH: INACTIVO</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                            <span class="text-slate-300">SAFE_MODE</span>
+                            <input type="checkbox" id="cfg-safe-mode" class="rounded accent-cyan-500">
+                        </label>
+                        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                            <span class="text-slate-300">Binarios Externos</span>
+                            <input type="checkbox" id="cfg-ext-bins" class="rounded accent-cyan-500">
+                        </label>
+                        <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                            <span class="text-[11px] text-slate-400 block mb-1">Concurrencia Máxima</span>
+                            <input type="number" id="cfg-max-concurrency" min="1" max="50" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono">
+                        </div>
+                        <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                            <span class="text-[11px] text-slate-400 block mb-1">Rate Limit (RPS)</span>
+                            <input type="number" id="cfg-rate-limit" min="1" max="100" class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs text-white font-mono">
+                        </div>
+                    </div>
+                    <div id="cfg-infra-summary" class="text-[11px] font-mono text-slate-400 bg-slate-950/70 border border-slate-800 rounded-lg p-2.5"></div>
+                    <button onclick="saveRuntimeSettings()" class="px-3.5 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-bold transition">
+                        <i class="fa-solid fa-floppy-disk mr-1"></i>Guardar Parámetros Internos
+                    </button>
+                </div>
+
+                <!-- 2. Políticas WebCopilot / Recon Activo (Safe-by-Default) -->
+                <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 space-y-3">
+                    <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-shield-cat text-rose-400"></i>
+                        Políticas WebCopilot &amp; Escaneo Activo (RoE)
+                    </h4>
+                    <div class="space-y-2 text-xs">
+                        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                            <div>
+                                <span class="text-slate-200 font-semibold block">Interactsh OOB / Blind XSS</span>
+                                <span class="text-[10px] text-slate-400">Deshabilitado por defecto. Requiere autorización explícita por organización.</span>
+                            </div>
+                            <input type="checkbox" id="cfg-pol-interactsh" class="rounded accent-amber-500">
+                        </label>
+                        <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                            <span class="text-[11px] text-slate-400 block mb-1">Servidor Interactsh (Opcional)</span>
+                            <input type="text" id="cfg-pol-interactsh-server" placeholder="oast.pro o servidor privado" class="w-full bg-slate-950 border border-slate-700 rounded px-2.5 py-1 text-xs text-white font-mono">
+                        </div>
+                        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                            <div>
+                                <span class="text-slate-200 font-semibold block">SQLMap Controlado (No Destructivo)</span>
+                                <span class="text-[10px] text-slate-400">Deshabilitado por defecto. Solo --level=1 --risk=1 bajo RoE explícito.</span>
+                            </div>
+                            <input type="checkbox" id="cfg-pol-sqlmap" class="rounded accent-rose-500">
+                        </label>
+                        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-900/70 border border-slate-800">
+                            <div>
+                                <span class="text-slate-200 font-semibold block">Nuclei Plantillas Intrusivas</span>
+                                <span class="text-[10px] text-slate-400">Requiere SAFE_MODE=false y autorización explícita.</span>
+                            </div>
+                            <input type="checkbox" id="cfg-pol-nuclei-intrusive" class="rounded accent-rose-500">
+                        </label>
+                    </div>
+                    <button onclick="saveWebOrgPolicy()" class="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition">
+                        <i class="fa-solid fa-check-double mr-1"></i>Guardar Política RoE Web
+                    </button>
+                </div>
+            </div>
+
+            <!-- 3. APIs Externas OSINT / CTI (Cifradas) -->
+            <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-key text-amber-400"></i>
+                        APIs Externas OSINT &amp; CTI (Cifradas con Fernet en Backend)
+                    </h4>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="cfg-api-provider" class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-200">
+                            <option value="virustotal">VirusTotal</option>
+                            <option value="otx">AlienVault OTX</option>
+                            <option value="abuseipdb">AbuseIPDB</option>
+                            <option value="urlhaus">URLhaus</option>
+                            <option value="threatfox">ThreatFox</option>
+                            <option value="cert_spotter">Cert Spotter</option>
+                            <option value="whois_history">WhoisFreaks</option>
+                            <option value="whois_xml">WhoisXML</option>
+                            <option value="hackertarget">HackerTarget</option>
+                        </select>
+                        <input type="password" id="cfg-api-key-input" placeholder="Pegar API Key..." class="bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono w-56">
+                        <button onclick="saveGlobalExternalApiKey()" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition">
+                            <i class="fa-solid fa-lock mr-1"></i>Guardar API Key
+                        </button>
+                    </div>
+                </div>
+                <div id="cfg-external-apis-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs"></div>
+            </div>
+
+            <!-- 4. Plataformas Externas (OpenCTI, MISP, DeepSeek AI) -->
+            <div class="bg-cyber-card border border-cyber-border rounded-xl p-4 space-y-2">
+                <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-diagram-successor text-purple-400"></i>
+                    Plataformas Externas &amp; Motores IA (Variables de Entorno / Docker)
+                </h4>
+                <div id="cfg-platforms-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs"></div>
+            </div>
+        </section>
+
+</main>
         </div>
     </div>
 
@@ -8403,7 +8535,8 @@ function closeTakedownModal() {
         'ai': { cat: 'Security Fabric & IA', title: 'Correlación de Evidencias Asistida por IA' },
         'darkintel': { cat: 'Threat Intelligence (CTI)', title: 'Dark Intelligence, Onion OSINT & CTI' },
         'emailintel': { cat: 'OSINT & Identidades', title: 'Email Intelligence (Zehef OSINT)' },
-        'domainintel': { cat: 'Threat Intelligence (CTI)', title: 'Domain Intelligence, OSINT & Correlación' }
+        'domainintel': { cat: 'Threat Intelligence (CTI)', title: 'Domain Intelligence, OSINT & Correlación' },
+        'settings': { cat: 'Políticas & Control', title: 'Configuración Global (Interna, RoE & APIs)' }
     };
 
     // Override switchTab with FortiOS sidebar navigation support
@@ -8426,7 +8559,7 @@ function closeTakedownModal() {
         if (bcMod) bcMod.innerText = meta.title;
 
         // 3. Toggle Visibility of 14 Tab Content Sections
-        const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel', 'domainintel'];
+        const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel', 'domainintel', 'settings'];
         allTabs.forEach(t => {
             const el = document.getElementById(`tab-content-${t}`);
             if (el) el.classList.toggle('hidden', t !== tabId);
@@ -8449,6 +8582,7 @@ function closeTakedownModal() {
             if (typeof domainIntelLoadSeeds === 'function') domainIntelLoadSeeds();
             if (typeof domainIntelLoadHistory === 'function') domainIntelLoadHistory();
         }
+        if (tabId === 'settings' && typeof loadGlobalSettingsHub === 'function') loadGlobalSettingsHub();
 
         // Scroll main viewport to top on tab switch
         const vp = document.getElementById('forti-main-viewport');
@@ -8503,6 +8637,152 @@ function closeTakedownModal() {
             }
         } catch (err) {
             console.warn('Failed to trigger selective web recon:', err);
+        }
+    }
+
+    function showSettingsHubFeedback(msg, isError = false) {
+        const el = document.getElementById('settings-hub-feedback');
+        if (!el) return;
+        el.className = isError
+            ? 'text-xs rounded-xl px-4 py-2.5 border bg-rose-950/60 border-rose-800 text-rose-200'
+            : 'text-xs rounded-xl px-4 py-2.5 border bg-emerald-950/60 border-emerald-800 text-emerald-200';
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+
+    async function loadGlobalSettingsHub() {
+        const orgId = (window.currentOrgId || 1);
+        try {
+            const resp = await fetch(`api.php?action=settings_overview&organization_id=${orgId}`);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+
+            const intl = data.internal || {};
+            document.getElementById('cfg-safe-mode').checked = Boolean(intl.safe_mode);
+            document.getElementById('cfg-ext-bins').checked = Boolean(intl.enable_external_binaries);
+            document.getElementById('cfg-max-concurrency').value = intl.max_concurrent_tasks ?? 5;
+            document.getElementById('cfg-rate-limit').value = intl.rate_limit_rps ?? 15;
+
+            const ksActive = Boolean(intl.kill_switch?.active);
+            const ksBadge = document.getElementById('cfg-kill-switch-badge');
+            ksBadge.textContent = ksActive ? 'KILL-SWITCH: ACTIVO' : 'KILL-SWITCH: INACTIVO';
+            ksBadge.className = ksActive
+                ? 'px-2 py-0.5 rounded text-[10px] font-mono bg-rose-950 text-rose-300 border border-rose-800'
+                : 'px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950 text-emerald-300 border border-emerald-800';
+
+            document.getElementById('cfg-infra-summary').textContent =
+                `DB: ${intl.database_engine || 'N/D'} | Redis: ${intl.redis_configured ? 'OK' : 'NO'} | Tor: ${intl.tor_proxy_url || 'N/D'} (TLS=${intl.tor_verify_ssl}) | AuthToken: ${intl.api_token_protected ? 'ACTIVO' : 'DEV'}`;
+
+            const pol = data.web_policy || {};
+            document.getElementById('cfg-pol-interactsh').checked = Boolean(pol.interactsh_enabled);
+            document.getElementById('cfg-pol-interactsh-server').value = pol.interactsh_server || '';
+            document.getElementById('cfg-pol-sqlmap').checked = Boolean(pol.sqlmap_enabled);
+            document.getElementById('cfg-pol-nuclei-intrusive').checked = Boolean(pol.nuclei_allow_intrusive);
+
+            const apisEl = document.getElementById('cfg-external-apis-grid');
+            const apis = data.external_apis || [];
+            apisEl.innerHTML = apis.map(a => `
+                <div class="p-2.5 rounded-lg bg-slate-900/70 border border-slate-800 flex items-center justify-between gap-2">
+                    <div>
+                        <div class="font-mono text-slate-200 font-semibold">${a.provider_name}</div>
+                        <div class="text-[11px] ${a.is_configured ? 'text-emerald-400' : 'text-amber-400'}">
+                            ${a.is_configured ? `Configurada (${a.masked_hint || '***'})` : 'No configurada'}
+                        </div>
+                    </div>
+                    <button type="button" onclick="prefillGlobalApiKey('${a.provider_name}')" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] text-amber-300">
+                        <i class="fa-solid fa-key"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            const plat = data.platforms || {};
+            document.getElementById('cfg-platforms-grid').innerHTML = [
+                { name: 'OpenCTI (STIX 2.1)', ok: plat.opencti?.configured, detail: plat.opencti?.url || 'Modo local degradado' },
+                { name: 'MISP Threat Sharing', ok: plat.misp?.configured, detail: plat.misp?.url || 'No configurado' },
+                { name: 'DeepSeek Analytical AI', ok: plat.deepseek_ai?.configured, detail: plat.deepseek_ai?.model || 'N/D' }
+            ].map(p => `
+                <div class="p-3 rounded-lg bg-slate-900/70 border border-slate-800">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="font-semibold text-slate-200">${p.name}</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-mono ${p.ok ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'bg-slate-800 text-slate-400'}">${p.ok ? 'ACTIVO' : 'NO CONFIG'}</span>
+                    </div>
+                    <div class="text-[11px] font-mono text-slate-400 truncate">${p.detail}</div>
+                </div>
+            `).join('');
+        } catch (err) {
+            showSettingsHubFeedback(`Error cargando configuración global: ${err.message}`, true);
+        }
+    }
+
+    function prefillGlobalApiKey(providerName) {
+        const sel = document.getElementById('cfg-api-provider');
+        const inp = document.getElementById('cfg-api-key-input');
+        if (sel) sel.value = providerName;
+        if (inp) inp.focus();
+    }
+
+    async function saveRuntimeSettings() {
+        try {
+            const resp = await fetch('api.php?action=settings_runtime_update', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    safe_mode: document.getElementById('cfg-safe-mode').checked,
+                    enable_external_binaries: document.getElementById('cfg-ext-bins').checked,
+                    max_concurrent_tasks: parseInt(document.getElementById('cfg-max-concurrency').value, 10) || 5,
+                    rate_limit_rps: parseInt(document.getElementById('cfg-rate-limit').value, 10) || 15
+                })
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            showSettingsHubFeedback('Parámetros internos actualizados correctamente.');
+            loadGlobalSettingsHub();
+        } catch (err) {
+            showSettingsHubFeedback(`Error guardando parámetros internos: ${err.message}`, true);
+        }
+    }
+
+    async function saveWebOrgPolicy() {
+        const orgId = (window.currentOrgId || 1);
+        try {
+            const resp = await fetch(`api.php?action=web_recon_policy_set&organization_id=${orgId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    interactsh_enabled: document.getElementById('cfg-pol-interactsh').checked,
+                    interactsh_server: document.getElementById('cfg-pol-interactsh-server').value.trim() || null,
+                    sqlmap_enabled: document.getElementById('cfg-pol-sqlmap').checked,
+                    nuclei_allow_intrusive: document.getElementById('cfg-pol-nuclei-intrusive').checked
+                })
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            showSettingsHubFeedback('Política RoE WebCopilot actualizada correctamente.');
+            loadGlobalSettingsHub();
+        } catch (err) {
+            showSettingsHubFeedback(`Error guardando política RoE: ${err.message}`, true);
+        }
+    }
+
+    async function saveGlobalExternalApiKey() {
+        const orgId = (window.currentOrgId || 1);
+        const provider_name = document.getElementById('cfg-api-provider').value;
+        const api_key = document.getElementById('cfg-api-key-input').value.trim();
+        if (!api_key) {
+            showSettingsHubFeedback('Ingresa una API Key válida antes de guardar.', true);
+            return;
+        }
+        try {
+            const resp = await fetch(`api.php?action=domain_intel_credentials_set&organization_id=${orgId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ organization_id: orgId, provider_name, api_key, is_enabled: true })
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const saved = await resp.json();
+            document.getElementById('cfg-api-key-input').value = '';
+            showSettingsHubFeedback(`API Key de ${saved.provider_name} guardada y cifrada (${saved.masked_hint}).`);
+            loadGlobalSettingsHub();
+        } catch (err) {
+            showSettingsHubFeedback(`Error guardando API Key: ${err.message}`, true);
         }
     }
     </script>

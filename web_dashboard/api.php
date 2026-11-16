@@ -818,6 +818,31 @@ switch ($action) {
     case 'domain_intel_export':
         handleDomainIntelProxy($action, $pdo);
         break;
+    case 'settings_overview':
+        $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
+        $res = forwardToFastApi('GET', '/settings/overview?organization_id=' . $orgId);
+        http_response_code($res['status'] ?: 502);
+        echo $res['raw'];
+        break;
+    case 'settings_runtime_update':
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $res = forwardToFastApi('PUT', '/settings/runtime', $body);
+        http_response_code($res['status'] ?: 502);
+        echo $res['raw'];
+        break;
+    case 'web_recon_policy_get':
+        $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
+        $res = forwardToFastApi('GET', '/web-recon/policy/' . $orgId);
+        http_response_code($res['status'] ?: 502);
+        echo $res['raw'];
+        break;
+    case 'web_recon_policy_set':
+        $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
+        $body = json_decode(file_get_contents('php://input'), true) ?: [];
+        $res = forwardToFastApi('PUT', '/web-recon/policy/' . $orgId, $body);
+        http_response_code($res['status'] ?: 502);
+        echo $res['raw'];
+        break;
     default:
         echo json_encode(['status' => 'ok', 'message' => 'OpenRecon API v1.0 running']);
         break;
