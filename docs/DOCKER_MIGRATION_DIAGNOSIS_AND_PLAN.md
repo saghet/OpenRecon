@@ -97,7 +97,11 @@ chmod +x docker/scripts/backup_postgres.sh docker/scripts/restore_postgres.sh
 | Validación de sintaxis/esquema `docker-compose.yml` | **APROBADO** | `docker compose config -q` -> `exit=0`. |
 | Hardening Compose, Dockerfiles, PHP `OPENRECON_API_URL` y migrador SQLite→PG (`test_docker_standardization.py`) | **APROBADO** | Ejecutado con `unittest` (4/4 OK). |
 | Suites `tests/security` y `tests/integration` | **APROBADO** | 9/9 security + integración completas sin regresiones. |
-| Inicio completo en vivo (`docker compose up -d --build`), comunicación inter-contenedores, persistencia tras reinicio y restore en vivo | **PENDIENTE DE DAEMON DOCKER** | Docker Desktop no estaba iniciado en el host Windows (`//./pipe/dockerDesktopLinuxEngine` no encontrado). Requiere iniciar Docker Desktop o ejecutar en host Linux con Docker Engine activo. |
+| Inicio completo en vivo (`docker compose up -d --build`) | **APROBADO** | Los 6 servicios (`openrecon-api`, `openrecon-postgres`, `openrecon-recon-worker`, `openrecon-redis`, `openrecon-tor-sandbox`, `openrecon-web`) en estado `Up (healthy)`. |
+| Comunicación inter-contenedores y endpoints HTTP | **APROBADO** | `web -> http://api:8000/` OK; host `http://127.0.0.1:8080/index.php` (200), `/docs` (200), `/metrics` (200). |
+| Aislamiento y binarios en `recon-worker` | **APROBADO** | `uid=1000(openrecon)` no-root; presentes `subfinder`, `dnsx`, `httpx`, `naabu`, `nuclei`, `nmap`, `gitleaks`, `gau`, `waybackurls`, `kxss`, `dalfox`, `dnstwist`. |
+| Persistencia tras reinicio (`docker compose restart api`) | **APROBADO** | Registro `DockerLiveVerifyOrg` (`id=1`) persistido en PostgreSQL antes y después del reinicio. |
+| Backup y restauración PostgreSQL (`pg_dump` + `psql`) | **APROBADO** | Backup comprimido con SHA-256 restaurado en base de verificación `openrecon_restore_test` con todas las tablas intactas. |
 
 ---
 

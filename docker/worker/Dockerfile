@@ -3,7 +3,7 @@ FROM golang:1.23.4-bookworm AS go-builder
 
 RUN go install -v github.com/lc/gau/v2/cmd/gau@v2.2.3 \
     && go install -v github.com/tomnomnom/waybackurls@v0.1.0 \
-    && go install -v github.com/Emoe/kxss@v0.1.0 \
+    && go install -v github.com/Emoe/kxss@acb2dc76e84077d2e529f6c488269c32c5e2b07a \
     && go install -v github.com/hahwul/dalfox/v2@v2.9.2
 
 # Stage 2: Hardened non-root Recon Worker

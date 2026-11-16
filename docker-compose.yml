@@ -81,7 +81,7 @@ services:
       dockerfile: Dockerfile
     container_name: openrecon-api
     restart: unless-stopped
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: python -m scripts.docker_entrypoint
     volumes:
       - evidences_data:/app/data
     ports:
