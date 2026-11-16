@@ -50,6 +50,121 @@ html[data-theme="jade"] {
     --fg-info-border: #475569;
 }
 
+[data-theme="standard"],
+html[data-theme="standard"] {
+    --fg-theme-name: "Standard";
+    --fg-header-bg: #3b3b3b;
+    --fg-header-border: #4d4d4d;
+    --fg-sidebar-bg: #2f2f2f;
+    --fg-sidebar-hover: #3d3d3d;
+    --fg-sidebar-border: #444444;
+    --fg-selection: #1b6e1b;
+    --fg-selection-text: #ffffff;
+    --fg-selection-border: #145a14;
+    --fg-primary: #1b6e1b;
+    --fg-primary-hover: #145a14;
+    --fg-primary-text: #ffffff;
+    --fg-accent: #228b22;
+    --fg-bg-main: #f4f4f4;
+    --fg-card-bg: #ffffff;
+    --fg-card-header: #444444;
+    --fg-border: #d0d0d0;
+    --fg-border-subtle: #e5e5e5;
+    --fg-text-main: #222222;
+    --fg-text-muted: #555555;
+    --fg-text-dim: #777777;
+    --fg-input-bg: #ffffff;
+    --fg-input-border: #c4c4c4;
+    --fg-table-header-bg: #444444;
+    --fg-table-row-hover: #eef6ee;
+    --fg-table-row-alt: #fafafa;
+    --fg-crit: #cc2929;
+    --fg-crit-bg: rgba(204, 41, 41, 0.10);
+    --fg-crit-border: #cc2929;
+    --fg-high: #d96b1f;
+    --fg-high-bg: rgba(217, 107, 31, 0.10);
+    --fg-high-border: #d96b1f;
+    --fg-med: #1b6e1b;
+    --fg-med-bg: rgba(27, 110, 27, 0.10);
+    --fg-med-border: #1b6e1b;
+    --fg-low: #2b6cb0;
+    --fg-low-bg: rgba(43, 108, 176, 0.10);
+    --fg-low-border: #2b6cb0;
+    --fg-info: #555555;
+    --fg-info-bg: rgba(85, 85, 85, 0.10);
+    --fg-info-border: #999999;
+    font-family: "Segoe UI", Tahoma, Arial, Helvetica, sans-serif;
+}
+
+html[data-theme="standard"] body,
+html[data-theme="standard"] #forti-main-viewport {
+    background-color: #f4f4f4 !important;
+    color: #222222 !important;
+    font-family: "Segoe UI", Tahoma, Arial, Helvetica, sans-serif !important;
+}
+
+html[data-theme="standard"] #forti-sidebar {
+    background-color: #2f2f2f !important;
+    border-color: #444444 !important;
+    color: #f2f2f2 !important;
+}
+
+html[data-theme="standard"] #forti-sidebar .forti-nav-item {
+    color: #f2f2f2 !important;
+}
+
+html[data-theme="standard"] #forti-sidebar .forti-nav-item:hover {
+    background-color: #3d3d3d !important;
+}
+
+html[data-theme="standard"] #forti-sidebar .forti-nav-item.active {
+    background-color: #1b6e1b !important;
+    color: #ffffff !important;
+    border-left: 3px solid #228b22 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .bg-cyber-card,
+html[data-theme="standard"] #forti-main-viewport .bg-slate-900,
+html[data-theme="standard"] #forti-main-viewport .bg-slate-900\/70,
+html[data-theme="standard"] #forti-main-viewport .bg-slate-900\/60,
+html[data-theme="standard"] #forti-main-viewport .bg-slate-900\/50 {
+    background-color: #ffffff !important;
+    border-color: #d0d0d0 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .bg-slate-950,
+html[data-theme="standard"] #forti-main-viewport .bg-slate-950\/70 {
+    background-color: #f8f8f8 !important;
+    border-color: #cccccc !important;
+    color: #222222 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .text-white,
+html[data-theme="standard"] #forti-main-viewport .text-slate-100,
+html[data-theme="standard"] #forti-main-viewport .text-slate-200,
+html[data-theme="standard"] #forti-main-viewport .text-slate-300 {
+    color: #222222 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .text-slate-400,
+html[data-theme="standard"] #forti-main-viewport .text-slate-500 {
+    color: #555555 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport button.bg-emerald-600,
+html[data-theme="standard"] #forti-main-viewport button.bg-cyan-700,
+html[data-theme="standard"] #forti-main-viewport button.bg-amber-600 {
+    background-color: #1b6e1b !important;
+    color: #ffffff !important;
+    border-color: #145a14 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport button.bg-emerald-600:hover,
+html[data-theme="standard"] #forti-main-viewport button.bg-cyan-700:hover,
+html[data-theme="standard"] #forti-main-viewport button.bg-amber-600:hover {
+    background-color: #145a14 !important;
+}
+
 [data-theme="neutrino"],
 html[data-theme="neutrino"] {
     --fg-theme-name: "Neutrino";

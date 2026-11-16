@@ -609,6 +609,10 @@ ensure_fastapi_backend_running(false);
                         <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span> Jade (Fortinet Green)</span>
                         <i id="theme-check-jade" class="fa-solid fa-check text-emerald-400 text-xs"></i>
                     </button>
+                    <button onclick="applyTheme('standard')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
+                        <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-[#1b6e1b] border border-white/40 inline-block"></span> Standard (FortiAuth Gris/Verde)</span>
+                        <i id="theme-check-standard" class="fa-solid fa-check text-emerald-400 text-xs hidden"></i>
+                    </button>
                     <button onclick="applyTheme('neutrino')" class="theme-option-btn w-full px-3 py-1.5 text-left flex items-center justify-between hover:bg-slate-800 text-slate-200">
                         <span class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-cyan-500 inline-block"></span> Neutrino (Electric Cyan)</span>
                         <i id="theme-check-neutrino" class="fa-solid fa-check text-cyan-400 text-xs hidden"></i>
@@ -3364,6 +3368,7 @@ ensure_fastapi_backend_running(false);
                         <label class="block text-slate-300 font-semibold mb-1">Cargar Plantilla Base</label>
                         <select id="custom-theme-base-preset" onchange="loadPresetIntoCustomizer(this.value)" class="forti-input w-full">
                             <option value="jade">Jade (Verde Fortinet Clásico)</option>
+                            <option value="standard">Standard (FortiAuth Gris / Verde)</option>
                             <option value="neutrino">Neutrino (Cian Tecnológico)</option>
                             <option value="mariner">Mariner (Azul Marino Corporativo)</option>
                             <option value="graphite">Graphite (Gris Carbón Neutro)</option>
@@ -7940,6 +7945,25 @@ function closeTakedownModal() {
     // FORTINET THEMES DATA DICTIONARY & PERSISTENCE ENGINE
     // =========================================================================
     const FORTI_THEMES = {
+        standard: {
+            name: "Standard",
+            header_bg: "#3b3b3b",
+            sidebar_bg: "#2f2f2f",
+            sidebar_hover: "#3d3d3d",
+            selection: "#1b6e1b",
+            selection_text: "#ffffff",
+            selection_border: "#145a14",
+            primary: "#1b6e1b",
+            primary_hover: "#145a14",
+            primary_text: "#ffffff",
+            accent: "#228b22",
+            bg_main: "#f4f4f4",
+            card_bg: "#ffffff",
+            card_header: "#444444",
+            border: "#d0d0d0",
+            text_main: "#222222",
+            text_muted: "#555555"
+        },
         jade: {
             name: "Jade",
             header_bg: "#0f291e",
