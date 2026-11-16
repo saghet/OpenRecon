@@ -9,7 +9,7 @@ ensure_fastapi_backend_running(false);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenRecon | EASM, DRP, CTI & Attack Surface Management</title>
     <!-- Core Local CSS & Anti-FOUC Foundation (Render-Blocking) -->
-    <link rel="stylesheet" href="assets/css/openrecon-styles.css?v=20261116c">
+    <link rel="stylesheet" href="assets/css/openrecon-styles.css?v=20261116d">
     <!-- Local FontAwesome 6.5.1 -->
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
     <!-- Local Tailwind Engine -->
@@ -839,18 +839,18 @@ ensure_fastapi_backend_running(false);
                     <i class="fa-solid fa-gauge-high text-cyan-400"></i>
                 </div>
 
-                <div class="flex items-center gap-6 my-2">
-                    <div class="relative w-28 h-28 flex items-center justify-center">
-                        <svg class="w-full h-full transform -rotate-90">
-                            <circle cx="56" cy="56" r="48" stroke="#1e293b" stroke-width="10" fill="transparent" />
-                            <circle id="score-circle" cx="56" cy="56" r="48" stroke="#10b981" stroke-width="10" fill="transparent" stroke-dasharray="301" stroke-dashoffset="60" stroke-linecap="round" class="transition-all duration-1000" />
+                <div class="flex items-center gap-4 my-2">
+                    <div class="relative w-24 h-24 shrink-0 flex items-center justify-center">
+                        <svg viewBox="0 0 112 112" class="w-full h-full transform -rotate-90">
+                            <circle cx="56" cy="56" r="46" stroke="#1e293b" stroke-width="10" fill="transparent" />
+                            <circle id="score-circle" cx="56" cy="56" r="46" stroke="#10b981" stroke-width="10" fill="transparent" stroke-dasharray="289" stroke-dashoffset="60" stroke-linecap="round" class="transition-all duration-1000" />
                         </svg>
-                        <div class="absolute flex flex-col items-center">
-                            <span id="score-val" class="text-3xl font-black text-white">--</span>
-                            <span class="text-[10px] text-slate-400">/ 100</span>
+                        <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <span id="score-val" class="text-2xl font-black text-white leading-none">--</span>
+                            <span class="text-[10px] text-slate-400 mt-0.5">/ 100</span>
                         </div>
                     </div>
-                    <div>
+                    <div class="min-w-0 flex-1">
                         <div id="posture-badge" class="inline-block px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-950 text-emerald-400 border border-emerald-800/50 mb-1">
                             Calculando...
                         </div>
@@ -957,11 +957,13 @@ ensure_fastapi_backend_running(false);
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-900/60 text-slate-400 uppercase text-[10px] tracking-wider border-b border-cyber-border">
                             <tr>
-                                <th class="p-4">Víctima Reclamada / Empresa</th>
-                                <th class="p-4">Grupo Cibercriminal</th>
-                                <th class="p-4">Ultimátum / Datos Exfiltrados</th>
-                                <th class="p-4 text-center">Estado de Amenaza</th>
-                                <th class="p-4 text-center">Acción / Alerta Temprana</th>
+                                <th class="p-3">Subdominio / Activo</th>
+                                <th class="p-3">IP Resuelta</th>
+                                <th class="p-3">Proveedor / Cloud</th>
+                                <th class="p-3">Fuente</th>
+                                <th class="p-3">Puertos</th>
+                                <th class="p-3 text-center">Estado</th>
+                                <th class="p-3 text-center">Acción</th>
                             </tr>
                         </thead>
                         <tbody id="assets-table-body" class="divide-y divide-cyber-border/60 text-slate-300">
