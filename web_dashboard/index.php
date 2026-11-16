@@ -517,16 +517,16 @@ ensure_fastapi_backend_running(false);
     <!-- Fortinet FortiOS 7.4.13 Top Navigation Bar -->
     <header id="forti-topbar" class="no-print">
         <!-- Left: Hamburger toggle + Branding -->
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 shrink-0">
             <!-- Emergency Kill Switch Quick Button -->
-            <button id="btn-top-kill-switch" onclick="handleToggleKillSwitchUI()" class="px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 border border-slate-700 bg-slate-900/80 text-slate-300 hover:border-rose-700 hover:text-rose-300 transition" title="Parada de Emergencia de Escaneos (Kill-Switch)">
+            <button id="btn-top-kill-switch" onclick="handleToggleKillSwitchUI()" class="px-2 py-1 rounded text-[11px] font-semibold flex items-center gap-1.5 border border-slate-700 bg-slate-900/80 text-slate-300 hover:border-rose-700 hover:text-rose-300 transition whitespace-nowrap shrink-0" title="Parada de Emergencia de Escaneos (Kill-Switch)">
                 <i class="fa-solid fa-power-off text-emerald-400" id="kill-switch-icon"></i>
-                <span id="kill-switch-label">RO-GUARD: NORMAL</span>
+                <span id="kill-switch-label">RO-GUARD</span>
             </button>
-            <button onclick="toggleFortiSidebar()" class="w-8 h-8 rounded flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 transition" title="Contraer/Expandir Menú de Navegación [Ctrl+B]">
+            <button onclick="toggleFortiSidebar()" class="w-7 h-7 rounded flex items-center justify-center text-slate-300 hover:text-white hover:bg-white/10 transition shrink-0" title="Contraer/Expandir Menú de Navegación [Ctrl+B]">
                 <i class="fa-solid fa-bars text-sm"></i>
             </button>
-            <div class="flex items-center gap-2 cursor-pointer" onclick="switchTab('easm')">
+            <div class="flex items-center gap-2 cursor-pointer shrink-0" onclick="switchTab('easm')">
                 <div class="w-7 h-7 rounded bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-black font-extrabold text-sm shadow">
                     <i class="fa-solid fa-shield-halved"></i>
                 </div>
@@ -537,32 +537,32 @@ ensure_fastapi_backend_running(false);
                             <span class="forti-pulse-dot"></span> v7.4.13
                         </span>
                     </div>
-                    <span class="text-[9px] text-slate-400 font-mono tracking-wider">ENTERPRISE EASM & DRP CONSOLE</span>
+                    <span class="hidden 2xl:block text-[9px] text-slate-400 font-mono tracking-wider">ENTERPRISE EASM & DRP CONSOLE</span>
                 </div>
             </div>
         </div>
 
         <!-- Center: Search + Perimeter VDOM Selector -->
-        <div class="hidden md:flex items-center gap-3">
+        <div class="hidden md:flex items-center gap-2 min-w-0 flex-1 max-w-lg mx-2">
             <!-- Global Search -->
-            <div class="relative w-64 lg:w-80">
+            <div class="relative w-44 lg:w-52 shrink-0">
                 <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                <input id="forti-global-search" type="search" placeholder="Buscar activos, CVEs, IPs, IoCs... [Ctrl+K]" oninput="handleGlobalSearch(this.value)" class="forti-input w-full pl-8 pr-12 text-xs h-7 rounded" autocomplete="off" />
-                <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1">Ctrl+K</span>
+                <input id="forti-global-search" type="search" placeholder="Buscar activos, CVEs..." oninput="handleGlobalSearch(this.value)" style="padding-left:2rem;padding-right:3.25rem;" class="forti-input w-full text-xs h-7 rounded" autocomplete="off" />
+                <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1 pointer-events-none">Ctrl+K</span>
             </div>
 
-            <!-- Dynamic Seed Selector (VDOM Style) -->
-            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded bg-black/30 border border-white/10 shadow-inner">
-                <i class="fa-solid fa-crosshairs text-xs" style="color:var(--fg-accent)"></i>
-                <span class="text-[11px] text-slate-400 font-semibold">Perímetro:</span>
-                <select id="active-seed-selector" onchange="onActiveSeedChange(this.value)" class="bg-transparent text-white font-mono text-xs font-bold focus:outline-none cursor-pointer">
-                    <option value="ALL" class="bg-slate-900 text-white">Cargando semillas...</option>
+            <!-- Dynamic Seed Selector (VDOM Style, bounded width to prevent overflow) -->
+            <div class="flex items-center gap-1.5 px-2 py-1 rounded bg-black/30 border border-white/10 shadow-inner min-w-0 max-w-[175px] xl:max-w-[220px]">
+                <i class="fa-solid fa-crosshairs text-xs shrink-0" style="color:var(--fg-accent)"></i>
+                <span class="text-[11px] text-slate-400 font-semibold shrink-0 hidden lg:inline">Perímetro:</span>
+                <select id="active-seed-selector" onchange="onActiveSeedChange(this.value)" class="bg-transparent text-white font-mono text-xs font-bold focus:outline-none cursor-pointer w-full min-w-0 truncate">
+                    <option value="ALL" class="bg-slate-900 text-white">Cargando...</option>
                 </select>
             </div>
         </div>
 
         <!-- Right: Actions, Density, Theme Selector & Analyst Profile -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 shrink-0">
             <!-- Quick Action: Scan -->
             <button id="btn-scan" onclick="triggerScan()" class="forti-btn-primary h-7 text-xs px-2.5 rounded font-semibold" title="Iniciar análisis perimetral asíncrono">
                 <i id="scan-icon" class="fa-solid fa-radar text-xs"></i>
