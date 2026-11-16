@@ -9,7 +9,7 @@ ensure_fastapi_backend_running(false);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenRecon | EASM, DRP, CTI & Attack Surface Management</title>
     <!-- Core Local CSS & Anti-FOUC Foundation (Render-Blocking) -->
-    <link rel="stylesheet" href="assets/css/openrecon-styles.css">
+    <link rel="stylesheet" href="assets/css/openrecon-styles.css?v=20261116">
     <!-- Local FontAwesome 6.5.1 -->
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
     <!-- Local Tailwind Engine -->
@@ -7957,7 +7957,7 @@ function closeTakedownModal() {
             primary_hover: "#145a14",
             primary_text: "#ffffff",
             accent: "#228b22",
-            bg_main: "#f4f4f4",
+            bg_main: "#ffffff",
             card_bg: "#ffffff",
             card_header: "#444444",
             border: "#d0d0d0",

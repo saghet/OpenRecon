@@ -65,11 +65,11 @@ html[data-theme="standard"] {
     --fg-primary-hover: #145a14;
     --fg-primary-text: #ffffff;
     --fg-accent: #228b22;
-    --fg-bg-main: #f4f4f4;
+    --fg-bg-main: #ffffff;
     --fg-card-bg: #ffffff;
     --fg-card-header: #444444;
-    --fg-border: #d0d0d0;
-    --fg-border-subtle: #e5e5e5;
+    --fg-border: #cccccc;
+    --fg-border-subtle: #e2e2e2;
     --fg-text-main: #222222;
     --fg-text-muted: #555555;
     --fg-text-dim: #777777;
@@ -97,10 +97,51 @@ html[data-theme="standard"] {
 }
 
 html[data-theme="standard"] body,
-html[data-theme="standard"] #forti-main-viewport {
-    background-color: #f4f4f4 !important;
+html[data-theme="standard"] #forti-app-shell,
+html[data-theme="standard"] #forti-main-viewport,
+html[data-theme="standard"] main {
+    background-color: #ffffff !important;
     color: #222222 !important;
     font-family: "Segoe UI", Tahoma, Arial, Helvetica, sans-serif !important;
+}
+
+html[data-theme="standard"] #forti-topbar {
+    background-color: #3b3b3b !important;
+    border-bottom: 1px solid #4d4d4d !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="standard"] .forti-breadcrumb-bar,
+html[data-theme="standard"] #forti-main-viewport .forti-card-header,
+html[data-theme="standard"] #forti-main-viewport thead th {
+    background-color: #444444 !important;
+    color: #ffffff !important;
+    border-color: #555555 !important;
+}
+
+html[data-theme="standard"] .forti-breadcrumb-bar .text-slate-400,
+html[data-theme="standard"] .forti-breadcrumb-bar .text-white {
+    color: #f2f2f2 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .forti-card,
+html[data-theme="standard"] #forti-main-viewport .bg-black\/20,
+html[data-theme="standard"] #forti-main-viewport .bg-black\/30,
+html[data-theme="standard"] #forti-main-viewport .bg-black\/40 {
+    background-color: #ffffff !important;
+    border-color: #cccccc !important;
+    color: #222222 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport table,
+html[data-theme="standard"] #forti-main-viewport tbody tr {
+    background-color: #ffffff !important;
+    color: #222222 !important;
+    border-color: #e2e2e2 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport tbody tr:hover {
+    background-color: #eef6ee !important;
 }
 
 html[data-theme="standard"] #forti-sidebar {
