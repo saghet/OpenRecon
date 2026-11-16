@@ -453,37 +453,7 @@ ensure_fastapi_backend_running(false);
             container.innerHTML = `<div class="space-y-3">${html}</div>`;
         }
 
-        // Enhance switchTab to cover all Stage 3 tabs
-        const originalSwitchTab = switchTab;
-        switchTab = function(tabId) {
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.className = 'tab-btn px-4 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800/50 flex items-center gap-2 transition';
-            });
-            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
-            if (activeBtn) {
-                activeBtn.className = 'tab-btn px-4 py-2.5 rounded-xl bg-slate-800 text-cyan-400 border border-cyan-800/50 flex items-center gap-2 transition';
-            }
-
-            const allTabs = ['easm', 'graph', 'vulns', 'drp', 'leaks', 'cti', 'seeds', 'strix', 'loginrecon', 'php2shell', 'connectors', 'scope', 'cloud', 'ai', 'darkintel', 'emailintel', 'domainintel'];
-            allTabs.forEach(t => {
-                const el = document.getElementById(`tab-content-${t}`);
-                if (el) el.classList.toggle('hidden', t !== tabId);
-            });
-
-            if (tabId === 'connectors') loadConnectors();
-            if (tabId === 'scope') loadScope();
-            if (tabId === 'cloud') loadCloudExposure();
-            if (tabId === 'graph' && networkInstance) setTimeout(() => { networkInstance.fit(); }, 100);
-            if (tabId === 'strix') populateStrixAssetDropdown();
-            if (tabId === 'loginrecon') populateLoginReconPresets();
-            if (tabId === 'darkintel') {
-                if (typeof darkIntelLoadOverview === 'function') darkIntelLoadOverview();
-                if (typeof darkIntelSyncWithGlobalSeeds === 'function') darkIntelSyncWithGlobalSeeds();
-            }
-            if (tabId === 'emailintel') {
-                if (typeof emailIntelLoadOverview === 'function') emailIntelLoadOverview();
-            }
-        };
+        // Note: switchTab is defined in the FortiOS navigation script below (handles all tabs including Stage 3).
 
         // Handler for updating vulnerability validation state
         async function handleValidationStateChange(vulnId, newState) {

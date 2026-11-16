@@ -926,4 +926,10 @@ async function domainIntelSaveCredential() {
         fb.textContent = err.detail || 'No se pudo guardar la API Key.';
     }
 }
+
+window.domainIntelLoadSeeds = domainIntelLoadSeeds;
+window.domainIntelLoadHistory = domainIntelLoadHistory;
+document.addEventListener('DOMContentLoaded', () => {
+    if (typeof domainIntelLoadSeeds === 'function') domainIntelLoadSeeds();
+});
 </script>
