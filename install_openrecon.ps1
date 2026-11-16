@@ -155,6 +155,24 @@ if (-not $SkipTests) {
 }
 
 Write-Host ""
+Write-Host "[*] Creando acceso directo en el Escritorio (OpenRecon 3.0.lnk)..." -ForegroundColor Yellow
+try {
+    $DesktopDir = [Environment]::GetFolderPath("Desktop")
+    $ShortcutPath = Join-Path $DesktopDir "OpenRecon 3.0.lnk"
+    $WshShell = New-Object -ComObject WScript.Shell
+    $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
+    $Shortcut.TargetPath = (Join-Path $RepoRoot "launch_openrecon.bat")
+    $Shortcut.WorkingDirectory = $RepoRoot
+    $Shortcut.Description = "Abrir OpenRecon 3.0 SOC Dashboard (Docker Compose)"
+    $Shortcut.WindowStyle = 7
+    $Shortcut.IconLocation = "C:\Windows\System32\shell32.dll,13"
+    $Shortcut.Save()
+    Write-Host "[OK] Acceso directo creado en: $ShortcutPath" -ForegroundColor Green
+} catch {
+    Write-Warning "No se pudo crear el acceso directo en el Escritorio: $_"
+}
+
+Write-Host ""
 Write-Host "Instalación completada." -ForegroundColor Green
 Write-Host "  1) Inicia Apache desde XAMPP Control Panel ($XamppPath\xampp-control.exe)." -ForegroundColor White
 Write-Host "  2) Inicia el backend FastAPI con: .\run_backend.bat  (o python run_dev.py)" -ForegroundColor White

@@ -49,7 +49,23 @@ flowchart LR
 | **F6-03** | **Validación E2E en vivo con Docker Compose:** levantar `api` + `postgres` (16) + `redis` (7) + `tor-proxy` y ejecutar flujo completo (org → seed → scan → dedup → AFP → STIX 2.1 → Kill-Switch). | **ALTA** | Docker Desktop / Engine operativo | `docker compose up -d --build` saludable (`HEALTHCHECK` OK), migraciones Alembic aplicadas y suite E2E verde contra Postgres + Redis. |
 | **F6-04** | **Retiro de código heredado duplicado:** archivar/eliminar `web_dashboard/backend/tools/` y `web_dashboard/engine/` tras confirmar paridad funcional en FastAPI. | **MEDIA** | F6-01, F6-03 | Sin duplicidad de motores entre PHP y Python; documentación `STRANGLER_MIGRATION_MATRIX.md` actualizada al 100%. |
 | **F6-05** | **Tag y Release `v3.0.0` GA en GitHub:** actualizar `CHANGELOG.md`, notas de release y SBOM (`docs/SBOM.md`). | **MEDIA** | F6-01 a F6-04 | Todas las suites (`security/`, `integration/`, `e2e/`, PHP) en verde y tag `v3.0.0` publicado. |
-| **F6-06** | **Instalador Windows + XAMPP 8.2:** `install_openrecon.ps1` / `install_openrecon.bat` con ApacheFriends XAMPP 8.2, Python venv, Alembic y binarios Go opcionales. | **COMPLETADO** | — | Instalador validado sin privilegios root en runtime, enlace `htdocs\openrecon` y verificación `tests/security` automática. |
+| **F6-06** | **Instalador Windows + XAMPP 8.2 y Acceso Directo:** `install_openrecon.ps1`, `launch_openrecon.bat` y acceso directo en Escritorio `OpenRecon 3.0.lnk`. | **COMPLETADO** | — | Instalador validado sin privilegios root en runtime, enlace `htdocs\openrecon` y acceso directo funcional. |
+| **F6-07** | **Estandarización Docker Compose & Worker Aislado:** `docker-compose.yml` (6 servicios saludables), `docker/worker/Dockerfile`, `docker/web/Dockerfile` y `docker_entrypoint.py`. | **COMPLETADO** | — | 6/6 contenedores `Up (healthy)`, persistencia PostgreSQL y backup/restore verificados en vivo. |
+
+---
+
+### Fase 6.5: Plan de Trabajo Post-Migración Docker (Puesta a Punto Tras Instalación)
+
+Revisión multidisciplinaria (**Arquitecto, DevSecOps, DBA PostgreSQL/Redis, SRE, Python/FastAPI, PHP/Apache y QA**) para dejar OpenRecon 100% operativo tras cualquier instalación:
+
+| ID | Especialidad | Tarea Post-Instalación | Prioridad | Criterio de Aceptación (DoD) |
+| :--- | :--- | :--- | :---: | :--- |
+| **PD-01** | **DevSecOps** | **Rotación de secretos `.env` de producción:** reemplazar valores por defecto en `.env` (`POSTGRES_PASSWORD`, `SECRET_KEY`, `OPENRECON_API_TOKEN`, `OPENRECON_MASTER_KEY`). | **CRÍTICA** | Ningún secreto de ejemplo activo en `.env`; tokens validados en `/api/v1/*`. |
+| **PD-02** | **DBA PostgreSQL** | **Cutover de datos SQLite → PostgreSQL:** ejecutar `python -m scripts.migrate_sqlite_to_postgres --sqlite /app/legacy/openrecon.sqlite` cuando existan datos previos de XAMPP/SQLite. | **ALTA** | 100% de registros Email/DarkIntel/EASM verificados en PostgreSQL sin duplicados. |
+| **PD-03** | **PHP / Frontend** | **Corrección menor JS `switchTab` en `web_dashboard/index.php` (línea 453):** definir/hoistear `switchTab` antes del bloque inicial que la invoca para eliminar el `ReferenceError` en consola. | **MEDIA** | Consola del navegador con 0 errores JS al cargar `http://127.0.0.1:8080/index.php`. |
+| **PD-04** | **Python / FastAPI** | **Encolado asíncrono unificado hacia `recon-worker`:** enrutar `POST /api/v1/scans/` y `POST /api/v1/web-recon/scan` hacia la cola Redis `openrecon:queue:scans` para ejecución exclusiva en `openrecon-recon-worker`. | **ALTA** | `openrecon-api` actúa solo como plano de control HTTP; todo escaneo activo corre aislado en `recon-worker`. |
+| **PD-05** | **SRE / Observabilidad** | **Backups automáticos y monitoreo:** programar `./docker/scripts/backup_postgres.sh` (cron/Task Scheduler) y conectar Prometheus/Grafana a `http://127.0.0.1:8000/metrics`. | **MEDIA** | Respaldos diarios con `.sha256` y alertas de salud sobre los 6 contenedores. |
+| **PD-06** | **Desktop UX** | **Acceso directo inteligente (`OpenRecon 3.0.lnk`):** doble clic verifica `http://127.0.0.1:8080/index.php`, levanta `docker compose up -d` si está detenido y abre el navegador. | **COMPLETADO** | Acceso directo creado en Escritorio y validado en `install_openrecon.ps1`. |
 
 ---
 
