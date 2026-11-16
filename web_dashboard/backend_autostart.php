@@ -7,8 +7,13 @@
 if (!function_exists('ensure_fastapi_backend_running')) {
     function ensure_fastapi_backend_running(bool $waitForReady = false, int $maxWaitMs = 6000): bool
     {
-        $checkPort = static function (): bool {
-            $fp = @fsockopen('127.0.0.1', 8000, $errno, $errstr, 0.15);
+        $apiUrl = getenv('OPENRECON_API_URL') ?: 'http://127.0.0.1:8000';
+        $parts = parse_url($apiUrl);
+        $apiHost = $parts['host'] ?? '127.0.0.1';
+        $apiPort = (int)($parts['port'] ?? 8000);
+
+        $checkPort = static function () use ($apiHost, $apiPort): bool {
+            $fp = @fsockopen($apiHost, $apiPort, $errno, $errstr, 0.15);
             if ($fp !== false) {
                 @fclose($fp);
                 return true;
@@ -18,6 +23,10 @@ if (!function_exists('ensure_fastapi_backend_running')) {
 
         if ($checkPort()) {
             return true;
+        }
+
+        if (getenv('OPENRECON_DOCKER_MODE') === 'true' || strtoupper(substr(PHP_OS, 0, 3)) !== 'WIN') {
+            return false;
         }
 
         $vbsPath = 'C:\\Users\\saghe\\Documents\\FortiRecon\\backend\\start_backend_hidden.vbs';

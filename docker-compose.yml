@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16.6-alpine
     container_name: openrecon-postgres
     restart: unless-stopped
     environment:
@@ -11,26 +9,37 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-openrecon}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
     networks:
       - internal-data-net
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '1.00'
+          memory: 1G
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U openrecon"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-openrecon} -d ${POSTGRES_DB:-openrecon}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.1-alpine
     container_name: openrecon-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
     networks:
       - internal-data-net
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 256M
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -39,7 +48,7 @@ services:
 
   # Dedicated Isolated Tor SOCKS5 Sandbox (Zero-Privilege)
   tor-proxy:
-    image: alpine:3.19
+    image: alpine:3.19.4
     container_name: openrecon-tor-sandbox
     restart: unless-stopped
     command: >
@@ -72,25 +81,37 @@ services:
       dockerfile: Dockerfile
     container_name: openrecon-api
     restart: unless-stopped
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     volumes:
-      - ./backend:/app
+      - evidences_data:/app/data
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '1.50'
+          memory: 1536M
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/"]
       interval: 15s
       timeout: 5s
       retries: 5
     environment:
-      - DATABASE_URL=postgresql://openrecon:openrecon_password@postgres:5432/openrecon
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-openrecon}:${POSTGRES_PASSWORD:-openrecon_password}@postgres:5432/${POSTGRES_DB:-openrecon}
       - REDIS_URL=redis://redis:6379/0
       - TOR_PROXY_URL=socks5h://tor-proxy:9050
-      - SAFE_MODE=true
-      - RATE_LIMIT_RPS=15
+      - SECRET_KEY=${SECRET_KEY:-replace_this_with_a_secure_random_key_in_production}
+      - OPENRECON_API_TOKEN=${OPENRECON_API_TOKEN:-}
+      - OPENRECON_MASTER_KEY=${OPENRECON_MASTER_KEY:-}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      - RATE_LIMIT_RPS=${RATE_LIMIT_RPS:-15}
+      - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS:-5}
     networks:
+      - frontend-net
       - internal-data-net
       - tor-sandbox-net
     depends_on:
@@ -101,8 +122,76 @@ services:
       tor-proxy:
         condition: service_started
 
+  recon-worker:
+    build:
+      context: .
+      dockerfile: docker/worker/Dockerfile
+    container_name: openrecon-recon-worker
+    restart: unless-stopped
+    volumes:
+      - evidences_data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: '2.00'
+          memory: 2G
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-openrecon}:${POSTGRES_PASSWORD:-openrecon_password}@postgres:5432/${POSTGRES_DB:-openrecon}
+      - REDIS_URL=redis://redis:6379/0
+      - TOR_PROXY_URL=socks5h://tor-proxy:9050
+      - SECRET_KEY=${SECRET_KEY:-replace_this_with_a_secure_random_key_in_production}
+      - OPENRECON_MASTER_KEY=${OPENRECON_MASTER_KEY:-}
+      - SAFE_MODE=${SAFE_MODE:-true}
+      - RATE_LIMIT_RPS=${RATE_LIMIT_RPS:-15}
+      - MAX_CONCURRENT_TASKS=${MAX_CONCURRENT_TASKS:-5}
+    networks:
+      - internal-data-net
+      - recon-egress-net
+      - tor-sandbox-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    container_name: openrecon-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - sqlite_legacy_data:/var/www/html/legacy_state
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+    environment:
+      - OPENRECON_API_URL=http://api:8000
+      - OPENRECON_API_TOKEN=${OPENRECON_API_TOKEN:-}
+      - OPENRECON_DOCKER_MODE=true
+    networks:
+      - frontend-net
+    depends_on:
+      api:
+        condition: service_healthy
+
 networks:
+  frontend-net:
+    driver: bridge
   internal-data-net:
+    driver: bridge
+    internal: true
+  recon-egress-net:
     driver: bridge
   tor-sandbox-net:
     driver: bridge
@@ -111,3 +200,5 @@ volumes:
   postgres_data:
   redis_data:
   tor_data:
+  evidences_data:
+  sqlite_legacy_data:

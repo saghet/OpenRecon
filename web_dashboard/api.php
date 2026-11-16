@@ -6019,7 +6019,7 @@ function handleDarkWebCorrelate($pdo) {
 }
 
 function forwardToFastApi($method, $path, $payload = null, $timeout = 10) {
-    $url = 'http://127.0.0.1:8000/api/v1' . $path;
+    $url = (getenv('OPENRECON_API_URL') ?: 'http://127.0.0.1:8000') . '/api/v1' . $path;
     $ch = curl_init($url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
@@ -6591,7 +6591,7 @@ function handleDarkIntelAIAnalyze($pdo) {
     }
 
     // Call Python FastAPI backend /api/v1/darkintel/ai/analyze
-    $ch = curl_init('http://127.0.0.1:8000/api/v1/darkintel/ai/analyze');
+    $ch = curl_init((getenv('OPENRECON_API_URL') ?: 'http://127.0.0.1:8000') . '/api/v1/darkintel/ai/analyze');
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_POST, true);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
@@ -7243,7 +7243,7 @@ function diIsDomainInSeeds($domain, $seedDomains) {
 }
 
 function handleDomainIntelProxy($action, $pdo = null) {
-    $base = 'http://127.0.0.1:8000/api/v1/domain-intel';
+    $base = (getenv('OPENRECON_API_URL') ?: 'http://127.0.0.1:8000') . '/api/v1/domain-intel';
     $orgId = isset($_GET['organization_id']) ? intval($_GET['organization_id']) : 1;
     $seedDomains = diGetAuthorizedSeeds($pdo);
     $method = 'GET';
