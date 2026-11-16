@@ -66,6 +66,7 @@ Revisión multidisciplinaria (**Arquitecto, DevSecOps, DBA PostgreSQL/Redis, SRE
 | **PD-04** | **Python / FastAPI** | **Encolado asíncrono unificado hacia `recon-worker`:** enrutar `POST /api/v1/scans/` y `POST /api/v1/web-recon/scan` hacia la cola Redis `openrecon:queue:scans` para ejecución exclusiva en `openrecon-recon-worker`. | **ALTA** | `openrecon-api` actúa solo como plano de control HTTP; todo escaneo activo corre aislado en `recon-worker`. |
 | **PD-05** | **SRE / Observabilidad** | **Backups automáticos y monitoreo:** programar `./docker/scripts/backup_postgres.sh` (cron/Task Scheduler) y conectar Prometheus/Grafana a `http://127.0.0.1:8000/metrics`. | **MEDIA** | Respaldos diarios con `.sha256` y alertas de salud sobre los 6 contenedores. |
 | **PD-06** | **Desktop UX** | **Acceso directo inteligente (`OpenRecon 3.0.lnk`):** doble clic verifica `http://127.0.0.1:8080/index.php`, levanta `docker compose up -d` si está detenido y abre el navegador. | **COMPLETADO** | Acceso directo creado en Escritorio y validado en `install_openrecon.ps1`. |
+| **PD-07** | **CTI / UI UX** | **Paridad de configuración rápida de API Keys (`AlienVault OTX`):** botón "Configurar API Key" en cabecera y en estado `KEY_NOT_CONFIGURED` con guardado cifrado y re-consulta automática (idéntico a VirusTotal); extender el mismo patrón a `AbuseIPDB` y `WhoisXML`. | **COMPLETADO (OTX)** | `domainIntelOpenProviderKeyModal('otx')` activo en panel OTX y verificado en `openrecon-web`. |
 
 ---
 

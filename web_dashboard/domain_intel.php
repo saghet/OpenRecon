@@ -142,7 +142,12 @@
                 <div id="di-panel-vt" class="text-xs text-slate-300 space-y-1.5"></div>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-                <h3 class="text-sm font-bold text-slate-100 mb-3"><i class="fa-solid fa-satellite-dish text-purple-400 mr-2"></i>AlienVault OTX (Pulses &amp; Malware)</h3>
+                <div class="flex items-center justify-between gap-2 mb-3">
+                    <h3 class="text-sm font-bold text-slate-100"><i class="fa-solid fa-satellite-dish text-purple-400 mr-2"></i>AlienVault OTX (Pulses &amp; Malware)</h3>
+                    <button type="button" onclick="domainIntelOpenProviderKeyModal('otx')" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-medium text-amber-300 transition">
+                        <i class="fa-solid fa-key mr-1"></i>Configurar API Key
+                    </button>
+                </div>
                 <div id="di-panel-otx" class="text-xs text-slate-300 space-y-2 max-h-64 overflow-y-auto"></div>
             </div>
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5">
@@ -479,6 +484,14 @@ function domainIntelRenderInvestigation(inv) {
     if (otx && otx.status === 'SUCCESS') {
         const pulses = (otx.data?.pulses || []).slice(0, 8).map(p => `<div class="p-2 rounded bg-slate-950 border border-slate-800"><div class="font-semibold text-purple-300">${diEscape(p.name)}</div><div class="text-[11px] text-slate-400">${diEscape(p.description)}</div></div>`).join('');
         otxEl.innerHTML = `<div><strong>Pulse Count:</strong> ${otx.data?.pulse_count ?? 0} | <strong>Malware:</strong> ${diEscape((otx.data?.malware_families || []).join(', ') || 'Ninguna')}</div>${pulses}`;
+    } else if (otx && otx.status === 'KEY_NOT_CONFIGURED') {
+        otxEl.innerHTML = `
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-amber-300">Estado: ${diEscape(otx.status)} — ${diEscape(otx.error_message || 'API Key de AlienVault OTX no configurada.')}</span>
+                <button type="button" onclick="domainIntelOpenProviderKeyModal('otx')" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-[11px] font-semibold transition">
+                    <i class="fa-solid fa-key mr-1"></i>Configurar API Key de AlienVault OTX
+                </button>
+            </div>`;
     } else {
         otxEl.innerHTML = `<span class="text-slate-400">Estado: ${diEscape(otx?.status || 'NO_CONSULTADO')} — ${diEscape(otx?.error_message || '')}</span>`;
     }
