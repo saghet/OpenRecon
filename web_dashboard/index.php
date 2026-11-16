@@ -9,7 +9,7 @@ ensure_fastapi_backend_running(false);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenRecon | EASM, DRP, CTI & Attack Surface Management</title>
     <!-- Core Local CSS & Anti-FOUC Foundation (Render-Blocking) -->
-    <link rel="stylesheet" href="assets/css/openrecon-styles.css?v=20261116b">
+    <link rel="stylesheet" href="assets/css/openrecon-styles.css?v=20261116c">
     <!-- Local FontAwesome 6.5.1 -->
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
     <!-- Local Tailwind Engine -->

@@ -143,6 +143,8 @@ html[data-theme="standard"] #forti-main-viewport thead th {
 }
 
 html[data-theme="standard"] #forti-main-viewport .forti-card,
+html[data-theme="standard"] #forti-main-viewport [class*="bg-slate-900"],
+html[data-theme="standard"] #forti-main-viewport [class*="bg-slate-950"],
 html[data-theme="standard"] #forti-main-viewport .bg-black\/20,
 html[data-theme="standard"] #forti-main-viewport .bg-black\/30,
 html[data-theme="standard"] #forti-main-viewport .bg-black\/40 {
@@ -151,9 +153,7 @@ html[data-theme="standard"] #forti-main-viewport .bg-black\/40 {
     color: #222222 !important;
 }
 
-html[data-theme="standard"] #forti-main-viewport .bg-slate-800,
-html[data-theme="standard"] #forti-main-viewport .bg-slate-800\/50,
-html[data-theme="standard"] #forti-main-viewport .bg-slate-800\/80,
+html[data-theme="standard"] #forti-main-viewport [class*="bg-slate-800"],
 html[data-theme="standard"] #forti-main-viewport .bg-gradient-to-r,
 html[data-theme="standard"] #forti-main-viewport .bg-emerald-950\/30,
 html[data-theme="standard"] #forti-main-viewport .bg-emerald-950\/40,
