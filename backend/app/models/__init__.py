@@ -3,6 +3,7 @@ from app.models.asset import Asset, AssetType
 from app.models.exposure import PortService, Vulnerability, DigitalRiskFinding, SeverityLevel, RiskType
 from app.models.scan import ScanJob, ScanType, ScanStatus
 from app.models.evidence import EvidenceRecord, EvidenceAuditLog, FindingValidationState
+from app.models.web_recon import DiscoveredEndpoint, WebScanExecution, WebOrgPolicy
 from app.models.darkintel import (
     DarkEvidenceVault,
     DarkSource,
@@ -58,6 +59,9 @@ __all__ = [
     "ScanJob",
     "ScanType",
     "ScanStatus",
+    "DiscoveredEndpoint",
+    "WebScanExecution",
+    "WebOrgPolicy",
     "DarkEvidenceVault",
     "DarkSource",
     "DarkLeak",

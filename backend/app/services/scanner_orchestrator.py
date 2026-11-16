@@ -17,6 +17,7 @@ from app.services.validation.anti_false_positive import AntiFalsePositiveEngine,
 from app.services.validation.finding_contract import GlobalFindingDeduplicator, NormalizedFinding
 from app.services.cti.vuln_intel_enrichment import VulnIntelEnrichmentService
 from app.services.web_security.analyzer import WebSecurityAnalyzer
+from app.services.web_security.webcopilot_adapter import WebCopilotAdapter, WebReconOptions
 from app.core.security_guard import SecurityGovernanceGuard
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,13 @@ class ScannerOrchestrator:
         self.deduplicator = GlobalFindingDeduplicator()
         self.vuln_enrichment = VulnIntelEnrichmentService()
         self.web_sec = WebSecurityAnalyzer()
+        self.webcopilot_adapter = WebCopilotAdapter(
+            db=db,
+            nuclei_engine=self.nuclei_engine,
+            afp_engine=self.afp_engine,
+            deduplicator=self.deduplicator,
+            evidence_manager=self.evidence_manager,
+        )
 
     async def execute_scan(self, scan_job_id: int):
         scan_job = self.db.query(ScanJob).filter(ScanJob.id == scan_job_id).first()
@@ -307,6 +315,30 @@ class ScannerOrchestrator:
                                 except Exception as drp_di_err:
                                     logger.warning(f"Domain Intelligence DRP enrichment skipped for {target_val}: {drp_di_err}")
                         self.db.commit()
+
+            # 4. Selective WebCopilotAdapter Enrichment (Historical Endpoints, Param Analysis, Nuclei Enrichment)
+            if (
+                scan_job.scan_type in [ScanType.EASM_FULL, ScanType.WEB_RECON]
+                and not SecurityGovernanceGuard.is_kill_switch_active().get("active")
+            ):
+                try:
+                    live_assets = (
+                        self.db.query(Asset)
+                        .filter(Asset.organization_id == org_id, Asset.is_live == True)  # noqa: E712
+                        .all()
+                    )
+                    authorized_scope = [s.value for s in seeds]
+                    if live_assets:
+                        web_res = await self.webcopilot_adapter.run_for_assets(
+                            organization_id=org_id,
+                            assets=live_assets,
+                            authorized_scope=authorized_scope,
+                            scan_job_id=scan_job.id,
+                            options=WebReconOptions(),
+                        )
+                        total_vulns_found += web_res.get("findings_ingested", 0)
+                except Exception as wc_err:
+                    logger.warning(f"WebCopilotAdapter step isolated failure (non-fatal): {wc_err}")
 
             # Finish job
             scan_job.status = ScanStatus.COMPLETED

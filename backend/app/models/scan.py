@@ -11,6 +11,7 @@ class ScanType(str, enum.Enum):
     PORT_SCAN = "PORT_SCAN"
     DRP_SCAN = "DRP_SCAN"
     VULN_SCAN = "VULN_SCAN"
+    WEB_RECON = "WEB_RECON"
 
 
 class ScanStatus(str, enum.Enum):

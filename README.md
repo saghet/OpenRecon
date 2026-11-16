@@ -12,7 +12,7 @@ OpenRecon unifica en una arquitectura modular (**FastAPI + PostgreSQL/SQLite + R
 ### 1. 🌐 EASM (External Attack Surface Management)
 * **Descubrimiento de Activos y Subdominios (`DNSEngine`):** Ejecución asíncrona no bloqueante, enumeración pasiva y activa (`subfinder -json`, `amass -passive`, `crt.sh`), detección y eliminación automática de **Wildcard DNS** y preservación de procedencia (`dnspython`, `dnsx`).
 * **Mapeo Perimetral y Fingerprinting (`HTTPEngine`, `PortEngine`):** Sondeo TCP no destructivo (`naabu -s c`, sockets asíncronos), fingerprinting HTTP/TLS/tecnologías (`httpx` JSONL), detección de servicios críticos expuestos (MySQL, Redis, PostgreSQL, MongoDB, RDP, FTP) y estado de certificados SSL/TLS.
-* **Validación de Vulnerabilidades (`NucleiEngine`):** Integración con **Nuclei v3** (`-jsonl`) con exclusión automática de tags destructivos (`-etags dos,fuzz,intrusive,bruteforce`), captura de evidencia HTTP sanitizada y escáner específico **PHP2Shell** (`CVE-2026-109618` / `CVE-2026-109619`).
+* **Validación de Vulnerabilidades (`NucleiEngine` + `WebCopilotAdapter`):** Integración con **Nuclei v3** (`-jsonl`) con exclusión automática de tags destructivos (`-etags dos,fuzz,intrusive,bruteforce`), captura de evidencia HTTP sanitizada, escáner específico **PHP2Shell** (`CVE-2026-109618` / `CVE-2026-109619`) y **reconocimiento web selectivo (`WebCopilotAdapter`)** con descubrimiento histórico (`gau`, `waybackurls`, `waymore`, fallback `wayback_cdx`), normalización/deduplicación canónica, clasificación GF en Python (`xss`, `sqli`, `ssrf`, `lfi`, `rce`, `redirect`, `crlf`), validación `kxss`/`dalfox`/`openredirex_safe`, enriquecimiento de `NucleiEngine.scan_targets()` y políticas *Safe-by-Default* (`WebOrgPolicy`) para Interactsh OOB y SQLMap controlado (deshabilitados por defecto).
 
 ### 2. 🔬 Contrato Único de Hallazgos, Validación Forense & Anti-Falsos Positivos
 * **Contrato Único y Deduplicación (`finding_contract.py`):** Esquema `NormalizedFinding` y `GlobalFindingDeduplicator` con `fingerprint` **SHA-256 determinista** que conserva evidencias independientes de múltiples fuentes, integrado en `AntiFalsePositiveEngine` y `ScannerOrchestrator`.
@@ -100,7 +100,15 @@ OpenRecon/
 
 ## 🚀 Despliegue Rápido
 
-### Opción 1: Desarrollo Local (Python + Consola SOC PHP)
+### Opción 1: Instalador Integral Windows + Último XAMPP 8.2 (Recomendado)
+Ejecuta el instalador automatizado que verifica/instala **XAMPP 8.2 (`ApacheFriends.Xampp.8.2`)**, **Python 3.12**, crea `backend\venv`, instala dependencias, aplica migraciones Alembic y enlaza `web_dashboard` en `C:\xampp\htdocs\openrecon`:
+```powershell
+.\install_openrecon.bat
+# O con herramientas Go opcionales (subfinder, dnsx, httpx, naabu, nuclei, gau, waybackurls, kxss, dalfox):
+powershell -ExecutionPolicy Bypass -File .\install_openrecon.ps1 -WithSecurityTools
+```
+
+### Opción 2: Desarrollo Local Manual (Python + Consola SOC PHP)
 1. Crear y activar entorno virtual e instalar dependencias:
    ```bash
    python -m venv venv

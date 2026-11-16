@@ -114,3 +114,11 @@ Para que una nueva funcionalidad o conector sea incorporado al repositorio de pr
 3. **Respeto Estricto de RoE y Anti-SSRF:** Prohibición absoluta de interactuar con IPs privadas, metadatos cloud o destinos fuera del alcance autorizado.
 4. **Cobertura de Pruebas:** Cada nuevo módulo debe incorporar su correspondiente batería de pruebas unitarias con un mínimo del 90% de cobertura y cero regresiones.
 5. **Documentación:** Actualización obligatoria de diagramas de arquitectura, OpenAPI schema y matriz de capacidades.
+
+---
+
+## Fase 4: Integración Selectiva de Capacidades WebCopilot (`WebCopilotAdapter`) — Completada
+- **Descubrimiento histórico y normalización:** `url_normalizer.py` + `WebCopilotAdapter` (GAU, WaybackURLs, Waymore, fallback pasivo Wayback CDX) consumiendo activos vivos de OpenRecon sin duplicar Subfinder/DNSX.
+- **Análisis de parámetros y validación:** Clasificación GF en Python (`xss`, `sqli`, `ssrf`, `lfi`, `rce`, `redirect`, `crlf`), validación `kxss`/`dalfox`/`openredirex_safe`, y enriquecimiento de `NucleiEngine.scan_targets`.
+- **Gobernanza Safe-by-Default:** `WebOrgPolicy` con `interactsh_enabled=False`, `sqlmap_enabled=False` (solo modo no destructivo `--level=1 --risk=1` bajo autorización explícita) y `nuclei_allow_intrusive=False` por defecto; RoE, Anti-SSRF, `GlobalFindingDeduplicator`, `AntiFalsePositiveEngine`, `EvidenceManager` y Kill-Switch distribuido.
+- **API & Dashboard:** Endpoints `/api/v1/web-recon/*`, modelos `DiscoveredEndpoint`, `WebScanExecution`, `WebOrgPolicy`, migración Alembic `a1b2c3d4e5f6`, y panel integrado en `web_dashboard/index.php`.

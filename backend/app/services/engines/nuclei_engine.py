@@ -1,9 +1,12 @@
 import asyncio
 import json
 import logging
+import os
 import shutil
+import tempfile
 from typing import Any, Dict, List
 
+from app.core.config import settings
 from app.core.evidence_sanitizer import EvidenceSanitizer
 
 logger = logging.getLogger(__name__)
@@ -87,18 +90,22 @@ class NucleiEngine:
             })
         return findings
 
-    async def scan_target(self, target_url: str) -> List[Dict[str, Any]]:
+    async def scan_target(self, target_url: str, allow_intrusive: bool = False) -> List[Dict[str, Any]]:
         if not self.has_nuclei:
             return []
+
+        etags = EXCLUDED_DANGEROUS_TAGS
+        if allow_intrusive and not settings.SAFE_MODE:
+            etags = "dos,fuzz,bruteforce"
 
         try:
             cmd = [
                 "nuclei",
                 "-u", target_url,
-                "-tags", "exposure,misconfig,panel,default-login,cve",
-                "-etags", EXCLUDED_DANGEROUS_TAGS,
+                "-tags", "exposure,misconfig,panel,default-login,cve,xss,sqli,ssrf,lfi,redirect",
+                "-etags", etags,
                 "-severity", "low,medium,high,critical",
-                "-rate-limit", "15",
+                "-rate-limit", str(settings.RATE_LIMIT_RPS),
                 "-silent",
                 "-jsonl",
             ]
@@ -112,3 +119,49 @@ class NucleiEngine:
         except Exception as e:
             logger.warning(f"Nuclei scan error on {target_url}: {e}")
             return []
+
+    async def scan_targets(self, target_urls: List[str], allow_intrusive: bool = False) -> List[Dict[str, Any]]:
+        """
+        Enriched batch Nuclei scan accepting discovered historical/parameterized URLs.
+        Reuses the single NucleiEngine instead of duplicating a second Nuclei wrapper.
+        """
+        if not self.has_nuclei or not target_urls:
+            return []
+
+        etags = EXCLUDED_DANGEROUS_TAGS
+        if allow_intrusive and not settings.SAFE_MODE:
+            etags = "dos,fuzz,bruteforce"
+
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".txt", delete=False) as tf:
+                for u in target_urls[:500]:
+                    tf.write(u.strip() + "\n")
+                tmp_path = tf.name
+
+            cmd = [
+                "nuclei",
+                "-l", tmp_path,
+                "-tags", "exposure,misconfig,panel,default-login,cve,xss,sqli,ssrf,lfi,redirect",
+                "-etags", etags,
+                "-severity", "low,medium,high,critical",
+                "-rate-limit", str(settings.RATE_LIMIT_RPS),
+                "-silent",
+                "-jsonl",
+            ]
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=max(self.timeout, 180.0))
+            return self.parse_jsonl_output(stdout.decode("utf-8", errors="ignore"))
+        except Exception as e:
+            logger.warning(f"Nuclei batch scan error: {e}")
+            return []
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass

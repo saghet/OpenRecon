@@ -13,7 +13,8 @@ from app.api.v1.endpoints import (
     risk,
     security,
     email_intel,
-    domain_intel
+    domain_intel,
+    web_recon
 )
 
 api_router = APIRouter(dependencies=[Depends(require_api_token)])
@@ -31,3 +32,4 @@ api_router.include_router(cti.router, prefix="/cti", tags=["Threat Intelligence 
 api_router.include_router(correlation.router, prefix="/correlation", tags=["Multidimensional Graph Correlation"])
 api_router.include_router(risk.router, prefix="/risk", tags=["Intelligent Risk & Posture Scoring"])
 api_router.include_router(security.router, prefix="/security", tags=["Security Governance & RoE Scope"])
+api_router.include_router(web_recon.router, prefix="/web-recon", tags=["Web Surface & Endpoint Recon"])

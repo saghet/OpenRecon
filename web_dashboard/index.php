@@ -1089,6 +1089,55 @@ ensure_fastapi_backend_running(false);
                 </div>
             </div>
 
+            <!-- Web Surface & Historical Endpoints (WebCopilotAdapter Enrichment) -->
+            <div id="web-recon-panel" class="p-4 bg-cyber-card border border-cyber-border rounded-xl space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i class="fa-solid fa-diagram-project text-cyan-400"></i>
+                            Superficie Web, Endpoints Históricos y Parámetros (WebCopilotAdapter)
+                        </h4>
+                        <p class="text-[11px] text-slate-400">Endpoints normalizados (GAU/Wayback/Waymore), parámetros GF, correlación Nuclei/Dalfox/KXSS y duración de motores.</p>
+                    </div>
+                    <button onclick="triggerSelectiveWebRecon()" id="btn-web-recon-scan" class="px-3 py-1.5 rounded-lg bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-bold flex items-center gap-1.5 transition">
+                        <i class="fa-solid fa-radar"></i>
+                        <span>Análisis Web Selectivo</span>
+                    </button>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div class="p-2 bg-slate-900/70 rounded-lg border border-slate-800">
+                        <span class="text-[10px] text-slate-400 block">Endpoints Históricos</span>
+                        <span id="wr-total-endpoints" class="text-sm font-bold text-cyan-300 font-mono">0</span>
+                    </div>
+                    <div class="p-2 bg-slate-900/70 rounded-lg border border-slate-800">
+                        <span class="text-[10px] text-slate-400 block">Con Parámetros</span>
+                        <span id="wr-param-endpoints" class="text-sm font-bold text-amber-300 font-mono">0</span>
+                    </div>
+                    <div class="p-2 bg-slate-900/70 rounded-lg border border-slate-800">
+                        <span class="text-[10px] text-slate-400 block">Confirmados vs Potenciales</span>
+                        <span id="wr-conf-vs-pot" class="text-sm font-bold text-emerald-300 font-mono">0 / 0</span>
+                    </div>
+                    <div class="p-2 bg-slate-900/70 rounded-lg border border-slate-800">
+                        <span class="text-[10px] text-slate-400 block">Categorías GF</span>
+                        <span id="wr-gf-summary" class="text-[11px] font-mono text-slate-300 truncate block">--</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-2.5">
+                        <div class="text-[11px] font-semibold text-slate-300 mb-1.5">Endpoints y Parámetros Recientes</div>
+                        <div id="wr-endpoints-list" class="space-y-1 max-h-40 overflow-y-auto text-[11px] font-mono text-slate-400">
+                            <span class="text-slate-500">Sin endpoints históricos registrados aún.</span>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900/50 border border-slate-800 rounded-lg p-2.5">
+                        <div class="text-[11px] font-semibold text-slate-300 mb-1.5">Historial y Duración de Motores</div>
+                        <div id="wr-executions-list" class="space-y-1 max-h-40 overflow-y-auto text-[11px] font-mono text-slate-400">
+                            <span class="text-slate-500">Sin ejecuciones registradas aún.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Filter and Search Toolbar -->
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-cyber-card border border-cyber-border rounded-xl p-3">
                 <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0" id="vuln-severity-filters">
@@ -8414,6 +8463,7 @@ function closeTakedownModal() {
         });
 
         // 4. Trigger Specific Module Loaders
+        if (tabId === 'vulns' && typeof loadWebReconSummary === 'function') loadWebReconSummary();
         if (tabId === 'connectors' && typeof loadConnectors === 'function') loadConnectors();
         if (tabId === 'scope' && typeof loadScope === 'function') loadScope();
         if (tabId === 'cloud' && typeof loadCloudExposure === 'function') loadCloudExposure();
@@ -8434,4 +8484,55 @@ function closeTakedownModal() {
         const vp = document.getElementById('forti-main-viewport');
         if (vp) vp.scrollTop = 0;
     };
+
+    async function loadWebReconSummary() {
+        const orgId = (window.currentOrgId || 1);
+        try {
+            const [sumResp, epResp] = await Promise.all([
+                fetch(`/api/v1/web-recon/summary/${orgId}`),
+                fetch(`/api/v1/web-recon/endpoints/${orgId}?limit=20`)
+            ]);
+            if (sumResp.ok) {
+                const s = await sumResp.json();
+                document.getElementById('wr-total-endpoints').textContent = s.total_endpoints ?? 0;
+                document.getElementById('wr-param-endpoints').textContent = s.parameterized_endpoints ?? 0;
+                const cp = s.confirmed_vs_potential || {};
+                document.getElementById('wr-conf-vs-pot').textContent = `${cp.confirmed || 0} / ${cp.potential || 0}`;
+                const gf = Object.entries(s.gf_category_breakdown || {}).map(([k, v]) => `${k}:${v}`).join(' ');
+                document.getElementById('wr-gf-summary').textContent = gf || 'N/A';
+
+                const execEl = document.getElementById('wr-executions-list');
+                const execs = s.execution_history || [];
+                execEl.innerHTML = execs.length
+                    ? execs.map(ex => `<div class="flex justify-between border-b border-slate-800/60 py-0.5"><span>${ex.tool_name} (${ex.status})</span><span>${ex.items_processed} items · ${ex.duration_ms}ms</span></div>`).join('')
+                    : '<span class="text-slate-500">Sin ejecuciones registradas aún.</span>';
+            }
+            if (epResp.ok) {
+                const e = await epResp.json();
+                const epEl = document.getElementById('wr-endpoints-list');
+                const eps = e.endpoints || [];
+                epEl.innerHTML = eps.length
+                    ? eps.map(item => `<div class="truncate border-b border-slate-800/60 py-0.5" title="${item.url}">[${(item.sources || []).join(',')}] ${item.url}</div>`).join('')
+                    : '<span class="text-slate-500">Sin endpoints históricos registrados aún.</span>';
+            }
+        } catch (err) {
+            console.warn('WebRecon summary unavailable:', err);
+        }
+    }
+
+    async function triggerSelectiveWebRecon() {
+        const orgId = (window.currentOrgId || 1);
+        try {
+            const resp = await fetch('/api/v1/web-recon/scan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ organization_id: orgId })
+            });
+            if (resp.ok) {
+                setTimeout(loadWebReconSummary, 1500);
+            }
+        } catch (err) {
+            console.warn('Failed to trigger selective web recon:', err);
+        }
+    }
     </script>

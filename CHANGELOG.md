@@ -5,6 +5,27 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 
 ---
 
+## [3.1.0-alpha] — 2026-11-16
+### 🌐 Integración Selectiva de WebCopilot (`WebCopilotAdapter`) & Instalador Windows/XAMPP 8.2
+
+#### Añadido y Mejorado
+- **Adaptador Web Selectivo (`WebCopilotAdapter` & `url_normalizer.py`):**
+  - Descubrimiento de endpoints históricos (`gau`, `waybackurls`, `waymore` + fallback pasivo `wayback_cdx`) sobre activos vivos ya catalogados por OpenRecon (sin re-enumerar subdominios).
+  - Normalización determinista, filtrado de estáticos, deduplicación canónica por `(scheme, host, path, params)` y clasificación GF en Python (`xss`, `sqli`, `ssrf`, `lfi`, `rce`, `redirect`, `crlf`).
+  - Validación de parámetros (`kxss`, `dalfox`, `openredirex_safe`) integrada con `AntiFalsePositiveEngine`, `GlobalFindingDeduplicator`, `EvidenceManager` y `IntelligentRiskEngine` (mapeo CWE/OWASP 2021).
+  - Enriquecimiento de `NucleiEngine.scan_targets()` con URLs parametrizadas manteniendo `dos,fuzz,intrusive,bruteforce` excluidos por defecto.
+  - Gobernanza *Safe-by-Default* (`WebOrgPolicy`): `interactsh_enabled=False`, `sqlmap_enabled=False` (solo modo no destructivo `--level=1 --risk=1` con autorización explícita) y `nuclei_allow_intrusive=False`.
+- **Modelos, Migración y API `/api/v1/web-recon`:**
+  - Nuevos modelos `DiscoveredEndpoint`, `WebScanExecution`, `WebOrgPolicy` y migración Alembic `a1b2c3d4e5f6`.
+  - Endpoints protegidos `POST /api/v1/web-recon/scan`, `GET /api/v1/web-recon/endpoints/{organization_id}`, `GET /api/v1/web-recon/summary/{organization_id}` y `GET/PUT /api/v1/web-recon/policy/{organization_id}`.
+  - Panel integrado en `web_dashboard/index.php` dentro de la vista de Exposición/Vulnerabilidades.
+- **Instalador Integral (`install_openrecon.ps1` / `install_openrecon.bat`):**
+  - Instalación automatizada en Windows con el último **XAMPP 8.2 (`ApacheFriends.Xampp.8.2`)**, Python 3.12, `venv`, `requirements.txt`, Alembic, enlace `htdocs\openrecon` y herramientas Go opcionales (`-WithSecurityTools`).
+- **Pruebas y Documentación:**
+  - Nueva suite `tests/integration/test_webcopilot_integration.py` (6/6 OK) y documento técnico `INTEGRACION_WEBCOPILOT_OPENRECON.md`.
+
+---
+
 ## [3.0.0-alpha] — 2026-11-15
 ### 🛡️ Cierre de Deuda Técnica P0/P1/P2, Contrato Único de Hallazgos, Motores Consolidados y Docker Hardened
 
