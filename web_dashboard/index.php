@@ -9,7 +9,7 @@ ensure_fastapi_backend_running(false);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OpenRecon | EASM, DRP, CTI & Attack Surface Management</title>
     <!-- Core Local CSS & Anti-FOUC Foundation (Render-Blocking) -->
-    <link rel="stylesheet" href="assets/css/openrecon-styles.css?v=20261116">
+    <link rel="stylesheet" href="assets/css/openrecon-styles.css?v=20261116b">
     <!-- Local FontAwesome 6.5.1 -->
     <link rel="stylesheet" href="assets/vendor/fontawesome/css/all.min.css">
     <!-- Local Tailwind Engine -->
@@ -547,7 +547,7 @@ ensure_fastapi_backend_running(false);
             <!-- Global Search -->
             <div class="relative w-44 lg:w-52 shrink-0">
                 <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs pointer-events-none"></i>
-                <input id="forti-global-search" type="search" placeholder="Buscar activos, CVEs..." oninput="handleGlobalSearch(this.value)" style="padding-left:2rem;padding-right:3.25rem;" class="forti-input w-full text-xs h-7 rounded" autocomplete="off" />
+                <input id="forti-global-search" type="search" placeholder="Buscar activos, CVEs..." oninput="handleGlobalSearch(this.value)" style="padding-left:2.2rem;padding-right:3.25rem;" class="forti-input w-full text-xs h-7 rounded" autocomplete="off" />
                 <span class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-mono text-slate-500 border border-slate-700 rounded px-1 pointer-events-none">Ctrl+K</span>
             </div>
 

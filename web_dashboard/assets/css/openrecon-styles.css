@@ -111,17 +111,35 @@ html[data-theme="standard"] #forti-topbar {
     color: #ffffff !important;
 }
 
-html[data-theme="standard"] .forti-breadcrumb-bar,
+html[data-theme="standard"] #forti-topbar .forti-input {
+    background-color: #262626 !important;
+    border-color: #555555 !important;
+    color: #ffffff !important;
+}
+
+html[data-theme="standard"] #forti-topbar .forti-input::placeholder {
+    color: #b5b5b5 !important;
+}
+
+html[data-theme="standard"] .forti-breadcrumb-bar {
+    background-color: #f6f6f6 !important;
+    color: #222222 !important;
+    border-bottom: 1px solid #d4d4d4 !important;
+}
+
+html[data-theme="standard"] .forti-breadcrumb-bar .text-slate-400,
+html[data-theme="standard"] .forti-breadcrumb-bar .text-slate-300,
+html[data-theme="standard"] .forti-breadcrumb-bar .text-white {
+    color: #222222 !important;
+}
+
 html[data-theme="standard"] #forti-main-viewport .forti-card-header,
+html[data-theme="standard"] #forti-main-viewport thead,
+html[data-theme="standard"] #forti-main-viewport thead tr,
 html[data-theme="standard"] #forti-main-viewport thead th {
     background-color: #444444 !important;
     color: #ffffff !important;
     border-color: #555555 !important;
-}
-
-html[data-theme="standard"] .forti-breadcrumb-bar .text-slate-400,
-html[data-theme="standard"] .forti-breadcrumb-bar .text-white {
-    color: #f2f2f2 !important;
 }
 
 html[data-theme="standard"] #forti-main-viewport .forti-card,
@@ -130,6 +148,83 @@ html[data-theme="standard"] #forti-main-viewport .bg-black\/30,
 html[data-theme="standard"] #forti-main-viewport .bg-black\/40 {
     background-color: #ffffff !important;
     border-color: #cccccc !important;
+    color: #222222 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .bg-slate-800,
+html[data-theme="standard"] #forti-main-viewport .bg-slate-800\/50,
+html[data-theme="standard"] #forti-main-viewport .bg-slate-800\/80,
+html[data-theme="standard"] #forti-main-viewport .bg-gradient-to-r,
+html[data-theme="standard"] #forti-main-viewport .bg-emerald-950\/30,
+html[data-theme="standard"] #forti-main-viewport .bg-emerald-950\/40,
+html[data-theme="standard"] #forti-main-viewport .bg-cyan-950\/30,
+html[data-theme="standard"] #forti-main-viewport .bg-rose-950\/30,
+html[data-theme="standard"] #forti-main-viewport .bg-amber-950\/30 {
+    background-image: none !important;
+    background-color: #f3f5f4 !important;
+    border-color: #cfdad2 !important;
+    color: #222222 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .bg-emerald-950,
+html[data-theme="standard"] #forti-main-viewport .bg-teal-950 {
+    background-color: #e6f4ea !important;
+    color: #145a14 !important;
+    border-color: #a7d7b4 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .bg-cyan-950,
+html[data-theme="standard"] #forti-main-viewport .bg-sky-950 {
+    background-color: #e0f2fe !important;
+    color: #075985 !important;
+    border-color: #bae6fd !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .bg-rose-950 {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+    border-color: #fecaca !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .bg-amber-950 {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+    border-color: #fde68a !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .text-emerald-400,
+html[data-theme="standard"] #forti-main-viewport .text-emerald-300,
+html[data-theme="standard"] #forti-main-viewport .text-teal-300,
+html[data-theme="standard"] #forti-main-viewport .text-teal-400 {
+    color: #156d15 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .text-cyan-400,
+html[data-theme="standard"] #forti-main-viewport .text-cyan-300,
+html[data-theme="standard"] #forti-main-viewport .text-sky-400 {
+    color: #0369a1 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .text-rose-400,
+html[data-theme="standard"] #forti-main-viewport .text-rose-300 {
+    color: #b91c1c !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .text-amber-400,
+html[data-theme="standard"] #forti-main-viewport .text-amber-300 {
+    color: #b45309 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport .text-purple-400,
+html[data-theme="standard"] #forti-main-viewport .text-purple-300 {
+    color: #6d28d9 !important;
+}
+
+html[data-theme="standard"] #forti-main-viewport input,
+html[data-theme="standard"] #forti-main-viewport select,
+html[data-theme="standard"] #forti-main-viewport textarea {
+    background-color: #ffffff !important;
+    border-color: #c4c4c4 !important;
     color: #222222 !important;
 }
 
